@@ -874,7 +874,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     logAction('DELETE_FEED_CONSUMPTION', 'feed', `Deleted feed consumption record ID ${id}.`);
   };
 
-  const ALL_FEED_TYPES: FeedType[] = ['CSC 1', 'CSC 2', 'CGC', 'PDC', 'BLC 1', 'BLC 2', 'BLC 3', 'BMCC', 'BMCR'];
+  const ALL_FEED_TYPES: FeedType[] = ['CSC 1', 'CSC 2', 'CGC', 'PDC', 'BLC 1', 'BLC 2', 'BLC 3', 'BMCC', 'BMCR', 'CBB'];
 
   const getFeedStockSummary = (): FeedStockSummaryItem[] => {
     return ALL_FEED_TYPES.map(ft => {

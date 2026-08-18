@@ -306,7 +306,8 @@ export const INITIAL_FEED_STOCK: FeedStockEntry[] = [
   { id: 'fs6', feedType: 'BLC 2', bags: 210, kgPerBag: 50, totalKg: 10500, date: '2026-08-14', batchNumber: 'LOT-BLC2-9921', supplier: 'Cargill Animal Nutrition', notes: 'Post-peak maintenance ration', createdAt: '2026-08-14T08:30:00Z' },
   { id: 'fs7', feedType: 'BLC 3', bags: 65, kgPerBag: 50, totalKg: 3250, date: '2026-08-05', batchNumber: 'LOT-BLC3-7710', supplier: 'Cargill Animal Nutrition', notes: 'Late stage breeder ration', createdAt: '2026-08-05T09:00:00Z' },
   { id: 'fs8', feedType: 'BMCC', bags: 95, kgPerBag: 50, totalKg: 4750, date: '2026-08-15', batchNumber: 'LOT-BMCC-1022', supplier: 'NutriFeed Philippines', notes: 'Breeder male clean crumble', createdAt: '2026-08-15T13:00:00Z' },
-  { id: 'fs9', feedType: 'BMCR', bags: 45, kgPerBag: 50, totalKg: 2250, date: '2026-08-15', batchNumber: 'LOT-BMCR-1023', supplier: 'NutriFeed Philippines', notes: 'Breeder male clean ration', createdAt: '2026-08-15T13:30:00Z' }
+  { id: 'fs9', feedType: 'BMCR', bags: 45, kgPerBag: 50, totalKg: 2250, date: '2026-08-15', batchNumber: 'LOT-BMCR-1023', supplier: 'NutriFeed Philippines', notes: 'Breeder male clean ration', createdAt: '2026-08-15T13:30:00Z' },
+  { id: 'fs10', feedType: 'CBB', bags: 120, kgPerBag: 50, totalKg: 6000, date: '2026-08-15', batchNumber: 'LOT-CBB-5510', supplier: 'San Miguel B-MEG Feed Mills', notes: 'Chick Broiler Booster / Starter formula', createdAt: '2026-08-15T14:00:00Z' }
 ];
 
 export const INITIAL_FEED_CONSUMPTION: FeedConsumptionRecord[] = [

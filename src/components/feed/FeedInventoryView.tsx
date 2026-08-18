@@ -359,6 +359,7 @@ export const FeedInventoryView: React.FC = () => {
                   <option value="BLC 3">BLC 3 (Breeder Layer Crumble 3)</option>
                   <option value="BMCC">BMCC (Breeder Male Clean Crumble)</option>
                   <option value="BMCR">BMCR (Breeder Male Clean Ration)</option>
+                  <option value="CBB">CBB (Chick Broiler Booster / Starter)</option>
                 </select>
               </div>
 
@@ -509,7 +510,7 @@ export const FeedInventoryView: React.FC = () => {
                     onChange={e => setConsFeedType(e.target.value as FeedType)}
                     className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-teal-500 outline-hidden bg-white"
                   >
-                    {['CSC 1', 'CSC 2', 'CGC', 'PDC', 'BLC 1', 'BLC 2', 'BLC 3', 'BMCC', 'BMCR'].map(ft => (
+                    {['CSC 1', 'CSC 2', 'CGC', 'PDC', 'BLC 1', 'BLC 2', 'BLC 3', 'BMCC', 'BMCR', 'CBB'].map(ft => (
                       <option key={ft} value={ft}>{ft}</option>
                     ))}
                   </select>

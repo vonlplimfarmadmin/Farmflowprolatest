@@ -470,7 +470,7 @@ export const FlockmanModuleView: React.FC = () => {
                       onChange={e => setFeedType(e.target.value as FeedType)}
                       className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white outline-hidden focus:outline-teal-500"
                     >
-                      {['CSC 1', 'CSC 2', 'CGC', 'PDC', 'BLC 1', 'BLC 2', 'BLC 3', 'BMCC', 'BMCR'].map(ft => (
+                      {['CSC 1', 'CSC 2', 'CGC', 'PDC', 'BLC 1', 'BLC 2', 'BLC 3', 'BMCC', 'BMCR', 'CBB'].map(ft => (
                         <option key={ft} value={ft}>{ft}</option>
                       ))}
                     </select>

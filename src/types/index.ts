@@ -65,7 +65,8 @@ export type FeedType =
   | 'BLC 2'
   | 'BLC 3'
   | 'BMCC'
-  | 'BMCR';
+  | 'BMCR'
+  | 'CBB';
 
 export interface FeedStockEntry {
   id: string;
