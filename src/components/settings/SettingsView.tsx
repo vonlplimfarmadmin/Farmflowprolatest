@@ -18,7 +18,11 @@ import {
   Home,
   CheckCircle2,
   Database,
-  CloudUpload
+  CloudUpload,
+  Smartphone,
+  Monitor,
+  Apple,
+  Sparkles
 } from 'lucide-react';
 import { RoleBadge } from '../common/RoleBadge';
 
@@ -497,6 +501,53 @@ export const SettingsView: React.FC = () => {
                 <Download className="w-4 h-4" />
                 <span>Download Backup File (.JSON)</span>
               </button>
+            </div>
+
+            {/* Cross-Platform App Installation Guide */}
+            <div className="p-6 bg-forest-950 text-white rounded-3xl space-y-4 border border-forest-900 shadow-sm">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-mint-400 font-extrabold text-sm">
+                    <Sparkles className="w-4 h-4" />
+                    <span>Cross-Platform Standalone App Installation</span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed max-w-xl">
+                    Install FarmFlow Pro directly onto your mobile phone, tablet, or desktop computer. Installed apps launch in full-screen standalone mode and can record eggs and feed offline inside poultry houses.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+                <div className="p-3.5 bg-forest-900/80 border border-forest-800 rounded-2xl space-y-1.5">
+                  <div className="flex items-center gap-2 text-mint-300 font-bold text-xs">
+                    <Smartphone className="w-3.5 h-3.5" />
+                    <span>Android (Chrome)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300">
+                    Tap <strong className="text-white">Menu (⋮)</strong> → select <strong className="text-mint-300">"Install App"</strong> or "Add to Home Screen".
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-forest-900/80 border border-forest-800 rounded-2xl space-y-1.5">
+                  <div className="flex items-center gap-2 text-mint-300 font-bold text-xs">
+                    <Apple className="w-3.5 h-3.5" />
+                    <span>iPhone & iPad (Safari)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300">
+                    Tap <strong className="text-white">Share (⎋)</strong> in Safari → scroll down & tap <strong className="text-mint-300">"Add to Home Screen"</strong>.
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-forest-900/80 border border-forest-800 rounded-2xl space-y-1.5">
+                  <div className="flex items-center gap-2 text-mint-300 font-bold text-xs">
+                    <Monitor className="w-3.5 h-3.5" />
+                    <span>Windows / Mac / Linux</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300">
+                    Click the <strong className="text-mint-300">Install icon</strong> in your browser's address bar or the "Install App" button in the top bar.
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="p-5 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3">

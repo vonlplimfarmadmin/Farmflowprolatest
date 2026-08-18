@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useFarm } from '../../context/FarmContext';
 import { RoleBadge } from '../common/RoleBadge';
 import { MongoStatusModal } from '../common/MongoStatusModal';
+import { PWAInstallPrompt } from '../common/PWAInstallPrompt';
 import { 
   Bell, 
   FileSpreadsheet, 
@@ -87,6 +88,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           <span className="mr-1.5 w-1.5 h-1.5 rounded-full bg-mint-500" />
           <span>{todayFormatted}</span>
         </div>
+
+        {/* Universal PWA Install Button */}
+        <PWAInstallPrompt />
 
         {/* MongoDB Status Indicator */}
         <button
