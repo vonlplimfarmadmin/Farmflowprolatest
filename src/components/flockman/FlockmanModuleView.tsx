@@ -173,7 +173,7 @@ export const FlockmanModuleView: React.FC = () => {
                 Active Population: <span className="text-teal-800">{stats.totalCurrent.toLocaleString()} birds</span>
               </h3>
               <p className="text-xs text-slate-500">
-                Current Males: <strong className="text-teal-700">{stats.currentMales}</strong> • Current Females: <strong className="text-rose-700">{stats.currentFemales}</strong> • Livability: <strong className="text-emerald-700">{stats.livabilityPct}%</strong>
+                Age: <strong className="text-teal-900">Week {stats.ageWeeks} (Day {stats.ageDays || 1})</strong> • Current Males: <strong className="text-teal-700">{stats.currentMales}</strong> • Current Females: <strong className="text-rose-700">{stats.currentFemales}</strong> • Livability: <strong className="text-emerald-700">{stats.livabilityPct}%</strong>
               </p>
             </div>
 

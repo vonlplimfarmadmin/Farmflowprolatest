@@ -292,8 +292,8 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
                     </span>
                     <span className="text-xs font-bold text-graphite-800">{flock.breed}</span>
                   </div>
-                  <span className="text-xs font-bold text-forest-800 bg-forest-50 px-2 py-0.5 rounded-md border border-forest-200">
-                    Week {stats.ageWeeks}
+                  <span className="text-xs font-bold text-forest-800 bg-forest-50 px-2 py-0.5 rounded-md border border-forest-200" title={`Loading Date: ${flock.loadingDateFemale || flock.loadingDateMale} (${stats.totalDaysFromLoading || 0} days housed)`}>
+                    Week {stats.ageWeeks} <span className="text-[10px] text-forest-600 font-semibold">(D{stats.ageDays || 1})</span>
                   </span>
                 </div>
 

@@ -36,6 +36,7 @@ import {
   INITIAL_WEEKLY_EGG_WEIGHTS, 
   INITIAL_SYSTEM_LOGS 
 } from '../data/initialData';
+import { calculateFlockAgeFromLoadingDate } from '../utils/dateCalculations';
 
 export interface PermissionCheck {
   canViewModule: (moduleId: string) => boolean;
@@ -66,6 +67,9 @@ export interface FeedStockSummaryItem {
 export interface FlockStats {
   flock: Flock;
   ageWeeks: number;
+  ageDays?: number;
+  totalDaysFromLoading?: number;
+  weekAndDayStr?: string;
   currentMales: number;
   currentFemales: number;
   totalCurrent: number;
@@ -131,7 +135,7 @@ interface FarmContextType {
   addFlock: (flock: Omit<Flock, 'id' | 'currentMales' | 'currentFemales'>) => void;
   updateFlock: (id: string, updates: Partial<Flock>) => void;
   deleteFlock: (id: string) => void;
-  getFlockStats: (houseNumber: string) => FlockStats | null;
+  getFlockStats: (houseNumber: string, referenceDate?: string) => FlockStats | null;
 
   // Feed Inventory
   feedStockEntries: FeedStockEntry[];
@@ -611,11 +615,14 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Flock Methods & Depletion Calculations
-  const getFlockStats = (houseNumber: string): FlockStats | null => {
+  const getFlockStats = (houseNumber: string, referenceDate?: string): FlockStats | null => {
     const flock = flocks.find(f => f.houseNumber === houseNumber);
     if (!flock) return null;
 
-    const ageWeeks = flock.houseNumber === 'House 3' ? 48 : (31 + (flock.houseNumber === 'House 1' ? 3 : flock.houseNumber === 'House 2' ? 2 : flock.houseNumber === 'House 5' ? 1 : 0));
+    // Dynamically calculate flock age from loading date (prefers female loading date, falls back to male or hatch date)
+    const effectiveLoadingDate = flock.loadingDateFemale || flock.loadingDateMale || flock.hatchDate;
+    const ageCalc = calculateFlockAgeFromLoadingDate(effectiveLoadingDate, referenceDate);
+    const ageWeeks = ageCalc.ageWeeks;
 
     const houseDepletions = depletions.filter(d => d.houseNumber === houseNumber);
     const totalMaleDepleted = houseDepletions.reduce((sum, d) => sum + d.maleCount, 0);
@@ -635,6 +642,9 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return {
       flock,
       ageWeeks,
+      ageDays: ageCalc.ageDays,
+      totalDaysFromLoading: ageCalc.totalDaysFromLoading,
+      weekAndDayStr: ageCalc.weekAndDayStr,
       currentMales,
       currentFemales,
       totalCurrent,

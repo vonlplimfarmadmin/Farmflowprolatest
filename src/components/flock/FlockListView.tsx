@@ -102,10 +102,11 @@ export const FlockListView: React.FC = () => {
                 </div>
 
                 <div className="text-right">
-                  <span className="text-xs text-teal-300/70 font-medium">Age in Weeks</span>
-                  <p className="text-xl font-black text-teal-400 leading-none mt-0.5">
-                    Wk {stats.ageWeeks}
+                  <span className="text-[11px] text-teal-300/80 font-medium">Age from Loading</span>
+                  <p className="text-lg font-black text-teal-300 leading-none mt-0.5">
+                    Wk {stats.ageWeeks} <span className="text-xs font-bold text-teal-200/80">(Day {stats.ageDays || 1})</span>
                   </p>
+                  <p className="text-[10px] text-teal-300/60 mt-0.5">{stats.totalDaysFromLoading || 0} total days</p>
                 </div>
               </div>
 
