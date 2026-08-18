@@ -20,7 +20,8 @@ import {
   StandardFeedGuideItem,
   StandardHendayItem,
   StandardBodyWeightItem,
-  StandardEggWeightItem
+  StandardEggWeightItem,
+  BirdTransferRecord
 } from '../types';
 import { 
   INITIAL_FARM_PROFILE, 
@@ -29,6 +30,7 @@ import {
   INITIAL_FEED_STOCK, 
   INITIAL_FEED_CONSUMPTION, 
   INITIAL_DEPLETIONS, 
+  INITIAL_BIRD_TRANSFERS,
   INITIAL_MED_PRODUCTS, 
   INITIAL_MED_ADMIN, 
   INITIAL_BODY_WEIGHTS, 
@@ -130,12 +132,15 @@ interface FarmContextType {
   updateStandardBodyWeights: (weights: StandardBodyWeightItem[]) => void;
   updateStandardEggWeights: (eggWeights: StandardEggWeightItem[]) => void;
 
-  // Flocks
+  // Flocks & Transfers
   flocks: Flock[];
   addFlock: (flock: Omit<Flock, 'id' | 'currentMales' | 'currentFemales'>) => void;
   updateFlock: (id: string, updates: Partial<Flock>) => void;
   deleteFlock: (id: string) => void;
   getFlockStats: (houseNumber: string, referenceDate?: string) => FlockStats | null;
+  transfers: BirdTransferRecord[];
+  addTransfer: (transfer: Omit<BirdTransferRecord, 'id' | 'createdAt' | 'loggedBy'>) => { success: boolean; message: string };
+  deleteTransfer: (id: string, revertCounts?: boolean) => void;
 
   // Feed Inventory
   feedStockEntries: FeedStockEntry[];
@@ -250,6 +255,11 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [depletions, setDepletions] = useState<DepletionRecord[]>(() => {
     const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_depletions`);
     return saved ? JSON.parse(saved) : INITIAL_DEPLETIONS;
+  });
+
+  const [transfers, setTransfers] = useState<BirdTransferRecord[]>(() => {
+    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_transfers`);
+    return saved ? JSON.parse(saved) : INITIAL_BIRD_TRANSFERS;
   });
 
   const [medProducts, setMedProducts] = useState<MedProduct[]>(() => {
@@ -397,6 +407,10 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_depletions`, JSON.stringify(depletions));
   }, [depletions]);
+
+  useEffect(() => {
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_transfers`, JSON.stringify(transfers));
+  }, [transfers]);
 
   useEffect(() => {
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_med_products`, JSON.stringify(medProducts));
@@ -684,6 +698,134 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const target = flocks.find(f => f.id === id);
     setFlocks(prev => prev.filter(f => f.id !== id));
     logAction('DELETE_FLOCK', 'flock', `Deleted flock in ${target?.houseNumber || id}.`, target?.houseNumber);
+  };
+
+  // Inter-House Bird Transfers (Males & Females)
+  const addTransfer = (transfer: Omit<BirdTransferRecord, 'id' | 'createdAt' | 'loggedBy'>): { success: boolean; message: string } => {
+    const { sourceHouse, destHouse, maleCount, femaleCount, sourceSide, sourcePenName, destSide, destPenName, reason, date } = transfer;
+
+    if (sourceHouse === destHouse) {
+      return { success: false, message: 'Source and destination houses cannot be the same.' };
+    }
+
+    if (maleCount <= 0 && femaleCount <= 0) {
+      return { success: false, message: 'Please specify at least 1 male or female bird to transfer.' };
+    }
+
+    const sourceFlock = flocks.find(f => f.houseNumber === sourceHouse);
+    const destFlock = flocks.find(f => f.houseNumber === destHouse);
+
+    if (!sourceFlock || !destFlock) {
+      return { success: false, message: 'Selected source or destination house could not be found.' };
+    }
+
+    if (sourceFlock.currentMales < maleCount) {
+      return { 
+        success: false, 
+        message: `Insufficient males in ${sourceHouse}: requested ${maleCount}, but only ${sourceFlock.currentMales} available.` 
+      };
+    }
+
+    if (sourceFlock.currentFemales < femaleCount) {
+      return { 
+        success: false, 
+        message: `Insufficient females in ${sourceHouse}: requested ${femaleCount}, but only ${sourceFlock.currentFemales} available.` 
+      };
+    }
+
+    // Apply bird population adjustments
+    setFlocks(prev => prev.map(f => {
+      if (f.houseNumber === sourceHouse) {
+        const updatedPens = f.pens?.map(p => {
+          if (sourcePenName && p.name === sourcePenName) {
+            return {
+              ...p,
+              males: Math.max(0, p.males - maleCount),
+              females: Math.max(0, p.females - femaleCount)
+            };
+          }
+          return p;
+        });
+
+        return {
+          ...f,
+          currentMales: Math.max(0, f.currentMales - maleCount),
+          currentFemales: Math.max(0, f.currentFemales - femaleCount),
+          pens: updatedPens || f.pens
+        };
+      }
+
+      if (f.houseNumber === destHouse) {
+        const updatedPens = f.pens?.map(p => {
+          if (destPenName && p.name === destPenName) {
+            return {
+              ...p,
+              males: p.males + maleCount,
+              females: p.females + femaleCount
+            };
+          }
+          return p;
+        });
+
+        return {
+          ...f,
+          currentMales: f.currentMales + maleCount,
+          currentFemales: f.currentFemales + femaleCount,
+          pens: updatedPens || f.pens
+        };
+      }
+
+      return f;
+    }));
+
+    const newTransfer: BirdTransferRecord = {
+      ...transfer,
+      id: 'tr_' + Date.now(),
+      loggedBy: currentUser?.fullName || 'Staff',
+      createdAt: new Date().toISOString()
+    };
+
+    setTransfers(prev => [newTransfer, ...prev]);
+
+    logAction(
+      'LOG_TRANSFER',
+      'flock',
+      `Transferred ${maleCount} males & ${femaleCount} females from ${sourceHouse} to ${destHouse}${reason ? ` (${reason})` : ''}.`,
+      sourceHouse
+    );
+
+    return {
+      success: true,
+      message: `Successfully transferred ${maleCount > 0 ? `${maleCount} males ` : ''}${femaleCount > 0 ? `${femaleCount} females ` : ''}from ${sourceHouse} to ${destHouse}!`
+    };
+  };
+
+  const deleteTransfer = (id: string, revertCounts: boolean = true) => {
+    const target = transfers.find(t => t.id === id);
+    if (!target) return;
+
+    if (revertCounts) {
+      setFlocks(prev => prev.map(f => {
+        if (f.houseNumber === target.sourceHouse) {
+          return {
+            ...f,
+            currentMales: f.currentMales + target.maleCount,
+            currentFemales: f.currentFemales + target.femaleCount
+          };
+        }
+        if (f.houseNumber === target.destHouse) {
+          return {
+            ...f,
+            currentMales: Math.max(0, f.currentMales - target.maleCount),
+            currentFemales: Math.max(0, f.currentFemales - target.femaleCount)
+          };
+        }
+        return f;
+      }));
+    }
+
+    setTransfers(prev => prev.filter(t => t.id !== id));
+    logAction('DELETE_TRANSFER', 'flock', `Deleted transfer record ${target.sourceHouse} -> ${target.destHouse} (${target.maleCount}M, ${target.femaleCount}F).`);
   };
 
   // Feed Inventory Methods
@@ -1058,6 +1200,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setFeedStockEntries(INITIAL_FEED_STOCK);
     setFeedConsumptionRecords(INITIAL_FEED_CONSUMPTION);
     setDepletions(INITIAL_DEPLETIONS);
+    setTransfers(INITIAL_BIRD_TRANSFERS);
     setMedProducts(INITIAL_MED_PRODUCTS);
     setMedAdministrations(INITIAL_MED_ADMIN);
     setBodyWeights(INITIAL_BODY_WEIGHTS);
@@ -1100,6 +1243,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setFeedStockEntries([]);
     setFeedConsumptionRecords([]);
     setDepletions([]);
+    setTransfers([]);
     setMedAdministrations([]);
     setBodyWeights([]);
 
@@ -1145,6 +1289,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       feedStockEntries,
       feedConsumptionRecords,
       depletions,
+      transfers,
       medProducts,
       medAdministrations,
       bodyWeights,
@@ -1164,6 +1309,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (data.feedStockEntries) setFeedStockEntries(data.feedStockEntries);
       if (data.feedConsumptionRecords) setFeedConsumptionRecords(data.feedConsumptionRecords);
       if (data.depletions) setDepletions(data.depletions);
+      if (data.transfers) setTransfers(data.transfers);
       if (data.medProducts) setMedProducts(data.medProducts);
       if (data.medAdministrations) setMedAdministrations(data.medAdministrations);
       if (data.bodyWeights) setBodyWeights(data.bodyWeights);
@@ -1269,6 +1415,9 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         updateFlock,
         deleteFlock,
         getFlockStats,
+        transfers,
+        addTransfer,
+        deleteTransfer,
 
         feedStockEntries,
         feedConsumptionRecords,

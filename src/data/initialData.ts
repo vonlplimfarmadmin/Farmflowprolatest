@@ -10,6 +10,7 @@ import {
   WeeklyEggWeightRecord,
   UserAccount,
   DepletionRecord,
+  BirdTransferRecord,
   SystemLog
 } from '../types';
 
@@ -330,6 +331,39 @@ export const INITIAL_DEPLETIONS: DepletionRecord[] = [
   { id: 'dep4', houseNumber: 'House 3', date: '2026-08-16', side: 'Right', penName: 'Pen R1', category: 'Spot Cull', maleCount: 1, femaleCount: 4, sourceModule: 'mortality_mgmt', reasonDetails: 'Overweight non-mating male + poor feathers', loggedBy: 'Ramon De Jesus', createdAt: '2026-08-16T14:30:00Z' },
   { id: 'dep5', houseNumber: 'House 4', date: '2026-08-16', side: 'Left', penName: 'Pen L1', category: 'Mortality', maleCount: 1, femaleCount: 2, sourceModule: 'flockman', reasonDetails: 'Morning check', loggedBy: 'Eduardo Santos', createdAt: '2026-08-16T08:00:00Z' },
   { id: 'dep6', houseNumber: 'House 5', date: '2026-08-16', side: 'Right', penName: 'Pen R1', category: 'Missex', maleCount: 0, femaleCount: 1, sourceModule: 'mortality_mgmt', reasonDetails: 'Late sexing correction', loggedBy: 'Eduardo Santos', createdAt: '2026-08-16T15:00:00Z' }
+];
+
+export const INITIAL_BIRD_TRANSFERS: BirdTransferRecord[] = [
+  {
+    id: 'tr1',
+    date: '2026-08-14',
+    sourceHouse: 'House 6',
+    sourceSide: 'Left',
+    sourcePenName: 'Pen L1',
+    destHouse: 'House 1',
+    destSide: 'Left',
+    destPenName: 'Pen L1',
+    maleCount: 15,
+    femaleCount: 0,
+    reason: 'Spiking young active males to boost mating ratio',
+    loggedBy: 'Joel Bautista',
+    createdAt: '2026-08-14T10:30:00Z'
+  },
+  {
+    id: 'tr2',
+    date: '2026-08-10',
+    sourceHouse: 'House 2',
+    sourceSide: 'Right',
+    sourcePenName: 'Pen R2',
+    destHouse: 'House 3',
+    destSide: 'Left',
+    destPenName: 'Pen L1',
+    maleCount: 5,
+    femaleCount: 25,
+    reason: 'Flock density balancing and ratio normalization',
+    loggedBy: 'Eduardo Santos',
+    createdAt: '2026-08-10T14:00:00Z'
+  }
 ];
 
 export const INITIAL_MED_PRODUCTS: MedProduct[] = [

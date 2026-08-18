@@ -111,6 +111,22 @@ export interface DepletionRecord {
   createdAt: string;
 }
 
+export interface BirdTransferRecord {
+  id: string;
+  date: string;
+  sourceHouse: string;
+  sourceSide?: 'Left' | 'Right';
+  sourcePenName?: string;
+  destHouse: string;
+  destSide?: 'Left' | 'Right';
+  destPenName?: string;
+  maleCount: number;
+  femaleCount: number;
+  reason?: string;
+  loggedBy: string;
+  createdAt: string;
+}
+
 export type ProductType = 
   | 'Vaccine'
   | 'Medicine'

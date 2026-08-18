@@ -12,7 +12,13 @@ import {
   Info,
   Calendar,
   Layers,
-  ArrowRight
+  ArrowRight,
+  ArrowLeftRight,
+  Sparkles,
+  History,
+  Trash2,
+  Check,
+  RotateCcw
 } from 'lucide-react';
 
 export const FlockmanModuleView: React.FC = () => {
@@ -23,6 +29,9 @@ export const FlockmanModuleView: React.FC = () => {
     feedStockEntries, 
     addFeedConsumption, 
     addDepletion, 
+    transfers,
+    addTransfer,
+    deleteTransfer,
     farmProfile,
     currentUser,
     permissions 
@@ -35,6 +44,7 @@ export const FlockmanModuleView: React.FC = () => {
     return 'House 1';
   });
 
+  const [activeTab, setActiveTab] = useState<'daily_ops' | 'transfer_station' | 'transfer_history'>('daily_ops');
   const [activeSide, setActiveSide] = useState<'Left' | 'Right'>('Left');
 
   // Pen Adding Modal
@@ -57,6 +67,21 @@ export const FlockmanModuleView: React.FC = () => {
   const [mortNotes, setMortNotes] = useState('Morning flockman inspection');
   const [mortSuccess, setMortSuccess] = useState(false);
 
+  // Inter-House Bird Transfer State
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferSourceHouse, setTransferSourceHouse] = useState<string>(selectedHouse);
+  const [transferDestHouse, setTransferDestHouse] = useState<string>(() => {
+    const other = flocks.find(f => f.houseNumber !== selectedHouse);
+    return other ? other.houseNumber : 'House 2';
+  });
+  const [transferSourceSide, setTransferSourceSide] = useState<'Left' | 'Right' | 'All'>('All');
+  const [transferDestSide, setTransferDestSide] = useState<'Left' | 'Right' | 'All'>('All');
+  const [transferMales, setTransferMales] = useState<number>(10);
+  const [transferFemales, setTransferFemales] = useState<number>(0);
+  const [transferDate, setTransferDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [transferReason, setTransferReason] = useState<string>('Spiking young active males to boost mating ratio');
+  const [transferFeedback, setTransferFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
   const activeFlock = flocks.find(f => f.houseNumber === selectedHouse) || flocks[0];
   const stats = activeFlock ? getFlockStats(activeFlock.houseNumber) : null;
 
@@ -70,6 +95,28 @@ export const FlockmanModuleView: React.FC = () => {
   const beginningStock = feedStockEntries
     .filter(e => e.feedType === feedType)
     .reduce((sum, e) => sum + e.totalKg, 0);
+
+  // Transfer Calculation Helpers
+  const sourceFlockObj = flocks.find(f => f.houseNumber === transferSourceHouse) || activeFlock;
+  const destFlockObj = flocks.find(f => f.houseNumber === transferDestHouse);
+
+  const sourceStats = sourceFlockObj ? getFlockStats(sourceFlockObj.houseNumber) : null;
+  const destStats = destFlockObj ? getFlockStats(destFlockObj.houseNumber) : null;
+
+  // Projected numbers after transfer
+  const projectedSourceMales = Math.max(0, (sourceStats?.currentMales || 0) - transferMales);
+  const projectedSourceFemales = Math.max(0, (sourceStats?.currentFemales || 0) - transferFemales);
+  const projectedSourceRatio = projectedSourceMales > 0 ? (projectedSourceFemales / projectedSourceMales).toFixed(1) : '0';
+
+  const projectedDestMales = (destStats?.currentMales || 0) + transferMales;
+  const projectedDestFemales = (destStats?.currentFemales || 0) + transferFemales;
+  const projectedDestRatio = projectedDestMales > 0 ? (projectedDestFemales / projectedDestMales).toFixed(1) : '0';
+
+  const isTransferValid = 
+    transferSourceHouse !== transferDestHouse &&
+    (transferMales > 0 || transferFemales > 0) &&
+    transferMales <= (sourceStats?.currentMales || 0) &&
+    transferFemales <= (sourceStats?.currentFemales || 0);
 
   const handleAddPen = (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,7 +174,36 @@ export const FlockmanModuleView: React.FC = () => {
     setTimeout(() => setMortSuccess(false), 2500);
   };
 
+  const handleExecuteTransfer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isTransferValid) return;
+
+    const res = addTransfer({
+      date: transferDate,
+      sourceHouse: transferSourceHouse,
+      sourceSide: transferSourceSide === 'All' ? undefined : transferSourceSide,
+      destHouse: transferDestHouse,
+      destSide: transferDestSide === 'All' ? undefined : transferDestSide,
+      maleCount: Number(transferMales),
+      femaleCount: Number(transferFemales),
+      reason: transferReason.trim()
+    });
+
+    if (res.success) {
+      setTransferFeedback({ type: 'success', message: res.message });
+      setShowTransferModal(false);
+      setTimeout(() => setTransferFeedback(null), 4000);
+    } else {
+      setTransferFeedback({ type: 'error', message: res.message });
+    }
+  };
+
   const canEditHouse = permissions.canRecordFlockmanModule(selectedHouse);
+
+  // House-specific transfers (either source or destination)
+  const houseTransfers = transfers.filter(
+    t => t.sourceHouse === selectedHouse || t.destHouse === selectedHouse
+  );
 
   return (
     <div className="space-y-6">
@@ -138,302 +214,986 @@ export const FlockmanModuleView: React.FC = () => {
             <Grid2X2 className="w-4 h-4" />
             <span>Daily Operations Module</span>
           </div>
-          <h2 className="text-xl font-bold text-slate-900">Flockman's Pen & Feeding Station</h2>
+          <h2 className="text-xl font-bold text-slate-900">Flockman's Pen, Feeding & Transfer Station</h2>
           <p className="text-xs text-slate-500 mt-1">
-            Manage pen counts, side-by-side feed rations, and pen-level mortality.
+            Manage pen counts, side-by-side feed rations, pen-level mortality, and inter-house male/female transfers.
           </p>
         </div>
 
-        {/* House Switcher */}
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-bold text-slate-700">Select House:</label>
-          <select
-            value={selectedHouse}
-            onChange={e => setSelectedHouse(e.target.value)}
-            className="px-3.5 py-2.5 text-xs font-bold border border-slate-200 rounded-xl bg-white focus:outline-teal-500 outline-hidden"
+        {/* Right Action Group */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Quick Bird Transfer Button */}
+          <button
+            onClick={() => {
+              setTransferSourceHouse(selectedHouse);
+              const other = flocks.find(f => f.houseNumber !== selectedHouse);
+              if (other) setTransferDestHouse(other.houseNumber);
+              setShowTransferModal(true);
+            }}
+            className="px-3.5 py-2.5 bg-teal-800 hover:bg-teal-900 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
           >
-            {flocks.map(f => (
-              <option key={f.id} value={f.houseNumber}>
-                {f.houseNumber} ({f.breed} - Wk {getFlockStats(f.houseNumber)?.ageWeeks || 0})
-              </option>
-            ))}
-          </select>
+            <ArrowLeftRight className="w-4 h-4 text-teal-300" />
+            <span>Transfer Birds to Other House</span>
+          </button>
+
+          {/* House Switcher */}
+          <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+            <label className="text-xs font-bold text-slate-700">House:</label>
+            <select
+              value={selectedHouse}
+              onChange={e => {
+                setSelectedHouse(e.target.value);
+                setTransferSourceHouse(e.target.value);
+              }}
+              className="px-2.5 py-1 text-xs font-bold border-0 bg-transparent focus:outline-hidden text-teal-900 cursor-pointer"
+            >
+              {flocks.map(f => (
+                <option key={f.id} value={f.houseNumber}>
+                  {f.houseNumber} ({f.breed} - Wk {getFlockStats(f.houseNumber)?.ageWeeks || 0})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
-      {/* Population & Side Toggle Card */}
-      {activeFlock && stats && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <span className="px-2.5 py-1 rounded-lg bg-teal-600 text-white font-black text-xs">
-                {activeFlock.houseNumber}
-              </span>
-              <h3 className="text-base font-bold text-slate-900 mt-1">
-                Active Population: <span className="text-teal-800">{stats.totalCurrent.toLocaleString()} birds</span>
-              </h3>
-              <p className="text-xs text-slate-500">
-                Age: <strong className="text-teal-900">Week {stats.ageWeeks} (Day {stats.ageDays || 1})</strong> • Current Males: <strong className="text-teal-700">{stats.currentMales}</strong> • Current Females: <strong className="text-rose-700">{stats.currentFemales}</strong> • Livability: <strong className="text-emerald-700">{stats.livabilityPct}%</strong>
-              </p>
-            </div>
-
-            {/* Side Tabs (Left vs Right) */}
-            <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200 self-start">
-              <button
-                onClick={() => setActiveSide('Left')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition ${
-                  activeSide === 'Left'
-                    ? 'bg-teal-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                LEFT SIDE
-              </button>
-              <button
-                onClick={() => setActiveSide('Right')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition ${
-                  activeSide === 'Right'
-                    ? 'bg-teal-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                RIGHT SIDE
-              </button>
-            </div>
-          </div>
-
-          {/* Side Pens List */}
-          <div className="pt-2 border-t border-slate-100">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-slate-400" />
-                <span>Pens in {activeSide} Side ({sidePens.length} Pens)</span>
-              </h4>
-
-              {permissions.canRecordFlockmanModule(selectedHouse) && (
-                <button
-                  onClick={() => {
-                    setNewPenSide(activeSide);
-                    setNewPenName(`Pen ${activeSide[0]}${sidePens.length + 1}`);
-                    setShowAddPenModal(true);
-                  }}
-                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>Add Pen</span>
-                </button>
-              )}
-            </div>
-
-            {sidePens.length === 0 ? (
-              <p className="text-xs text-slate-400 italic py-2">No pens configured for this side yet.</p>
+      {/* Global Feedback Banner */}
+      {transferFeedback && (
+        <div
+          className={`p-4 rounded-2xl border flex items-center justify-between text-xs font-bold animate-fadeIn ${
+            transferFeedback.type === 'success'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              : 'bg-rose-50 border-rose-200 text-rose-900'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {transferFeedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                {sidePens.map(pen => (
-                  <div
-                    key={pen.id}
-                    className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-1"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-xs text-slate-900">{pen.name}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-white font-medium text-slate-500 border border-slate-200">
-                        {pen.side} Side
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-                      <div>
-                        <span className="text-[10px] text-teal-700 block font-medium">Males</span>
-                        <span className="font-bold text-teal-950">{pen.males}</span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-rose-600 block font-medium">Females</span>
-                        <span className="font-bold text-rose-950">{pen.females}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
             )}
+            <span>{transferFeedback.message}</span>
+          </div>
+          <button onClick={() => setTransferFeedback(null)} className="text-slate-400 hover:text-slate-700">
+            &times;
+          </button>
+        </div>
+      )}
+
+      {/* Sub-Navigation Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+        <button
+          onClick={() => setActiveTab('daily_ops')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+            activeTab === 'daily_ops'
+              ? 'bg-teal-900 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          <Grid2X2 className="w-3.5 h-3.5" />
+          <span>Pens, Feeding & Mortality</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setTransferSourceHouse(selectedHouse);
+            const other = flocks.find(f => f.houseNumber !== selectedHouse);
+            if (other) setTransferDestHouse(other.houseNumber);
+            setActiveTab('transfer_station');
+          }}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+            activeTab === 'transfer_station'
+              ? 'bg-teal-900 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          <ArrowLeftRight className="w-3.5 h-3.5 text-teal-400" />
+          <span>Inter-House Transfer Station</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('transfer_history')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+            activeTab === 'transfer_history'
+              ? 'bg-teal-900 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          <History className="w-3.5 h-3.5 text-amber-500" />
+          <span>Transfer Logs ({transfers.length})</span>
+        </button>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* TAB 1: DAILY OPERATIONS (FEED, PENS, MORTALITY)                           */}
+      {/* ========================================================================= */}
+      {activeTab === 'daily_ops' && (
+        <div className="space-y-6 animate-fadeIn">
+          {/* Population & Side Toggle Card */}
+          {activeFlock && stats && (
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-lg bg-teal-600 text-white font-black text-xs">
+                      {activeFlock.houseNumber}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-teal-100 text-teal-800 text-[11px] font-bold">
+                      {activeFlock.breed}
+                    </span>
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 mt-1">
+                    Active Population: <span className="text-teal-800">{stats.totalCurrent.toLocaleString()} birds</span>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Age: <strong className="text-teal-900">Week {stats.ageWeeks} (Day {stats.ageDays || 1})</strong> • Males: <strong className="text-teal-700">{stats.currentMales.toLocaleString()}</strong> • Females: <strong className="text-rose-700">{stats.currentFemales.toLocaleString()}</strong> • Ratio: <strong className="text-purple-700">{stats.maleToFemaleRatioStr}</strong> • Livability: <strong className="text-emerald-700">{stats.livabilityPct}%</strong>
+                  </p>
+                </div>
+
+                {/* Side Tabs (Left vs Right) */}
+                <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200 self-start">
+                  <button
+                    onClick={() => setActiveSide('Left')}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold transition ${
+                      activeSide === 'Left'
+                        ? 'bg-teal-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    LEFT SIDE
+                  </button>
+                  <button
+                    onClick={() => setActiveSide('Right')}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold transition ${
+                      activeSide === 'Right'
+                        ? 'bg-teal-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    RIGHT SIDE
+                  </button>
+                </div>
+              </div>
+
+              {/* Side Pens List */}
+              <div className="pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Pens in {activeSide} Side ({sidePens.length} Pens)</span>
+                  </h4>
+
+                  {permissions.canRecordFlockmanModule(selectedHouse) && (
+                    <button
+                      onClick={() => {
+                        setNewPenSide(activeSide);
+                        setNewPenName(`Pen ${activeSide[0]}${sidePens.length + 1}`);
+                        setShowAddPenModal(true);
+                      }}
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Add Pen</span>
+                    </button>
+                  )}
+                </div>
+
+                {sidePens.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic py-2">No pens configured for this side yet.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                    {sidePens.map(pen => (
+                      <div
+                        key={pen.id}
+                        className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-1"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-slate-900">{pen.name}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-white font-medium text-slate-500 border border-slate-200">
+                            {pen.side} Side
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                          <div>
+                            <span className="text-[10px] text-teal-700 block font-medium">Males</span>
+                            <span className="font-bold text-teal-950">{pen.males}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-rose-600 block font-medium">Females</span>
+                            <span className="font-bold text-rose-950">{pen.females}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Two Action Panels: Feed Intake vs Side Mortality Logger */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Panel 1: Feed Consumption Logger */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Wheat className="w-4 h-4 text-teal-600" />
+                  <span>Feed Consumption ({activeSide} Side)</span>
+                </h3>
+                {feedSuccess && (
+                  <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Logged
+                  </span>
+                )}
+              </div>
+
+              {/* Reference Info Card */}
+              <div className="p-3 bg-teal-50/70 border border-teal-200/80 rounded-2xl text-xs space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600">Beginning Total Stock ({feedType}):</span>
+                  <strong className="text-teal-950">{beginningStock.toLocaleString()} kg</strong>
+                </div>
+                {feedGuideItem && (
+                  <div className="flex items-center justify-between text-teal-900">
+                    <span>Standard Feed Guide Target:</span>
+                    <strong>{feedGuideItem.femaleGramsPerBird} g/female/day • {feedGuideItem.recommendedFeedType}</strong>
+                  </div>
+                )}
+              </div>
+
+              <form onSubmit={handleLogFeed} className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Feed Type *</label>
+                    <select
+                      value={feedType}
+                      onChange={e => setFeedType(e.target.value as FeedType)}
+                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white outline-hidden focus:outline-teal-500"
+                    >
+                      {['CSC 1', 'CSC 2', 'CGC', 'PDC', 'BLC 1', 'BLC 2', 'BLC 3', 'BMCC', 'BMCR'].map(ft => (
+                        <option key={ft} value={ft}>{ft}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Feeding Date</label>
+                    <input
+                      type="date"
+                      required
+                      value={feedDate}
+                      onChange={e => setFeedDate(e.target.value)}
+                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Feed Intake in Kilograms (kg) *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={feedKg}
+                    onChange={e => setFeedKg(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500 font-bold"
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Equivalent to <strong>{(feedKg / 50).toFixed(1)} bags</strong> (50kg bags)
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!canEditHouse}
+                  className={`w-full py-2.5 rounded-xl text-xs font-bold text-white transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer ${
+                    canEditHouse
+                      ? 'bg-teal-600 hover:bg-teal-700'
+                      : 'bg-slate-300 cursor-not-allowed text-slate-500'
+                  }`}
+                >
+                  <Wheat className="w-4 h-4" />
+                  <span>Record {activeSide} Side Feed Consumption</span>
+                </button>
+              </form>
+            </div>
+
+            {/* Panel 2: Pen Mortality Logger */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Skull className="w-4 h-4 text-rose-600" />
+                  <span>Log Mortality ({activeSide} Side / Pen)</span>
+                </h3>
+                {mortSuccess && (
+                  <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Recorded
+                  </span>
+                )}
+              </div>
+
+              <form onSubmit={handleLogMortality} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Select Pen *</label>
+                  <select
+                    value={selectedPenName}
+                    onChange={e => setSelectedPenName(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white outline-hidden focus:outline-teal-500"
+                  >
+                    {sidePens.map(p => (
+                      <option key={p.id} value={p.name}>
+                        {p.name} ({p.side} Side)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Dead Males</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={mortMales}
+                      onChange={e => setMortMales(Number(e.target.value))}
+                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500 font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Dead Females</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={mortFemales}
+                      onChange={e => setMortFemales(Number(e.target.value))}
+                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl outline-hidden focus:outline-rose-500 font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Inspection Notes / Symptoms</label>
+                  <input
+                    type="text"
+                    value={mortNotes}
+                    onChange={e => setMortNotes(e.target.value)}
+                    placeholder="e.g. Found under slats during morning walk"
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!canEditHouse}
+                  className={`w-full py-2.5 rounded-xl text-xs font-bold text-white transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer ${
+                    canEditHouse
+                      ? 'bg-rose-600 hover:bg-rose-700'
+                      : 'bg-slate-300 cursor-not-allowed text-slate-500'
+                  }`}
+                >
+                  <Skull className="w-4 h-4" />
+                  <span>Record Pen Mortality</span>
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Two Action Panels: Feed Intake vs Side Mortality Logger */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Panel 1: Feed Consumption Logger */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Wheat className="w-4 h-4 text-teal-600" />
-              <span>Feed Consumption ({activeSide} Side)</span>
-            </h3>
-            {feedSuccess && (
-              <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> Logged
-              </span>
-            )}
-          </div>
+      {/* ========================================================================= */}
+      {/* TAB 2: INTER-HOUSE BIRD TRANSFER STATION (FOR BOTH MALE AND FEMALE)       */}
+      {/* ========================================================================= */}
+      {activeTab === 'transfer_station' && (
+        <div className="space-y-6 animate-fadeIn">
+          {/* Main Transfer Form Card */}
+          <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <ArrowLeftRight className="w-5 h-5 text-teal-600" />
+                  <span>Inter-House Bird Movement (Male & Female)</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Transfer active parent stock birds between production houses for ratio rebalancing, spiking males, or pen balancing.
+                </p>
+              </div>
 
-          {/* Reference Info Card */}
-          <div className="p-3 bg-teal-50/70 border border-teal-200/80 rounded-2xl text-xs space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-slate-600">Beginning Total Stock ({feedType}):</span>
-              <strong className="text-teal-950">{beginningStock.toLocaleString()} kg</strong>
+              <div className="flex items-center gap-2 text-xs font-bold text-teal-800 bg-teal-50 px-3 py-1.5 rounded-xl border border-teal-200">
+                <Sparkles className="w-4 h-4 text-teal-600" />
+                <span>Live Impact Simulation Enabled</span>
+              </div>
             </div>
-            {feedGuideItem && (
-              <div className="flex items-center justify-between text-teal-900">
-                <span>Standard Feed Guide Target:</span>
-                <strong>{feedGuideItem.femaleGramsPerBird} g/female/day • {feedGuideItem.recommendedFeedType}</strong>
+
+            <form onSubmit={handleExecuteTransfer} className="space-y-6">
+              {/* House Route Selection: From House -> To House */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-slate-50/80 rounded-2xl border border-slate-200/80">
+                {/* Source House Card */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase tracking-wider text-rose-700 flex items-center gap-1.5">
+                      <span>1. FROM (Source House)</span>
+                    </span>
+                    {sourceStats && (
+                      <span className="text-[11px] font-bold text-slate-600">
+                        {sourceStats.flock.breed} • Wk {sourceStats.ageWeeks}
+                      </span>
+                    )}
+                  </div>
+
+                  <select
+                    value={transferSourceHouse}
+                    onChange={e => {
+                      setTransferSourceHouse(e.target.value);
+                      if (e.target.value === transferDestHouse) {
+                        const other = flocks.find(f => f.houseNumber !== e.target.value);
+                        if (other) setTransferDestHouse(other.houseNumber);
+                      }
+                    }}
+                    className="w-full px-3.5 py-2.5 text-sm font-bold border border-slate-300 rounded-xl bg-white focus:outline-teal-500"
+                  >
+                    {flocks.map(f => (
+                      <option key={f.id} value={f.houseNumber}>
+                        {f.houseNumber} ({f.currentMales}M / {f.currentFemales}F)
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Available stock in source */}
+                  {sourceStats && (
+                    <div className="grid grid-cols-2 gap-2 p-2.5 bg-white rounded-xl border border-slate-200 text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">Available Males:</span>
+                        <strong className="text-teal-900 font-black text-sm">{sourceStats.currentMales.toLocaleString()}</strong>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">Available Females:</span>
+                        <strong className="text-rose-900 font-black text-sm">{sourceStats.currentFemales.toLocaleString()}</strong>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Destination House Card */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
+                      <span>2. TO (Destination House)</span>
+                    </span>
+                    {destStats && (
+                      <span className="text-[11px] font-bold text-slate-600">
+                        {destStats.flock.breed} • Wk {destStats.ageWeeks}
+                      </span>
+                    )}
+                  </div>
+
+                  <select
+                    value={transferDestHouse}
+                    onChange={e => setTransferDestHouse(e.target.value)}
+                    className="w-full px-3.5 py-2.5 text-sm font-bold border border-slate-300 rounded-xl bg-white focus:outline-teal-500"
+                  >
+                    {flocks
+                      .filter(f => f.houseNumber !== transferSourceHouse)
+                      .map(f => (
+                        <option key={f.id} value={f.houseNumber}>
+                          {f.houseNumber} ({f.currentMales}M / {f.currentFemales}F)
+                        </option>
+                      ))}
+                  </select>
+
+                  {/* Available stock in dest */}
+                  {destStats && (
+                    <div className="grid grid-cols-2 gap-2 p-2.5 bg-white rounded-xl border border-slate-200 text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">Current Males:</span>
+                        <strong className="text-teal-900 font-black text-sm">{destStats.currentMales.toLocaleString()}</strong>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">Current Females:</span>
+                        <strong className="text-rose-900 font-black text-sm">{destStats.currentFemales.toLocaleString()}</strong>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
+
+              {/* Bird Counts & Quick Preset Helpers */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Male Transfer Input */}
+                <div className="p-4 bg-teal-50/60 border border-teal-200 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-teal-950 flex items-center gap-1.5">
+                      <span>Male Birds to Transfer</span>
+                    </label>
+                    <span className="text-[11px] font-semibold text-teal-700">
+                      Max: {sourceStats?.currentMales || 0}
+                    </span>
+                  </div>
+
+                  <input
+                    type="number"
+                    min="0"
+                    max={sourceStats?.currentMales || 9999}
+                    value={transferMales}
+                    onChange={e => setTransferMales(Math.max(0, Number(e.target.value)))}
+                    className="w-full px-3.5 py-2.5 text-base font-black border border-teal-300 rounded-xl bg-white focus:outline-teal-600 text-teal-950"
+                  />
+
+                  {/* Quick Male Presets */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    {[5, 10, 15, 20, 50].map(amt => (
+                      <button
+                        type="button"
+                        key={amt}
+                        onClick={() => setTransferMales(amt)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer ${
+                          transferMales === amt
+                            ? 'bg-teal-700 text-white border-teal-700'
+                            : 'bg-white text-teal-800 border-teal-200 hover:bg-teal-100'
+                        }`}
+                      >
+                        +{amt} M
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setTransferMales(0)}
+                      className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white text-slate-500 border border-slate-200 hover:bg-slate-100 cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                {/* Female Transfer Input */}
+                <div className="p-4 bg-rose-50/60 border border-rose-200 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-rose-950 flex items-center gap-1.5">
+                      <span>Female Birds to Transfer</span>
+                    </label>
+                    <span className="text-[11px] font-semibold text-rose-700">
+                      Max: {sourceStats?.currentFemales || 0}
+                    </span>
+                  </div>
+
+                  <input
+                    type="number"
+                    min="0"
+                    max={sourceStats?.currentFemales || 99999}
+                    value={transferFemales}
+                    onChange={e => setTransferFemales(Math.max(0, Number(e.target.value)))}
+                    className="w-full px-3.5 py-2.5 text-base font-black border border-rose-300 rounded-xl bg-white focus:outline-rose-600 text-rose-950"
+                  />
+
+                  {/* Quick Female Presets */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    {[25, 50, 100, 250, 500].map(amt => (
+                      <button
+                        type="button"
+                        key={amt}
+                        onClick={() => setTransferFemales(amt)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer ${
+                          transferFemales === amt
+                            ? 'bg-rose-700 text-white border-rose-700'
+                            : 'bg-white text-rose-800 border-rose-200 hover:bg-rose-100'
+                        }`}
+                      >
+                        +{amt} F
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setTransferFemales(0)}
+                      className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white text-slate-500 border border-slate-200 hover:bg-slate-100 cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Date & Reason */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Transfer Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={transferDate}
+                    onChange={e => setTransferDate(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-teal-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Transfer Reason / Operational Purpose</label>
+                  <input
+                    type="text"
+                    value={transferReason}
+                    onChange={e => setTransferReason(e.target.value)}
+                    placeholder="e.g. Spiking young active males to boost mating ratio"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-teal-500"
+                  />
+                </div>
+              </div>
+
+              {/* Quick Reason Suggestions */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] text-slate-400 font-medium">Presets:</span>
+                {[
+                  'Spiking young active males to boost mating ratio',
+                  'Mating ratio rebalancing & pen adjustment',
+                  'Flock density balancing across houses',
+                  'Late cycle male spike rotation',
+                  'Consolidation for shed maintenance'
+                ].map(preset => (
+                  <button
+                    type="button"
+                    key={preset}
+                    onClick={() => setTransferReason(preset)}
+                    className="px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 transition cursor-pointer"
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+
+              {/* Projected Outcome Simulator */}
+              <div className="p-4 bg-gradient-to-br from-teal-900 to-slate-900 text-white rounded-2xl space-y-3">
+                <div className="flex items-center justify-between border-b border-teal-800/60 pb-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-teal-300 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Projected Flock Statistics After Transfer</span>
+                  </span>
+                  <span className="text-[11px] text-teal-200">
+                    Total Moving: <strong>{(transferMales + transferFemales).toLocaleString()} birds</strong>
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                  {/* Source Projected */}
+                  <div className="p-3 bg-white/10 rounded-xl border border-white/10 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <strong className="text-rose-300 font-bold">{transferSourceHouse} (Source)</strong>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-900/60 text-rose-200 font-bold">
+                        -{(transferMales + transferFemales)} Birds
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-300 space-y-0.5">
+                      <p>Males: {sourceStats?.currentMales} &rarr; <strong className="text-white">{projectedSourceMales}</strong></p>
+                      <p>Females: {sourceStats?.currentFemales} &rarr; <strong className="text-white">{projectedSourceFemales}</strong></p>
+                      <p>New M:F Ratio: <strong className="text-teal-200">1 : {projectedSourceRatio}</strong></p>
+                    </div>
+                  </div>
+
+                  {/* Destination Projected */}
+                  <div className="p-3 bg-white/10 rounded-xl border border-white/10 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <strong className="text-emerald-300 font-bold">{transferDestHouse} (Destination)</strong>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/60 text-emerald-200 font-bold">
+                        +{(transferMales + transferFemales)} Birds
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-300 space-y-0.5">
+                      <p>Males: {destStats?.currentMales} &rarr; <strong className="text-white">{projectedDestMales}</strong></p>
+                      <p>Females: {destStats?.currentFemales} &rarr; <strong className="text-white">{projectedDestFemales}</strong></p>
+                      <p>New M:F Ratio: <strong className="text-teal-200">1 : {projectedDestRatio}</strong></p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={!isTransferValid}
+                className={`w-full py-3.5 rounded-2xl text-xs font-black uppercase tracking-wider text-white transition flex items-center justify-center gap-2 shadow-md cursor-pointer ${
+                  isTransferValid
+                    ? 'bg-teal-600 hover:bg-teal-700'
+                    : 'bg-slate-300 cursor-not-allowed text-slate-500'
+                }`}
+              >
+                <ArrowLeftRight className="w-4 h-4" />
+                <span>Execute Transfer ({transferMales} Males &amp; {transferFemales} Females)</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 3: TRANSFER HISTORY LOGS TABLE                                       */}
+      {/* ========================================================================= */}
+      {activeTab === 'transfer_history' && (
+        <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-4 animate-fadeIn">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <History className="w-4 h-4 text-teal-600" />
+                <span>Inter-House Bird Movement Audit History</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Full chronological record of parent stock transfers across houses.
+              </p>
+            </div>
+
+            <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-xl">
+              {transfers.length} Recorded Movement{transfers.length !== 1 ? 's' : ''}
+            </span>
           </div>
 
-          <form onSubmit={handleLogFeed} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Feed Type *</label>
-                <select
-                  value={feedType}
-                  onChange={e => setFeedType(e.target.value as FeedType)}
-                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white outline-hidden focus:outline-teal-500"
-                >
-                  {['CSC 1', 'CSC 2', 'CGC', 'PDC', 'BLC 1', 'BLC 2', 'BLC 3', 'BMCC', 'BMCR'].map(ft => (
-                    <option key={ft} value={ft}>{ft}</option>
+          {transfers.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 text-xs">
+              <History className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+              <p>No bird transfers recorded yet.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold">
+                    <th className="py-3 px-4">Date</th>
+                    <th className="py-3 px-4">From (Source)</th>
+                    <th className="py-3 px-4">To (Dest)</th>
+                    <th className="py-3 px-4">Males</th>
+                    <th className="py-3 px-4">Females</th>
+                    <th className="py-3 px-4">Total</th>
+                    <th className="py-3 px-4">Reason / Notes</th>
+                    <th className="py-3 px-4">Logged By</th>
+                    {permissions.canDeleteRecord && <th className="py-3 px-4 text-right">Actions</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {transfers.map(tr => (
+                    <tr key={tr.id} className="hover:bg-slate-50/60 transition">
+                      <td className="py-3 px-4 font-semibold text-slate-800 whitespace-nowrap">
+                        {tr.date}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="px-2 py-0.5 bg-rose-50 text-rose-800 rounded-md font-bold text-[11px] border border-rose-200">
+                          {tr.sourceHouse}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 rounded-md font-bold text-[11px] border border-emerald-200">
+                          {tr.destHouse}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-black text-teal-900">
+                        {tr.maleCount > 0 ? `+${tr.maleCount} M` : '-'}
+                      </td>
+                      <td className="py-3 px-4 font-black text-rose-900">
+                        {tr.femaleCount > 0 ? `+${tr.femaleCount} F` : '-'}
+                      </td>
+                      <td className="py-3 px-4 font-black text-slate-900">
+                        {tr.maleCount + tr.femaleCount}
+                      </td>
+                      <td className="py-3 px-4 text-slate-600 max-w-xs truncate" title={tr.reason}>
+                        {tr.reason || 'Inter-house adjustment'}
+                      </td>
+                      <td className="py-3 px-4 text-slate-500 whitespace-nowrap">
+                        {tr.loggedBy}
+                      </td>
+                      {permissions.canDeleteRecord && (
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            onClick={() => deleteTransfer(tr.id, true)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                            title="Revert and remove transfer record"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
                   ))}
-                </select>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: QUICK INTER-HOUSE BIRD TRANSFER                                    */}
+      {/* ========================================================================= */}
+      {showTransferModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="bg-teal-950 p-5 text-white flex items-center justify-between border-b border-teal-900/50">
+              <div>
+                <h3 className="font-bold text-base text-white flex items-center gap-2">
+                  <ArrowLeftRight className="w-4 h-4 text-teal-400" />
+                  <span>Transfer Birds to Other House</span>
+                </h3>
+                <p className="text-xs text-teal-300/80">Flockman's Inter-House Bird Movement Station</p>
+              </div>
+              <button onClick={() => setShowTransferModal(false)} className="text-teal-400 hover:text-white p-1 rounded-lg cursor-pointer">
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleExecuteTransfer} className="p-6 space-y-4 overflow-y-auto">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">From House (Source) *</label>
+                  <select
+                    value={transferSourceHouse}
+                    onChange={e => {
+                      setTransferSourceHouse(e.target.value);
+                      if (e.target.value === transferDestHouse) {
+                        const other = flocks.find(f => f.houseNumber !== e.target.value);
+                        if (other) setTransferDestHouse(other.houseNumber);
+                      }
+                    }}
+                    className="w-full px-3 py-2 text-xs font-bold border border-slate-200 rounded-xl bg-white focus:outline-teal-500"
+                  >
+                    {flocks.map(f => (
+                      <option key={f.id} value={f.houseNumber}>
+                        {f.houseNumber} ({f.currentMales}M / {f.currentFemales}F)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">To House (Destination) *</label>
+                  <select
+                    value={transferDestHouse}
+                    onChange={e => setTransferDestHouse(e.target.value)}
+                    className="w-full px-3 py-2 text-xs font-bold border border-slate-200 rounded-xl bg-white focus:outline-teal-500"
+                  >
+                    {flocks
+                      .filter(f => f.houseNumber !== transferSourceHouse)
+                      .map(f => (
+                        <option key={f.id} value={f.houseNumber}>
+                          {f.houseNumber} ({f.currentMales}M / {f.currentFemales}F)
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl space-y-1.5">
+                  <label className="block text-xs font-bold text-teal-900">Males to Transfer</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max={sourceStats?.currentMales || 9999}
+                    value={transferMales}
+                    onChange={e => setTransferMales(Math.max(0, Number(e.target.value)))}
+                    className="w-full px-3 py-1.5 text-sm font-black border border-teal-300 rounded-lg bg-white focus:outline-teal-600"
+                  />
+                  <div className="flex gap-1 pt-1">
+                    {[5, 10, 20].map(n => (
+                      <button
+                        type="button"
+                        key={n}
+                        onClick={() => setTransferMales(n)}
+                        className="px-2 py-0.5 text-[10px] font-bold bg-white border border-teal-200 rounded hover:bg-teal-100 text-teal-800 cursor-pointer"
+                      >
+                        +{n}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1.5">
+                  <label className="block text-xs font-bold text-rose-900">Females to Transfer</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max={sourceStats?.currentFemales || 99999}
+                    value={transferFemales}
+                    onChange={e => setTransferFemales(Math.max(0, Number(e.target.value)))}
+                    className="w-full px-3 py-1.5 text-sm font-black border border-rose-300 rounded-lg bg-white focus:outline-rose-600"
+                  />
+                  <div className="flex gap-1 pt-1">
+                    {[25, 50, 100].map(n => (
+                      <button
+                        type="button"
+                        key={n}
+                        onClick={() => setTransferFemales(n)}
+                        className="px-2 py-0.5 text-[10px] font-bold bg-white border border-rose-200 rounded hover:bg-rose-100 text-rose-800 cursor-pointer"
+                      >
+                        +{n}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Feeding Date</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Transfer Date *</label>
                 <input
                   type="date"
                   required
-                  value={feedDate}
-                  onChange={e => setFeedDate(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500"
+                  value={transferDate}
+                  onChange={e => setTransferDate(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-teal-500"
                 />
               </div>
-            </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Feed Intake in Kilograms (kg) *
-              </label>
-              <input
-                type="number"
-                min="1"
-                required
-                value={feedKg}
-                onChange={e => setFeedKg(Number(e.target.value))}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500 font-bold"
-              />
-              <p className="text-[11px] text-slate-500 mt-1">
-                Equivalent to <strong>{(feedKg / 50).toFixed(1)} bags</strong> (50kg bags)
-              </p>
-            </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Transfer Reason / Notes</label>
+                <input
+                  type="text"
+                  value={transferReason}
+                  onChange={e => setTransferReason(e.target.value)}
+                  placeholder="e.g. Spiking young active males to boost mating ratio"
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-teal-500"
+                />
+              </div>
 
-            <button
-              type="submit"
-              disabled={!canEditHouse}
-              className={`w-full py-2.5 rounded-xl text-xs font-bold text-white transition flex items-center justify-center gap-1.5 shadow-xs ${
-                canEditHouse
-                  ? 'bg-teal-600 hover:bg-teal-700'
-                  : 'bg-slate-300 cursor-not-allowed text-slate-500'
-              }`}
-            >
-              <Wheat className="w-4 h-4" />
-              <span>Record {activeSide} Side Feed Consumption</span>
-            </button>
-            {!canEditHouse && (
-              <p className="text-[11px] text-rose-600 text-center">
-                You do not have permission to log records for {selectedHouse}.
-              </p>
-            )}
-          </form>
-        </div>
+              {/* Quick simulation summary */}
+              <div className="p-3 bg-slate-900 text-white rounded-xl text-xs space-y-1">
+                <div className="flex justify-between text-teal-300 font-bold text-[11px]">
+                  <span>{transferSourceHouse} &rarr; {transferDestHouse}</span>
+                  <span>Total: {transferMales + transferFemales} Birds</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-300 pt-1">
+                  <div>
+                    <span className="block text-slate-400">Source After:</span>
+                    <span>{projectedSourceMales}M / {projectedSourceFemales}F (1:{projectedSourceRatio})</span>
+                  </div>
+                  <div>
+                    <span className="block text-slate-400">Dest After:</span>
+                    <span>{projectedDestMales}M / {projectedDestFemales}F (1:{projectedDestRatio})</span>
+                  </div>
+                </div>
+              </div>
 
-        {/* Panel 2: Pen Mortality Logger */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Skull className="w-4 h-4 text-rose-600" />
-              <span>Log Mortality ({activeSide} Side / Pen)</span>
-            </h3>
-            {mortSuccess && (
-              <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> Recorded
-              </span>
-            )}
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowTransferModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!isTransferValid}
+                  className={`px-4 py-2 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer ${
+                    isTransferValid
+                      ? 'bg-teal-600 hover:bg-teal-700'
+                      : 'bg-slate-300 cursor-not-allowed text-slate-500'
+                  }`}
+                >
+                  Confirm Transfer
+                </button>
+              </div>
+            </form>
           </div>
-
-          <form onSubmit={handleLogMortality} className="space-y-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Select Pen *</label>
-              <select
-                value={selectedPenName}
-                onChange={e => setSelectedPenName(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white outline-hidden focus:outline-teal-500"
-              >
-                {sidePens.map(p => (
-                  <option key={p.id} value={p.name}>
-                    {p.name} ({p.side} Side)
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Dead Males</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={mortMales}
-                  onChange={e => setMortMales(Number(e.target.value))}
-                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500 font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Dead Females</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={mortFemales}
-                  onChange={e => setMortFemales(Number(e.target.value))}
-                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl outline-hidden focus:outline-rose-500 font-bold"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Inspection Notes / Symptoms</label>
-              <input
-                type="text"
-                value={mortNotes}
-                onChange={e => setMortNotes(e.target.value)}
-                placeholder="e.g. Found under slats during morning walk"
-                className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={!canEditHouse}
-              className={`w-full py-2.5 rounded-xl text-xs font-bold text-white transition flex items-center justify-center gap-1.5 shadow-xs ${
-                canEditHouse
-                  ? 'bg-rose-600 hover:bg-rose-700'
-                  : 'bg-slate-300 cursor-not-allowed text-slate-500'
-              }`}
-            >
-              <Skull className="w-4 h-4" />
-              <span>Record Pen Mortality</span>
-            </button>
-          </form>
         </div>
-      </div>
+      )}
 
-      {/* Add Pen Modal */}
+      {/* ========================================================================= */}
+      {/* MODAL: ADD PEN PARTITION                                                  */}
+      {/* ========================================================================= */}
       {showAddPenModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden">
@@ -442,7 +1202,7 @@ export const FlockmanModuleView: React.FC = () => {
                 <h3 className="font-bold text-base text-white">Add New Pen Partition</h3>
                 <p className="text-xs text-teal-300/80">{activeFlock.houseNumber} • {newPenSide} Side</p>
               </div>
-              <button onClick={() => setShowAddPenModal(false)} className="text-teal-400 hover:text-white p-1 rounded-lg">
+              <button onClick={() => setShowAddPenModal(false)} className="text-teal-400 hover:text-white p-1 rounded-lg cursor-pointer">
                 &times;
               </button>
             </div>
@@ -501,13 +1261,13 @@ export const FlockmanModuleView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowAddPenModal(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition shadow-xs"
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
                 >
                   Create Pen
                 </button>
