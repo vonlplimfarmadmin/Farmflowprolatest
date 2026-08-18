@@ -295,6 +295,32 @@ async function startServer() {
     }
   });
 
+  // 7. Clear Database & Wipe for New Cycle
+  app.post('/api/db/clear-all', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({
+          success: true,
+          connected: false,
+          message: 'Local reset only (MongoDB was not connected).',
+        });
+      }
+
+      await EggRecordModel.deleteMany({});
+      await FlockModel.deleteMany({});
+      await FeedRecordModel.deleteMany({});
+      
+      res.json({
+        success: true,
+        connected: true,
+        message: 'MongoDB database successfully cleared for a new flock cycle.',
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to clear database', details: err.message });
+    }
+  });
+
   // ==========================================
   // Vite Middleware & SPA Static Serving
   // ==========================================

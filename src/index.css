@@ -1,39 +1,69 @@
 @import "tailwindcss";
 
 @theme {
-  --color-forest-950: #0f1c15;
-  --color-forest-900: #14281e;
-  --color-forest-800: #1a3628;
-  --color-forest-700: #234836;
-  --color-forest-600: #2d5d46;
-  --color-forest-500: #3a7558;
-  --color-forest-400: #4a916e;
-  --color-forest-300: #6ab08b;
-  --color-forest-200: #9cd1b5;
-  --color-forest-100: #cfe9dc;
-  --color-forest-50: #edf7f2;
+  /* Inkberry Primary Palette (Deep berry black, dark indigo-berry hues) */
+  --color-forest-950: #120d18;
+  --color-forest-900: #1c1326;
+  --color-forest-800: #281a38;
+  --color-forest-700: #3b2552;
+  --color-forest-600: #51326f;
+  --color-forest-500: #6d4394;
+  --color-forest-400: #8c5db8;
+  --color-forest-300: #b08ad6;
+  --color-forest-200: #d4bee8;
+  --color-forest-100: #ede0f7;
+  --color-forest-50: #f8f3fc;
 
-  --color-graphite-950: #121417;
-  --color-graphite-900: #1a1d21;
-  --color-graphite-800: #262b32;
-  --color-graphite-700: #373e48;
-  --color-graphite-600: #4e5765;
-  --color-graphite-500: #677282;
-  --color-graphite-400: #8893a3;
-  --color-graphite-300: #b0b9c6;
-  --color-graphite-200: #d5dbe3;
-  --color-graphite-100: #eef1f5;
-  --color-graphite-50: #f7f9fb;
+  /* Inkberry & Charcoal Neutrals */
+  --color-graphite-950: #131117;
+  --color-graphite-900: #1d1a24;
+  --color-graphite-800: #2b2734;
+  --color-graphite-700: #3d3748;
+  --color-graphite-600: #554e63;
+  --color-graphite-500: #736b82;
+  --color-graphite-400: #968fa4;
+  --color-graphite-300: #beb8c9;
+  --color-graphite-200: #dedae5;
+  --color-graphite-100: #f2eff6;
+  --color-graphite-50: #faf8fc;
 
-  --color-mint-950: #032b17;
-  --color-mint-900: #064024;
-  --color-mint-800: #0b5934;
-  --color-mint-700: #117847;
-  --color-mint-600: #189e5e;
-  --color-mint-500: #00e575;
-  --color-mint-400: #2bf88e;
-  --color-mint-300: #63ffa7;
-  --color-mint-200: #a1ffcc;
-  --color-mint-100: #d6ffeb;
-  --color-mint-50: #f0fdf6;
+  /* Peach Accent Palette (Warm glowing peach, coral-apricot highlights) */
+  --color-mint-950: #381206;
+  --color-mint-900: #571e0c;
+  --color-mint-800: #822f14;
+  --color-mint-700: #b6451e;
+  --color-mint-600: #dd5e2e;
+  --color-mint-500: #f77a45;
+  --color-mint-400: #ff9364;
+  --color-mint-300: #ffb18d;
+  --color-mint-200: #ffd0bb;
+  --color-mint-100: #ffe8dd;
+  --color-mint-50: #fff6f2;
+
+  /* Explicit Peach Tokens */
+  --color-peach-950: #381206;
+  --color-peach-900: #571e0c;
+  --color-peach-800: #822f14;
+  --color-peach-700: #b6451e;
+  --color-peach-600: #dd5e2e;
+  --color-peach-500: #f77a45;
+  --color-peach-400: #ff9364;
+  --color-peach-300: #ffb18d;
+  --color-peach-200: #ffd0bb;
+  --color-peach-100: #ffe8dd;
+  --color-peach-50: #fff6f2;
+
+  /* Explicit Inkberry Tokens */
+  --color-inkberry-950: #120d18;
+  --color-inkberry-900: #1c1326;
+  --color-inkberry-800: #281a38;
+  --color-inkberry-700: #3b2552;
+  --color-inkberry-600: #51326f;
+  --color-inkberry-500: #6d4394;
+  --color-inkberry-400: #8c5db8;
+  --color-inkberry-300: #b08ad6;
+  --color-inkberry-200: #d4bee8;
+  --color-inkberry-100: #ede0f7;
+  --color-inkberry-50: #f8f3fc;
 }
+

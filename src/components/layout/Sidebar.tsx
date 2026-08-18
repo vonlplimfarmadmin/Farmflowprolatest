@@ -12,7 +12,8 @@ import {
   Settings, 
   ShieldAlert, 
   FileSpreadsheet,
-  LayoutDashboard
+  LayoutDashboard,
+  LogOut
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -30,7 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onClose,
   onOpenReport
 }) => {
-  const { currentUser, permissions, getLowStockAlerts, getUpcomingVaccines, users, farmProfile } = useFarm();
+  const { currentUser, permissions, getLowStockAlerts, getUpcomingVaccines, users, farmProfile, logout } = useFarm();
 
   const lowFeeds = getLowStockAlerts();
   const upcomingVaccines = getUpcomingVaccines();
@@ -252,7 +253,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
 
         {/* User Card in Footer */}
-        <div className="p-4 border-t border-forest-900/60">
+        <div className="p-4 border-t border-forest-900/60 space-y-2">
           <div className="flex items-center gap-3 p-3 bg-forest-900/40 rounded-xl border border-forest-900/80">
             <div className="w-8 h-8 rounded-full bg-mint-400 text-forest-950 flex items-center justify-center text-xs font-bold uppercase shrink-0">
               {currentUser?.username ? currentUser.username.substring(0, 2).toUpperCase() : 'SA'}
@@ -266,6 +267,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </p>
             </div>
           </div>
+          <button
+            onClick={() => {
+              logout();
+              onClose();
+            }}
+            className="w-full py-2 px-3 bg-forest-900/80 hover:bg-rose-900/30 text-rose-300 hover:text-rose-200 border border-forest-800 hover:border-rose-700/50 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out</span>
+          </button>
         </div>
       </aside>
     </>

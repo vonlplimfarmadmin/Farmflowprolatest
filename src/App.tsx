@@ -5,6 +5,7 @@ import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
 import { NotificationDrawer } from './components/layout/NotificationDrawer';
 import { AuthModals } from './components/auth/AuthModals';
+import { LoginScreen } from './components/auth/LoginScreen';
 import { MessengerReportQuickModal } from './components/layout/MessengerReportQuickModal';
 
 // Views
@@ -29,9 +30,26 @@ const FarmAppContent: React.FC = () => {
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register' | 'forgot' | null>(null);
   const [isMessengerReportOpen, setIsMessengerReportOpen] = useState(false);
 
+  // If no user is logged in, present full-page LoginScreen
+  if (!currentUser) {
+    return (
+      <>
+        <LoginScreen
+          onRegisterClick={() => setAuthModalMode('register')}
+          onForgotPasswordClick={() => setAuthModalMode('forgot')}
+        />
+        <AuthModals
+          mode={authModalMode}
+          onClose={() => setAuthModalMode(null)}
+          onSwitchMode={setAuthModalMode}
+        />
+      </>
+    );
+  }
+
   // If user is pending approval or disabled
-  const isPendingApproval = currentUser?.status === 'pending';
-  const isDisabled = currentUser?.status === 'disabled';
+  const isPendingApproval = currentUser.status === 'pending';
+  const isDisabled = currentUser.status === 'disabled';
 
   return (
     <div className="min-h-screen bg-graphite-50 flex flex-col font-sans text-graphite-900 antialiased selection:bg-mint-400 selection:text-forest-950">

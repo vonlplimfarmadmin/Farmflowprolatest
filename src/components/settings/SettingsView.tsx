@@ -35,7 +35,8 @@ export const SettingsView: React.FC = () => {
     permissions,
     dbStatus,
     checkDBStatus,
-    syncAllToMongoDB
+    syncAllToMongoDB,
+    clearDatabaseForNewCycle
   } = useFarm();
 
   const [activeTab, setActiveTab] = useState<'users' | 'approvals' | 'audit' | 'backup'>('users');
@@ -44,6 +45,29 @@ export const SettingsView: React.FC = () => {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+  const [showClearModal, setShowClearModal] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
+  const [clearConfirmationText, setClearConfirmationText] = useState('');
+  const [clearFeedback, setClearFeedback] = useState<string | null>(null);
+
+  const handleClearCycle = async () => {
+    if (clearConfirmationText.trim().toUpperCase() !== 'START FRESH') {
+      return;
+    }
+    setIsClearing(true);
+    setClearFeedback(null);
+    try {
+      const res = await clearDatabaseForNewCycle();
+      setClearFeedback(res.message);
+      setTimeout(() => {
+        setShowClearModal(false);
+        setClearConfirmationText('');
+        setClearFeedback(null);
+      }, 1500);
+    } finally {
+      setIsClearing(false);
+    }
+  };
 
   const handleSyncToMongo = async () => {
     setIsSyncing(true);
@@ -488,6 +512,30 @@ export const SettingsView: React.FC = () => {
                 <span>Local Storage Status: Active & Synchronized</span>
               </div>
             </div>
+
+            {/* Clear Database & Start Fresh Cycle (Danger Zone) */}
+            <div className="p-6 bg-rose-50/70 border-2 border-rose-200 rounded-3xl space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-rose-900 font-extrabold text-sm">
+                    <Trash2 className="w-4 h-4 text-rose-600" />
+                    <span>Clear Database & Start Fresh Cycle</span>
+                  </div>
+                  <p className="text-xs text-rose-800 leading-relaxed max-w-xl">
+                    Wipes all recorded flock counts, daily egg collections, feed logs, mortality entries, medication administrations, and weekly egg weight curves. Flocks will reset to House 1–6 with pristine zeroed data ready for a new broiler-breeder batch.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  id="clear-database-btn"
+                  onClick={() => setShowClearModal(true)}
+                  className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-2 shrink-0"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Start Fresh Cycle</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -546,6 +594,97 @@ export const SettingsView: React.FC = () => {
                   className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-xs"
                 >
                   Save House Assignment
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Confirm Clear Database & Start Fresh Cycle */}
+      {showClearModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl border border-rose-200 w-full max-w-lg overflow-hidden flex flex-col">
+            <div className="bg-rose-900 p-6 text-white flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-rose-800 text-rose-100 rounded-2xl border border-rose-700 shadow-inner">
+                  <AlertTriangle className="w-6 h-6 text-rose-300" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-lg">Clear Farm Data for New Cycle?</h3>
+                  <p className="text-xs text-rose-200 mt-0.5">Permanent wipe of active production and flock logs</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowClearModal(false);
+                  setClearConfirmationText('');
+                  setClearFeedback(null);
+                }}
+                className="text-rose-300 hover:text-white p-1 rounded-lg text-lg transition"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="p-4 bg-rose-50 border border-rose-200/80 rounded-2xl space-y-2 text-xs text-rose-900 leading-relaxed">
+                <p className="font-bold flex items-center gap-1.5 text-rose-950">
+                  <Trash2 className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>The following records will be permanently erased:</span>
+                </p>
+                <ul className="list-disc list-inside space-y-1 pl-1 text-rose-800 font-medium">
+                  <li>All daily egg production collection logs (Table, Hatching, Broken/Dirty, Nest/Floor splits).</li>
+                  <li>All flock population counts (resets Houses 1–6 to 0 birds for new placement).</li>
+                  <li>All feed delivery logs and daily feed consumption tracking.</li>
+                  <li>All mortality & culling records and medication administration logs.</li>
+                  <li>All weekly egg weight and body weight history.</li>
+                </ul>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-700">
+                  Type <span className="font-mono text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded font-extrabold">START FRESH</span> to confirm:
+                </label>
+                <input
+                  type="text"
+                  value={clearConfirmationText}
+                  onChange={(e) => setClearConfirmationText(e.target.value)}
+                  placeholder="START FRESH"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-300 rounded-xl text-sm font-mono font-bold text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-hidden focus:border-rose-600 transition uppercase tracking-wider"
+                />
+              </div>
+
+              {clearFeedback && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs rounded-xl font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{clearFeedback}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={isClearing}
+                  onClick={() => {
+                    setShowClearModal(false);
+                    setClearConfirmationText('');
+                    setClearFeedback(null);
+                  }}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  id="confirm-clear-cycle-btn"
+                  disabled={clearConfirmationText.trim().toUpperCase() !== 'START FRESH' || isClearing}
+                  onClick={handleClearCycle}
+                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-300 disabled:cursor-not-allowed text-white rounded-xl text-xs font-extrabold transition shadow-md flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>{isClearing ? 'Clearing Cycle...' : 'Confirm & Start Fresh Cycle'}</span>
                 </button>
               </div>
             </div>

@@ -179,6 +179,7 @@ interface FarmContextType {
   auditLogs: SystemLog[];
   logAction: (action: string, category: SystemLog['category'], details: string, houseNumber?: string) => void;
   resetAllDataToDefaults: () => void;
+  clearDatabaseForNewCycle: () => Promise<{ success: boolean; message: string }>;
   exportDataJson: () => string;
   importDataJson: (jsonStr: string) => boolean;
 
@@ -1058,6 +1059,72 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     logAction('SYSTEM_RESET', 'admin', 'Reset all farm management database to factory demo defaults.');
   };
 
+  const clearDatabaseForNewCycle = async (): Promise<{ success: boolean; message: string }> => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    // Reset all houses 1-6 to baseline zero for a brand new placement cycle
+    const freshFlocks: Flock[] = [1, 2, 3, 4, 5, 6].map(num => ({
+      id: `flock_h${num}_new`,
+      houseNumber: `House ${num}`,
+      breed: 'Cobb 500',
+      loadingDateMale: todayStr,
+      loadingDateFemale: todayStr,
+      initialMales: 0,
+      initialFemales: 0,
+      currentMales: 0,
+      currentFemales: 0,
+      hatchDate: todayStr,
+      status: 'active' as const,
+      notes: `House ${num} ready for new flock placement cycle.`,
+      pens: [
+        { id: `pen_h${num}_l1`, name: 'Pen L1', side: 'Left' as const, males: 0, females: 0 },
+        { id: `pen_h${num}_l2`, name: 'Pen L2', side: 'Left' as const, males: 0, females: 0 },
+        { id: `pen_h${num}_r1`, name: 'Pen R1', side: 'Right' as const, males: 0, females: 0 },
+        { id: `pen_h${num}_r2`, name: 'Pen R2', side: 'Right' as const, males: 0, females: 0 },
+      ]
+    }));
+
+    setFlocks(freshFlocks);
+    setRawEggRecords([]);
+    setWeeklyEggWeights([]);
+    setFeedStockEntries([]);
+    setFeedConsumptionRecords([]);
+    setDepletions([]);
+    setMedAdministrations([]);
+    setBodyWeights([]);
+
+    const newLog: SystemLog = {
+      id: 'log_' + Date.now(),
+      timestamp: new Date().toISOString(),
+      userId: currentUser?.id || 'usr_admin',
+      userName: currentUser?.fullName || 'System Administrator',
+      userRole: currentUser?.role || 'admin',
+      action: 'CYCLE_CLEARED',
+      category: 'admin',
+      details: 'All flock production, egg collections, feed logs, and mortality history cleared to start a fresh cycle.',
+    };
+    setSystemLogs(prev => [newLog, ...prev.slice(0, 150)]);
+
+    // 2. Wipe database on backend / MongoDB if connected
+    let backendMsg = '';
+    try {
+      const resp = await fetch('/api/db/clear-all', { method: 'POST' });
+      if (resp.ok) {
+        const json = await resp.json();
+        backendMsg = json.message || 'Cloud database wiped successfully.';
+      }
+    } catch {
+      backendMsg = 'Local state wiped (offline mode).';
+    }
+
+    await checkDBStatus();
+
+    return {
+      success: true,
+      message: `Database successfully cleared for new cycle. ${backendMsg}`
+    };
+  };
+
   const exportDataJson = (): string => {
     const payload = {
       version: '2.0',
@@ -1233,6 +1300,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         auditLogs: systemLogs,
         logAction,
         resetAllDataToDefaults,
+        clearDatabaseForNewCycle,
         exportDataJson,
         importDataJson,
 
