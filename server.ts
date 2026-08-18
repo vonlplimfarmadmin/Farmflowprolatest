@@ -1,0 +1,320 @@
+import express from 'express';
+import path from 'path';
+import dotenv from 'dotenv';
+import { createServer as createViteServer } from 'vite';
+import { connectDB, getDBStatus } from './server/db';
+import { EggRecordModel } from './server/models/EggRecord';
+import { FlockModel } from './server/models/Flock';
+import { FeedRecordModel } from './server/models/FeedRecord';
+import { FarmProfileModel } from './server/models/FarmProfile';
+
+dotenv.config();
+
+async function startServer() {
+  const app = express();
+  const PORT = 3000;
+
+  app.use(express.json({ limit: '10mb' }));
+
+  // Initial attempt to connect to MongoDB if MONGODB_URI is present
+  connectDB().catch((err) => {
+    console.warn('[MongoDB] Initial connection error:', err);
+  });
+
+  // ==========================================
+  // API Routes
+  // ==========================================
+
+  // 1. Health & Database Status
+  app.get('/api/health', (req, res) => {
+    res.json({
+      status: 'ok',
+      service: 'FarmFlow Pro API',
+      timestamp: new Date().toISOString(),
+      database: getDBStatus(),
+    });
+  });
+
+  app.get('/api/db/status', async (req, res) => {
+    const status = getDBStatus();
+    let stats = {
+      eggRecordsCount: 0,
+      flocksCount: 0,
+      feedRecordsCount: 0,
+    };
+
+    if (status.connected) {
+      try {
+        stats.eggRecordsCount = await EggRecordModel.countDocuments();
+        stats.flocksCount = await FlockModel.countDocuments();
+        stats.feedRecordsCount = await FeedRecordModel.countDocuments();
+      } catch (err: any) {
+        console.warn('Error reading count stats:', err.message);
+      }
+    }
+
+    res.json({
+      ...status,
+      stats,
+    });
+  });
+
+  app.post('/api/db/connect', async (req, res) => {
+    const { uri } = req.body || {};
+    const result = await connectDB(uri);
+    res.json({
+      success: result.success,
+      message: result.message,
+      status: getDBStatus(),
+    });
+  });
+
+  // 2. Egg Production Records
+  app.get('/api/egg-records', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({ connected: false, records: [] });
+      }
+
+      const records = await EggRecordModel.find().sort({ date: -1 });
+      res.json({ connected: true, records });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to fetch egg records', details: err.message });
+    }
+  });
+
+  app.post('/api/egg-records', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({ connected: false, message: 'MongoDB not connected. Saved in local cache only.' });
+      }
+
+      const recordData = req.body;
+      const recordId = recordData.id || `ep_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      
+      const record = await EggRecordModel.findOneAndUpdate(
+        { id: recordId },
+        { ...recordData, id: recordId },
+        { upsert: true, new: true }
+      );
+
+      res.json({ connected: true, record });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to save egg record', details: err.message });
+    }
+  });
+
+  app.delete('/api/egg-records/:id', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({ connected: false });
+      }
+
+      await EggRecordModel.deleteOne({ id: req.params.id });
+      res.json({ connected: true, deleted: true });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to delete record', details: err.message });
+    }
+  });
+
+  // 3. Flocks
+  app.get('/api/flocks', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({ connected: false, flocks: [] });
+      }
+
+      const flocks = await FlockModel.find().sort({ houseNumber: 1 });
+      res.json({ connected: true, flocks });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to fetch flocks', details: err.message });
+    }
+  });
+
+  app.post('/api/flocks', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({ connected: false });
+      }
+
+      const flockData = req.body;
+      const flock = await FlockModel.findOneAndUpdate(
+        { houseNumber: flockData.houseNumber },
+        flockData,
+        { upsert: true, new: true }
+      );
+
+      res.json({ connected: true, flock });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to save flock', details: err.message });
+    }
+  });
+
+  // 4. Feed Records
+  app.get('/api/feed-records', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({ connected: false, records: [] });
+      }
+
+      const records = await FeedRecordModel.find().sort({ date: -1 });
+      res.json({ connected: true, records });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to fetch feed records', details: err.message });
+    }
+  });
+
+  app.post('/api/feed-records', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({ connected: false });
+      }
+
+      const record = await FeedRecordModel.findOneAndUpdate(
+        { id: req.body.id },
+        req.body,
+        { upsert: true, new: true }
+      );
+
+      res.json({ connected: true, record });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to save feed record', details: err.message });
+    }
+  });
+
+  // 5. Farm Profile
+  app.get('/api/farm-profile', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({ connected: false });
+      }
+
+      const profile = await FarmProfileModel.findOne({ id: 'farm_profile_main' });
+      res.json({ connected: true, profile });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to fetch farm profile', details: err.message });
+    }
+  });
+
+  app.post('/api/farm-profile', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({ connected: false });
+      }
+
+      const profile = await FarmProfileModel.findOneAndUpdate(
+        { id: 'farm_profile_main' },
+        { ...req.body, id: 'farm_profile_main' },
+        { upsert: true, new: true }
+      );
+
+      res.json({ connected: true, profile });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to update farm profile', details: err.message });
+    }
+  });
+
+  // 6. Batch Sync All Farm Data to MongoDB
+  app.post('/api/db/sync-all', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.status(400).json({
+          connected: false,
+          error: 'MongoDB is not connected. Please provide a valid MONGODB_URI in Settings/Environment.',
+        });
+      }
+
+      const { eggRecords, flocks, feedRecords, farmProfile } = req.body;
+      let insertedEggs = 0;
+      let insertedFlocks = 0;
+      let insertedFeed = 0;
+
+      if (Array.isArray(eggRecords) && eggRecords.length > 0) {
+        for (const record of eggRecords) {
+          await EggRecordModel.findOneAndUpdate(
+            { id: record.id },
+            record,
+            { upsert: true }
+          );
+          insertedEggs++;
+        }
+      }
+
+      if (Array.isArray(flocks) && flocks.length > 0) {
+        for (const flock of flocks) {
+          await FlockModel.findOneAndUpdate(
+            { houseNumber: flock.houseNumber },
+            flock,
+            { upsert: true }
+          );
+          insertedFlocks++;
+        }
+      }
+
+      if (Array.isArray(feedRecords) && feedRecords.length > 0) {
+        for (const feed of feedRecords) {
+          await FeedRecordModel.findOneAndUpdate(
+            { id: feed.id },
+            feed,
+            { upsert: true }
+          );
+          insertedFeed++;
+        }
+      }
+
+      if (farmProfile) {
+        await FarmProfileModel.findOneAndUpdate(
+          { id: 'farm_profile_main' },
+          { ...farmProfile, id: 'farm_profile_main' },
+          { upsert: true }
+        );
+      }
+
+      res.json({
+        success: true,
+        connected: true,
+        message: 'All farm records synced to MongoDB successfully.',
+        counts: {
+          eggRecords: insertedEggs,
+          flocks: insertedFlocks,
+          feedRecords: insertedFeed,
+        },
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Sync failed', details: err.message });
+    }
+  });
+
+  // ==========================================
+  // Vite Middleware & SPA Static Serving
+  // ==========================================
+  if (process.env.NODE_ENV !== 'production') {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 [FarmFlow Pro] Server listening on http://0.0.0.0:${PORT}`);
+  });
+}
+
+startServer();
