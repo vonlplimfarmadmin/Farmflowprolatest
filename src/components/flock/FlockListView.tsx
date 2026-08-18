@@ -11,12 +11,17 @@ import {
   Trash2, 
   TrendingUp, 
   ShieldCheck, 
-  Layers
+  Layers,
+  Edit3,
+  Clock,
+  Sparkles
 } from 'lucide-react';
+import { calculateFlockAgeFromLoadingDate } from '../../utils/dateCalculations';
 
 export const FlockListView: React.FC = () => {
-  const { flocks, addFlock, deleteFlock, getFlockStats, permissions } = useFarm();
+  const { flocks, addFlock, updateFlock, deleteFlock, getFlockStats, permissions } = useFarm();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingFlock, setEditingFlock] = useState<Flock | null>(null);
 
   // New Flock Form State
   const [houseNumber, setHouseNumber] = useState('House 7');
@@ -27,6 +32,34 @@ export const FlockListView: React.FC = () => {
   const [loadingDateFemale, setLoadingDateFemale] = useState<string>(new Date().toISOString().split('T')[0]);
   const [hatchDate, setHatchDate] = useState<string>('2026-01-01');
   const [notes, setNotes] = useState<string>('Newly placed parent stock breeder flock');
+
+  // Edit Loading Date Form State
+  const [editLoadingDateFemale, setEditLoadingDateFemale] = useState<string>('');
+  const [editLoadingDateMale, setEditLoadingDateMale] = useState<string>('');
+  const [editBreed, setEditBreed] = useState<BreedType>('Cobb 500');
+  const [editNotes, setEditNotes] = useState<string>('');
+
+  const handleOpenEdit = (flock: Flock) => {
+    setEditingFlock(flock);
+    setEditLoadingDateFemale(flock.loadingDateFemale || flock.loadingDateMale || '');
+    setEditLoadingDateMale(flock.loadingDateMale || flock.loadingDateFemale || '');
+    setEditBreed(flock.breed);
+    setEditNotes(flock.notes || '');
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingFlock) return;
+
+    updateFlock(editingFlock.id, {
+      loadingDateFemale: editLoadingDateFemale,
+      loadingDateMale: editLoadingDateMale,
+      breed: editBreed,
+      notes: editNotes.trim()
+    });
+
+    setEditingFlock(null);
+  };
 
   const handleAddFlock = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,6 +79,11 @@ export const FlockListView: React.FC = () => {
 
     setShowAddModal(false);
   };
+
+  // Real-time calculation preview for Add Modal
+  const addModalAgePreview = calculateFlockAgeFromLoadingDate(loadingDateFemale || loadingDateMale);
+  // Real-time calculation preview for Edit Modal
+  const editModalAgePreview = calculateFlockAgeFromLoadingDate(editLoadingDateFemale || editLoadingDateMale);
 
   return (
     <div className="space-y-6">
@@ -184,20 +222,128 @@ export const FlockListView: React.FC = () => {
                   {flock.notes || 'Normal flock status'}
                 </span>
 
-                {permissions.canDeleteRecord && (
+                <div className="flex items-center gap-1.5">
                   <button
-                    onClick={() => deleteFlock(flock.id)}
-                    className="text-slate-400 hover:text-rose-600 p-1 rounded transition"
-                    title="Delete flock record"
+                    onClick={() => handleOpenEdit(flock)}
+                    className="p-1.5 text-teal-700 hover:bg-teal-100 rounded-lg transition flex items-center gap-1 text-[11px] font-bold"
+                    title="Edit flock loading dates and breed info"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>Edit Date</span>
                   </button>
-                )}
+
+                  {permissions.canDeleteRecord && (
+                    <button
+                      onClick={() => deleteFlock(flock.id)}
+                      className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition"
+                      title="Delete flock record"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           );
         })}
       </div>
+
+      {/* Modal: Edit Flock Loading Dates */}
+      {editingFlock && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden">
+            <div className="bg-teal-950 p-5 text-white flex items-center justify-between border-b border-teal-900/50">
+              <div>
+                <h3 className="font-bold text-base text-white">Adjust Flock Loading Dates</h3>
+                <p className="text-xs text-teal-300/80">{editingFlock.houseNumber} • Dynamic Age Recalculation</p>
+              </div>
+              <button onClick={() => setEditingFlock(null)} className="text-teal-400 hover:text-white p-1 rounded-lg">
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="p-6 space-y-4">
+              {/* Dynamic Age Preview Card */}
+              <div className="p-4 bg-teal-50 border border-teal-200 rounded-2xl space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-teal-800 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Calculated Age from Placement:</span>
+                  </span>
+                  <span className="px-2.5 py-1 bg-teal-600 text-white rounded-lg text-xs font-black">
+                    Week {editModalAgePreview.ageWeeks} (Day {editModalAgePreview.ageDays})
+                  </span>
+                </div>
+                <p className="text-[11px] text-teal-700">
+                  Total days housed: <strong>{editModalAgePreview.totalDaysFromLoading} days</strong> as of today.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Female Placement / Loading Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={editLoadingDateFemale}
+                  onChange={e => setEditLoadingDateFemale(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-teal-500 outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Male Placement / Loading Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={editLoadingDateMale}
+                  onChange={e => setEditLoadingDateMale(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-teal-500 outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Breed Type</label>
+                <select
+                  value={editBreed}
+                  onChange={e => setEditBreed(e.target.value as BreedType)}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-teal-500 outline-hidden bg-white"
+                >
+                  <option value="Cobb 500">Cobb 500</option>
+                  <option value="Ross 308">Ross 308</option>
+                  <option value="Cobb">Cobb</option>
+                  <option value="Ross">Ross</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Notes</label>
+                <textarea
+                  rows={2}
+                  value={editNotes}
+                  onChange={e => setEditNotes(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-teal-500 outline-hidden"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingFlock(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition shadow-xs"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal: Add New Flock */}
       {showAddModal && (
@@ -214,6 +360,21 @@ export const FlockListView: React.FC = () => {
             </div>
 
             <form onSubmit={handleAddFlock} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              {/* Dynamic Age Preview Card */}
+              <div className="p-3.5 bg-teal-50 border border-teal-200 rounded-2xl space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-teal-800 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Dynamic Placement Age:</span>
+                  </span>
+                  <span className="px-2 py-0.5 bg-teal-600 text-white rounded-md text-xs font-black">
+                    Week {addModalAgePreview.ageWeeks} (Day {addModalAgePreview.ageDays})
+                  </span>
+                </div>
+                <p className="text-[10px] text-teal-700">
+                  Calculated automatically from {loadingDateFemale || loadingDateMale} to today.
+                </p>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">House # *</label>
