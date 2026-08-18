@@ -649,8 +649,18 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const totalCurrent = currentMales + currentFemales;
 
     const livabilityPct = initialTotal > 0 ? (totalCurrent / initialTotal) * 100 : 100;
-    const ratioVal = currentMales > 0 ? (currentFemales / currentMales).toFixed(1) : '0';
-    const maleToFemaleRatioStr = `1 : ${ratioVal}`;
+    
+    let maleToFemaleRatioStr = '0 : 0';
+    if (currentMales > 0 && currentFemales > 0) {
+      maleToFemaleRatioStr = `1 : ${(currentFemales / currentMales).toFixed(1)}`;
+    } else if (currentMales > 0 && currentFemales === 0) {
+      maleToFemaleRatioStr = `${currentMales.toLocaleString()} M (1 : 0)`;
+    } else if (currentMales === 0 && currentFemales > 0) {
+      maleToFemaleRatioStr = `0 M : ${currentFemales.toLocaleString()} F`;
+    } else {
+      maleToFemaleRatioStr = '0 : 0';
+    }
+
     const maleRatioPct = totalCurrent > 0 ? (currentMales / totalCurrent) * 100 : 0;
 
     return {

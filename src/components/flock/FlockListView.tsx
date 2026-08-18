@@ -63,13 +63,13 @@ export const FlockListView: React.FC = () => {
 
   const handleAddFlock = (e: React.FormEvent) => {
     e.preventDefault();
-    if (initialMales <= 0 || initialFemales <= 0) return;
+    if (initialMales < 0 || initialFemales < 0) return;
 
     addFlock({
       houseNumber,
       breed,
-      initialMales: Number(initialMales),
-      initialFemales: Number(initialFemales),
+      initialMales: Number(initialMales) || 0,
+      initialFemales: Number(initialFemales) || 0,
       loadingDateMale,
       loadingDateFemale,
       hatchDate,
@@ -407,14 +407,14 @@ export const FlockListView: React.FC = () => {
                 <p className="text-xs font-bold text-teal-950">Male Population Details</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Initial Males *</label>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Initial Males (0 or more) *</label>
                     <input
                       type="number"
                       required
-                      min="1"
+                      min="0"
                       value={initialMales}
                       onChange={e => setInitialMales(Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white outline-hidden focus:outline-teal-500"
+                      className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white outline-hidden focus:outline-teal-500 font-bold text-teal-950"
                     />
                   </div>
                   <div>
@@ -435,14 +435,14 @@ export const FlockListView: React.FC = () => {
                 <p className="text-xs font-bold text-rose-950">Female Population Details</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Initial Females *</label>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Initial Females (0 or more) *</label>
                     <input
                       type="number"
                       required
-                      min="1"
+                      min="0"
                       value={initialFemales}
                       onChange={e => setInitialFemales(Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white outline-hidden focus:outline-rose-500"
+                      className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white outline-hidden focus:outline-rose-500 font-bold text-rose-950"
                     />
                   </div>
                   <div>
