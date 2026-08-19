@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FarmProvider, useFarm } from './context/FarmContext';
 import { ModuleType, UserRole } from './types';
 import { Navbar } from './components/layout/Navbar';
@@ -7,6 +7,9 @@ import { NotificationDrawer } from './components/layout/NotificationDrawer';
 import { AuthModals } from './components/auth/AuthModals';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { MessengerReportQuickModal } from './components/layout/MessengerReportQuickModal';
+import { CommandPalette } from './components/common/CommandPalette';
+import { KeyboardShortcutsModal } from './components/common/KeyboardShortcutsModal';
+import { ToastProvider, useToast } from './components/common/ToastContainer';
 
 // Views
 import { FarmDashboardOverview } from './components/dashboard/FarmDashboardOverview';
@@ -30,6 +33,53 @@ const FarmAppContent: React.FC = () => {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register' | 'forgot' | null>(null);
   const [isMessengerReportOpen, setIsMessengerReportOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+
+  // Global UX Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger hotkeys if typing in input/textarea/select
+      const target = e.target as HTMLElement;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable) {
+        return;
+      }
+
+      // Cmd+K or Ctrl+K -> Command Palette
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+        return;
+      }
+
+      // '?' -> Keyboard Shortcuts Modal
+      if (e.key === '?' && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        setIsShortcutsOpen((prev) => !prev);
+        return;
+      }
+
+      // Single Key Navigations when no modal is open
+      if (!isCommandPaletteOpen && !isShortcutsOpen && !isMessengerReportOpen && !isNotificationOpen) {
+        if (e.key === 'd' || e.key === 'D') {
+          setActiveModule('dashboard');
+        } else if (e.key === 'e' || e.key === 'E') {
+          setActiveModule('egg_production');
+        } else if (e.key === 'm' || e.key === 'M') {
+          setIsMessengerReportOpen(true);
+        } else if (e.key === 'r' || e.key === 'R') {
+          setActiveModule('reports');
+        } else if (e.key === 'f' || e.key === 'F') {
+          setActiveModule('feed_inventory');
+        } else if (e.key === 'v' || e.key === 'V') {
+          setActiveModule('medicine');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isCommandPaletteOpen, isShortcutsOpen, isMessengerReportOpen, isNotificationOpen]);
 
   // If no user is logged in, present full-page LoginScreen
   if (!currentUser) {
@@ -92,6 +142,8 @@ const FarmAppContent: React.FC = () => {
         onNavigate={setActiveModule}
         onOpenLogin={() => setAuthModalMode('login')}
         onOpenRegister={() => setAuthModalMode('register')}
+        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+        onOpenShortcuts={() => setIsShortcutsOpen(true)}
       />
 
       <div className="flex flex-1 overflow-hidden relative">
@@ -160,7 +212,7 @@ const FarmAppContent: React.FC = () => {
         </main>
       </div>
 
-      {/* Global Modals & Drawers */}
+      {/* Global Modals, Drawers & Palettes */}
       <NotificationDrawer
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}
@@ -170,6 +222,18 @@ const FarmAppContent: React.FC = () => {
       <MessengerReportQuickModal
         isOpen={isMessengerReportOpen}
         onClose={() => setIsMessengerReportOpen(false)}
+      />
+
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onNavigate={setActiveModule}
+        onOpenMessengerReport={() => setIsMessengerReportOpen(true)}
+      />
+
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsOpen}
+        onClose={() => setIsShortcutsOpen(false)}
       />
 
       <AuthModals
@@ -184,7 +248,10 @@ const FarmAppContent: React.FC = () => {
 export default function App() {
   return (
     <FarmProvider>
-      <FarmAppContent />
+      <ToastProvider>
+        <FarmAppContent />
+      </ToastProvider>
     </FarmProvider>
   );
 }
+

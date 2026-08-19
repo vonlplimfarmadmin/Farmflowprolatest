@@ -15,7 +15,10 @@ import {
   Database,
   Share2,
   Egg,
-  Plus
+  Plus,
+  Search,
+  Keyboard,
+  HelpCircle
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -26,6 +29,8 @@ interface NavbarProps {
   onToggleSidebar: () => void;
   onNavigate?: (moduleId: any) => void;
   currentModule: string;
+  onOpenCommandPalette?: () => void;
+  onOpenShortcuts?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -35,7 +40,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenRegister,
   onToggleSidebar,
   onNavigate,
-  currentModule
+  currentModule,
+  onOpenCommandPalette,
+  onOpenShortcuts
 }) => {
   const { 
     currentUser, 
@@ -86,6 +93,22 @@ export const Navbar: React.FC<NavbarProps> = ({
             FarmFlow Pro
           </span>
         </div>
+
+        {/* Global Quick Search Button (Ctrl+K) */}
+        {onOpenCommandPalette && (
+          <button
+            id="navbar-quick-search-btn"
+            onClick={onOpenCommandPalette}
+            className="hidden xl:flex items-center gap-2 px-3 py-1.5 bg-slate-100/90 hover:bg-slate-200/80 text-slate-600 rounded-xl text-xs font-medium border border-slate-200 transition"
+            title="Search anything or jump to houses (Ctrl + K)"
+          >
+            <Search className="w-3.5 h-3.5 text-slate-500" />
+            <span>Search houses, modules, actions...</span>
+            <kbd className="px-1.5 py-0.5 bg-white rounded-md text-[10px] font-mono font-bold text-slate-500 border border-slate-300 shadow-2xs">
+              Ctrl+K
+            </kbd>
+          </button>
+        )}
       </div>
 
       {/* Right: Date Badge, Alerts, Report, User */}
@@ -165,6 +188,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>Log Egg</span>
             </button>
           </>
+        )}
+
+        {/* Keyboard Shortcuts Trigger */}
+        {onOpenShortcuts && (
+          <button
+            id="navbar-shortcuts-btn"
+            onClick={onOpenShortcuts}
+            className="p-2 text-graphite-500 hover:text-graphite-800 hover:bg-graphite-100 rounded-xl transition hidden sm:flex items-center justify-center"
+            title="Keyboard Shortcuts Cheat Sheet ( ? )"
+            aria-label="Keyboard Shortcuts"
+          >
+            <Keyboard className="w-4 h-4" />
+          </button>
         )}
 
         {/* Notification Bell */}

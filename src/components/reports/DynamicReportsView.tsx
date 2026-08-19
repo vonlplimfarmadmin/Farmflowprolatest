@@ -5,6 +5,7 @@ import { EggProductionReportSection } from './EggProductionReportSection';
 import { MortalityReportSection } from './MortalityReportSection';
 import { VaccinesMedicineReportSection } from './VaccinesMedicineReportSection';
 import { exportReportToExcel, exportReportToCsv, ReportMetadata, SheetData } from '../../utils/reportExportUtils';
+import { useToast } from '../common/ToastContainer';
 import { 
   Printer, 
   FileSpreadsheet, 
@@ -39,6 +40,8 @@ export const DynamicReportsView: React.FC = () => {
     medAdministrations, 
     medProducts 
   } = useFarm();
+
+  const toast = useToast();
 
   // Active Report Tab
   const [activeTab, setActiveTab] = useState<ReportTabType>('egg_production');
@@ -324,6 +327,7 @@ export const DynamicReportsView: React.FC = () => {
 
     const filename = `${farmProfile.name ? farmProfile.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Farm'}_${activeTab.toUpperCase()}_REPORT_${startDate}_to_${endDate}.xlsx`;
     exportReportToExcel(reportMetadata, sheets, filename);
+    toast.success('Excel Workbook Generated', `Downloaded official report with company letterhead for ${activeTab.toUpperCase()}`);
   };
 
   // Handle CSV Export
@@ -364,6 +368,7 @@ export const DynamicReportsView: React.FC = () => {
       ];
       exportReportToCsv(`Vaccine_Medicine_${startDate}_${endDate}.csv`, columns, filteredAdministrations);
     }
+    toast.success('CSV Exported', 'Raw dataset downloaded successfully.');
   };
 
   // Save updated company info & logo
@@ -376,6 +381,7 @@ export const DynamicReportsView: React.FC = () => {
       contactNumber: companyContact.trim() || farmProfile.contactNumber,
       email: companyEmail.trim() || farmProfile.email
     });
+    toast.success('Letterhead Updated', 'Farm logo and letterhead details refreshed across all reports.');
     setShowEditCompanyModal(false);
   };
 

@@ -15,6 +15,8 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { exportReportToExcel, ReportMetadata, SheetData } from '../../utils/reportExportUtils';
+import { useToast } from '../common/ToastContainer';
+import { HouseQuickBar } from '../common/HouseQuickBar';
 
 export const MortalityManagementView: React.FC = () => {
   const { 
@@ -27,6 +29,8 @@ export const MortalityManagementView: React.FC = () => {
     currentUser,
     permissions 
   } = useFarm();
+
+  const toast = useToast();
 
   const [selectedHouse, setSelectedHouse] = useState('All');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -60,6 +64,10 @@ export const MortalityManagementView: React.FC = () => {
     setFemaleCount(0);
     setReasonDetails('');
     setSuccessMsg(true);
+    toast.success(
+      `Depletion Logged (${houseNumber})`,
+      `${Number(maleCount) + Number(femaleCount)} birds recorded under ${category} (${side} side)`
+    );
     setTimeout(() => setSuccessMsg(false), 2500);
   };
 
@@ -143,6 +151,7 @@ export const MortalityManagementView: React.FC = () => {
     };
 
     exportReportToExcel(meta, [sheet], `${farmProfile.name ? farmProfile.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Farm'}_Mortality_Report_${selectedHouse}.xlsx`);
+    toast.success('Excel Generated', `Downloaded official mortality audit for ${selectedHouse}`);
   };
 
   return (
@@ -164,7 +173,7 @@ export const MortalityManagementView: React.FC = () => {
           <button
             id="export-mortality-excel-btn"
             onClick={handleExportMortalityExcel}
-            className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+            className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95"
             title="Export Excel with Company Header & Logo"
           >
             <FileSpreadsheet className="w-4 h-4" />
@@ -188,6 +197,13 @@ export const MortalityManagementView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* House Quick Selector Bar */}
+      <HouseQuickBar
+        selectedHouse={selectedHouse}
+        onSelectHouse={setSelectedHouse}
+        showAllOption={true}
+      />
 
       {/* 4 Depletion Category Breakdown Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

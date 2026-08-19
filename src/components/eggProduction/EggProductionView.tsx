@@ -20,6 +20,8 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { exportReportToExcel, ReportMetadata, SheetData } from '../../utils/reportExportUtils';
+import { useToast } from '../common/ToastContainer';
+import { HouseQuickBar } from '../common/HouseQuickBar';
 
 export const EggProductionView: React.FC = () => {
   const { 
@@ -32,6 +34,8 @@ export const EggProductionView: React.FC = () => {
     currentUser, 
     permissions 
   } = useFarm();
+
+  const toast = useToast();
 
   const [selectedHouse, setSelectedHouse] = useState<string>(() => {
     if (currentUser?.designatedHouses && currentUser.designatedHouses.length > 0) {
@@ -136,6 +140,11 @@ export const EggProductionView: React.FC = () => {
       notes: notes.trim()
     });
 
+    toast.success(
+      `Egg Record Saved (${houseNumber})`,
+      `${grandTotalLoggedEggs.toLocaleString()} eggs graded (${totalCalculatedHE.toLocaleString()} HE / ${totalCalculatedNHE.toLocaleString()} NHE)`
+    );
+
     setShowLogModal(false);
   };
 
@@ -235,6 +244,7 @@ export const EggProductionView: React.FC = () => {
   const handleCopyReport = () => {
     navigator.clipboard.writeText(currentMessengerReportText);
     setCopied(true);
+    toast.success('Messenger Report Copied', 'Daily egg summary formatted & ready to paste into Messenger / WhatsApp.');
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -307,6 +317,7 @@ export const EggProductionView: React.FC = () => {
     };
 
     exportReportToExcel(meta, [sheet], `${farmProfile.name ? farmProfile.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Farm'}_Egg_Production_${selectedHouse}.xlsx`);
+    toast.success('Excel Generated', `Downloaded official workbook for ${selectedHouse}`);
   };
 
   return (
@@ -369,29 +380,12 @@ export const EggProductionView: React.FC = () => {
         </div>
       </div>
 
-      {/* House Selector & Overview KPIs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-        <div className="flex items-center gap-3">
-          <label className="text-xs font-bold text-slate-700">Filter House:</label>
-          <select
-            value={selectedHouse}
-            onChange={e => setSelectedHouse(e.target.value)}
-            className="px-3 py-1.5 text-xs font-bold border border-slate-200 rounded-xl bg-white text-slate-800 focus:outline-teal-500"
-          >
-            {flocks.map(f => (
-              <option key={f.id} value={f.houseNumber}>
-                {f.houseNumber} ({f.breed} - Wk {getFlockStats(f.houseNumber)?.ageWeeks || 0})
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {latestProd && (
-          <div className="text-xs text-slate-500">
-            Latest Record: <strong className="text-slate-800 font-bold">{latestProd.date}</strong> ({latestProd.houseNumber})
-          </div>
-        )}
-      </div>
+      {/* House Quick Selector Bar */}
+      <HouseQuickBar
+        selectedHouse={selectedHouse}
+        onSelectHouse={setSelectedHouse}
+        showAllOption={true}
+      />
 
       {/* 4 Performance Metric Cards */}
       {latestProd && (

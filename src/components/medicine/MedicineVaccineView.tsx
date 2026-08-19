@@ -17,6 +17,8 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { exportReportToExcel, ReportMetadata, SheetData } from '../../utils/reportExportUtils';
+import { useToast } from '../common/ToastContainer';
+import { HouseQuickBar } from '../common/HouseQuickBar';
 
 export const MedicineVaccineView: React.FC = () => {
   const { 
@@ -33,6 +35,8 @@ export const MedicineVaccineView: React.FC = () => {
     permissions 
   } = useFarm();
 
+  const toast = useToast();
+  const [selectedHouseFilter, setSelectedHouseFilter] = useState('All');
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
 
@@ -76,6 +80,7 @@ export const MedicineVaccineView: React.FC = () => {
     });
 
     setShowAddProductModal(false);
+    toast.success('Product Added', `${productName.trim()} registered to biological pharmacy.`);
     setProductName('');
   };
 
@@ -99,6 +104,11 @@ export const MedicineVaccineView: React.FC = () => {
       notes: adminNotes,
       status: 'completed'
     });
+
+    toast.success(
+      `Immunization Logged (${adminHouse})`,
+      `${prod.name} • ${totalDoses.toLocaleString()} doses via ${adminMethod}`
+    );
 
     setShowScheduleModal(false);
     setAdminNotes('');
@@ -159,7 +169,13 @@ export const MedicineVaccineView: React.FC = () => {
     };
 
     exportReportToExcel(meta, [sheet], `${farmProfile.name ? farmProfile.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Farm'}_Vaccine_Medicine_Report.xlsx`);
+    toast.success('Excel Generated', 'Downloaded official vaccination and medication report');
   };
+
+  const filteredAdministrations = medAdministrations.filter(a => {
+    if (selectedHouseFilter !== 'All' && a.houseNumber !== selectedHouseFilter) return false;
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -323,13 +339,19 @@ export const MedicineVaccineView: React.FC = () => {
 
       {/* Administration History Table */}
       <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-bold text-slate-900">Administration & Immunization History</h3>
             <p className="text-xs text-slate-500">Record of all vaccines and supplements given to flocks</p>
           </div>
-          <span className="text-xs text-slate-500 font-medium">{medAdministrations.length} records</span>
+          <span className="text-xs text-slate-500 font-medium">{filteredAdministrations.length} of {medAdministrations.length} records</span>
         </div>
+
+        <HouseQuickBar
+          selectedHouse={selectedHouseFilter}
+          onSelectHouse={setSelectedHouseFilter}
+          showAllOption={true}
+        />
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
@@ -347,7 +369,7 @@ export const MedicineVaccineView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {medAdministrations.map(admin => (
+              {filteredAdministrations.map(admin => (
                 <tr key={admin.id} className="hover:bg-slate-50 transition">
                   <td className="py-2.5 px-3 font-medium text-slate-700">{admin.date}</td>
                   <td className="py-2.5 px-3 font-bold text-slate-900">{admin.houseNumber}</td>

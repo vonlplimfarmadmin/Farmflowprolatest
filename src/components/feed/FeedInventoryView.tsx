@@ -13,6 +13,8 @@ import {
   FileText,
   Clock
 } from 'lucide-react';
+import { useToast } from '../common/ToastContainer';
+import { HouseQuickBar } from '../common/HouseQuickBar';
 
 export const FeedInventoryView: React.FC = () => {
   const { 
@@ -30,6 +32,8 @@ export const FeedInventoryView: React.FC = () => {
     permissions 
   } = useFarm();
 
+  const toast = useToast();
+  const [selectedHouseFilter, setSelectedHouseFilter] = useState('All');
   const [showAddStockModal, setShowAddStockModal] = useState(false);
   const [showLogConsumptionModal, setShowLogConsumptionModal] = useState(false);
 
@@ -88,6 +92,11 @@ export const FeedInventoryView: React.FC = () => {
       notes: notes.trim()
     });
 
+    toast.success(
+      'Feed Stock Received',
+      `+${Number(bags)} bags of ${feedType} (${(Number(bags) * Number(kgPerBag)).toLocaleString()} kg) added to warehouse inventory.`
+    );
+
     setShowAddStockModal(false);
     setBags(50);
     setNotes('');
@@ -112,9 +121,19 @@ export const FeedInventoryView: React.FC = () => {
       notes: consNotes.trim() || `${consHouse} (${consSide}): ${consFemaleGrams}g/bird (${consFemaleKg}kg ${consFemaleFeedType}) + ${consMaleGrams}g/bird (${consMaleKg}kg ${consMaleFeedType})`
     });
 
+    toast.success(
+      `Feeding Logged (${consHouse})`,
+      `${consTotalKg.toLocaleString()} kg total (${consFemaleKg}kg ♀ + ${consMaleKg}kg ♂) deducted from silo.`
+    );
+
     setShowLogConsumptionModal(false);
     setConsNotes('');
   };
+
+  const filteredConsumptions = feedConsumptionRecords.filter(c => {
+    if (selectedHouseFilter !== 'All' && c.houseNumber !== selectedHouseFilter) return false;
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -308,13 +327,19 @@ export const FeedInventoryView: React.FC = () => {
 
         {/* Daily Feed Consumption Log Table */}
         <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <TrendingDown className="w-4 h-4 text-teal-600" />
               <span>Daily House Consumption Logs</span>
             </h3>
-            <span className="text-xs text-slate-500">{feedConsumptionRecords.length} records</span>
+            <span className="text-xs text-slate-500">{filteredConsumptions.length} of {feedConsumptionRecords.length} records</span>
           </div>
+
+          <HouseQuickBar
+            selectedHouse={selectedHouseFilter}
+            onSelectHouse={setSelectedHouseFilter}
+            showAllOption={true}
+          />
 
           <div className="overflow-x-auto max-h-80 overflow-y-auto">
             <table className="w-full text-left text-xs border-collapse">
@@ -330,7 +355,7 @@ export const FeedInventoryView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {feedConsumptionRecords.map(record => {
+                {filteredConsumptions.map(record => {
                   const hasSplit = record.femaleFeedType || record.maleFeedType;
                   return (
                     <tr key={record.id} className="hover:bg-slate-50 transition">
