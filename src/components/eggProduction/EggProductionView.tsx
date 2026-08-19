@@ -16,8 +16,10 @@ import {
   FileText,
   Clock,
   Sparkles,
-  Scale
+  Scale,
+  FileSpreadsheet
 } from 'lucide-react';
+import { exportReportToExcel, ReportMetadata, SheetData } from '../../utils/reportExportUtils';
 
 export const EggProductionView: React.FC = () => {
   const { 
@@ -236,6 +238,77 @@ export const EggProductionView: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleExportEggExcel = () => {
+    const recordsToExport = selectedHouse === 'All' ? eggProductionRecords : activeHouseRecords;
+    const eggData = recordsToExport.map(r => {
+      const hePct = r.tep && r.tep > 0 ? ((r.totalHE || 0) / r.tep) * 100 : 0;
+      const nhePct = r.tep && r.tep > 0 ? ((r.totalNHE || 0) / r.tep) * 100 : 0;
+      return {
+        date: r.date,
+        houseNumber: r.houseNumber,
+        femalePop: r.femalePopulationAtDate || '',
+        heNest: r.heNest || 0,
+        heFloor: r.heFloor || 0,
+        totalHE: r.totalHE || 0,
+        hePct: Number(hePct.toFixed(1)),
+        small: r.small || 0,
+        thinShell: r.thinShell || 0,
+        misshape: r.misshape || 0,
+        doubleYolk: r.doubleYolk || 0,
+        broken: r.broken || 0,
+        spoiled: r.spoiled || 0,
+        totalNHE: r.totalNHE || 0,
+        nhePct: Number(nhePct.toFixed(1)),
+        tep: r.tep || 0,
+        hendayPct: r.hendayPct ? Number(r.hendayPct.toFixed(1)) : '',
+        sampleEggWeight: r.sampleEggWeightGrams ? Number(r.sampleEggWeightGrams.toFixed(1)) : '',
+        loggedBy: r.loggedBy || ''
+      };
+    });
+
+    const meta: ReportMetadata = {
+      companyName: farmProfile.name || 'L.P. LIM CITY FAMILY FARM INC',
+      logoUrl: farmProfile.logoUrl,
+      address: farmProfile.address,
+      contactNumber: farmProfile.contactNumber,
+      email: farmProfile.email,
+      reportTitle: `Egg Production & Hatching Performance Report (${selectedHouse})`,
+      dateRange: `All Recorded Cycles`,
+      houseFilter: selectedHouse,
+      generatedBy: currentUser?.fullName || 'Authorized Staff',
+      generatedAt: new Date().toLocaleString()
+    };
+
+    const sheet: SheetData = {
+      sheetName: 'Egg Production',
+      title: 'Egg Production & Hatching Performance Report',
+      columns: [
+        { header: 'Date', key: 'date', width: 12 },
+        { header: 'House', key: 'houseNumber', width: 10 },
+        { header: 'Female Birds', key: 'femalePop', width: 12 },
+        { header: 'HE Nest', key: 'heNest', width: 10 },
+        { header: 'HE Floor', key: 'heFloor', width: 10 },
+        { header: 'Total HE', key: 'totalHE', width: 12 },
+        { header: 'HE %', key: 'hePct', width: 10 },
+        { header: 'Small', key: 'small', width: 8 },
+        { header: 'Thin Shell', key: 'thinShell', width: 10 },
+        { header: 'Misshape', key: 'misshape', width: 10 },
+        { header: 'Double Yolk', key: 'doubleYolk', width: 12 },
+        { header: 'Broken', key: 'broken', width: 8 },
+        { header: 'Spoiled', key: 'spoiled', width: 8 },
+        { header: 'Total NHE', key: 'totalNHE', width: 12 },
+        { header: 'NHE %', key: 'nhePct', width: 10 },
+        { header: 'Total Eggs (TEP)', key: 'tep', width: 15 },
+        { header: 'Hen-Day %', key: 'hendayPct', width: 12 },
+        { header: 'Egg Wt (g)', key: 'sampleEggWeight', width: 12 },
+        { header: 'Logged By', key: 'loggedBy', width: 18 }
+      ],
+      data: eggData
+    };
+
+    exportReportToExcel(meta, [sheet], `${farmProfile.name ? farmProfile.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Farm'}_Egg_Production_${selectedHouse}.xlsx`);
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Banner */}
@@ -251,28 +324,47 @@ export const EggProductionView: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Action 1: Export Excel Report */}
+          <button
+            id="export-egg-excel-btn"
+            onClick={handleExportEggExcel}
+            className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer active:scale-95"
+            title="Export Excel with Company Header & Official Farm Logo"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Export Excel</span>
+          </button>
+
+          <div className="hidden sm:block w-px h-6 bg-slate-200" />
+
+          {/* Action 2: Messenger Daily Dispatch */}
           <button
             id="open-messenger-report-btn"
             onClick={() => setShowMessengerReportModal(true)}
-            className="px-4 py-2.5 bg-teal-950 hover:bg-teal-900 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs"
+            className="px-4 py-2.5 bg-teal-950 hover:bg-teal-900 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer active:scale-95"
+            title="Generate & Copy Daily Text Summary for Messenger"
           >
             <Share2 className="w-4 h-4 text-teal-400" />
             <span>Messenger Daily Report</span>
           </button>
 
+          {/* Action 3: Record Egg Production Entry */}
           {permissions.canRecordEggProduction(selectedHouse) && (
-            <button
-              id="record-daily-egg-btn"
-              onClick={() => {
-                setHouseNumber(selectedHouse);
-                setShowLogModal(true);
-              }}
-              className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Record Egg Production</span>
-            </button>
+            <>
+              <div className="hidden sm:block w-px h-6 bg-slate-200" />
+              <button
+                id="record-daily-egg-btn"
+                onClick={() => {
+                  setHouseNumber(selectedHouse);
+                  setShowLogModal(true);
+                }}
+                className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer active:scale-95"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Record Egg Production</span>
+              </button>
+            </>
           )}
         </div>
       </div>

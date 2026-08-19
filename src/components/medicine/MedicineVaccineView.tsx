@@ -13,8 +13,10 @@ import {
   Bell, 
   Pill, 
   ShieldCheck,
-  Activity
+  Activity,
+  FileSpreadsheet
 } from 'lucide-react';
+import { exportReportToExcel, ReportMetadata, SheetData } from '../../utils/reportExportUtils';
 
 export const MedicineVaccineView: React.FC = () => {
   const { 
@@ -26,6 +28,8 @@ export const MedicineVaccineView: React.FC = () => {
     deleteMedAdministration, 
     getUpcomingVaccineAlerts, 
     flocks, 
+    farmProfile,
+    currentUser,
     permissions 
   } = useFarm();
 
@@ -100,6 +104,63 @@ export const MedicineVaccineView: React.FC = () => {
     setAdminNotes('');
   };
 
+  const handleExportMedExcel = () => {
+    const medData = medAdministrations.map(a => ({
+      date: a.date,
+      houseNumber: a.houseNumber,
+      productName: a.productName,
+      productType: a.productType,
+      method: a.method,
+      unitsUsed: a.unitsUsed,
+      totalDoses: a.totalDosesAdministered || (a.unitsUsed * 1000),
+      peripherals: a.peripheralsUsed || '',
+      administeredBy: a.administeredBy || a.loggedBy || 'Veterinary Crew',
+      status: 'Completed'
+    }));
+
+    const totalUnits = medAdministrations.reduce((acc, a) => acc + (a.unitsUsed || 0), 0);
+    const totalDoses = medAdministrations.reduce((acc, a) => acc + (a.totalDosesAdministered || (a.unitsUsed * 1000) || 0), 0);
+
+    const meta: ReportMetadata = {
+      companyName: farmProfile.name || 'L.P. LIM CITY FAMILY FARM INC',
+      logoUrl: farmProfile.logoUrl,
+      address: farmProfile.address,
+      contactNumber: farmProfile.contactNumber,
+      email: farmProfile.email,
+      reportTitle: `Breeder Vaccination & Medication Health Record`,
+      dateRange: `All Recorded Treatments`,
+      houseFilter: 'All Houses',
+      generatedBy: currentUser?.fullName || 'Authorized Staff',
+      generatedAt: new Date().toLocaleString()
+    };
+
+    const sheet: SheetData = {
+      sheetName: 'Vaccines & Medicine',
+      title: 'Breeder Vaccination & Medication Health Record',
+      columns: [
+        { header: 'Admin Date', key: 'date', width: 12 },
+        { header: 'House', key: 'houseNumber', width: 10 },
+        { header: 'Product Name', key: 'productName', width: 25 },
+        { header: 'Product Type', key: 'productType', width: 14 },
+        { header: 'Route / Method', key: 'method', width: 20 },
+        { header: 'Units Consumed', key: 'unitsUsed', width: 15 },
+        { header: 'Total Doses Administered', key: 'totalDoses', width: 22 },
+        { header: 'Peripherals / Equipment', key: 'peripherals', width: 25 },
+        { header: 'Administered By', key: 'administeredBy', width: 20 },
+        { header: 'Status', key: 'status', width: 12 }
+      ],
+      data: medData,
+      summaryRow: {
+        date: 'TOTALS',
+        houseNumber: `${medAdministrations.length} events`,
+        unitsUsed: totalUnits,
+        totalDoses: totalDoses
+      }
+    };
+
+    exportReportToExcel(meta, [sheet], `${farmProfile.name ? farmProfile.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Farm'}_Vaccine_Medicine_Report.xlsx`);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
@@ -116,6 +177,16 @@ export const MedicineVaccineView: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            id="export-med-excel-btn"
+            onClick={handleExportMedExcel}
+            className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+            title="Export Excel with Company Header & Logo"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Export Excel</span>
+          </button>
+
           {permissions.canManageMedicines && (
             <>
               <button

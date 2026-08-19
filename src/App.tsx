@@ -18,6 +18,7 @@ import { MortalityManagementView } from './components/mortality/MortalityManagem
 import { MedicineVaccineView } from './components/medicine/MedicineVaccineView';
 import { BodyWeightView } from './components/bodyWeight/BodyWeightView';
 import { EggProductionView } from './components/eggProduction/EggProductionView';
+import { DynamicReportsView } from './components/reports/DynamicReportsView';
 import { SettingsView } from './components/settings/SettingsView';
 import { RoleBadge } from './components/common/RoleBadge';
 import { Shield, Sparkles, UserCheck, AlertCircle } from 'lucide-react';
@@ -88,6 +89,7 @@ const FarmAppContent: React.FC = () => {
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         onOpenNotifications={() => setIsNotificationOpen(true)}
         onOpenReport={() => setIsMessengerReportOpen(true)}
+        onNavigate={setActiveModule}
         onOpenLogin={() => setAuthModalMode('login')}
         onOpenRegister={() => setAuthModalMode('register')}
       />
@@ -151,6 +153,7 @@ const FarmAppContent: React.FC = () => {
               {activeModule === 'medicine' && <MedicineVaccineView />}
               {activeModule === 'body_weight' && <BodyWeightView />}
               {activeModule === 'egg_production' && <EggProductionView />}
+              {activeModule === 'reports' && <DynamicReportsView />}
               {activeModule === 'settings' && <SettingsView />}
             </>
           )}

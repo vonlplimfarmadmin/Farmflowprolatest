@@ -1372,16 +1372,16 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (isAdmin || isManager) return true;
 
       if (isFlockman) {
-        // Flockman: access designated flock's record Egg Production, view Flockman's Module, and view Flock and Farm Profile only
-        return ['dashboard', 'egg_production', 'flockman', 'flockman_module', 'flock', 'flock_list', 'farm_profile'].includes(moduleId);
+        // Flockman: access designated flock's record Egg Production, view Flockman's Module, view Flock, Farm Profile and Reports
+        return ['dashboard', 'egg_production', 'flockman', 'flockman_module', 'flock', 'flock_list', 'farm_profile', 'reports'].includes(moduleId);
       }
       if (isLeadman) {
-        // Leadman: access designated flock's record Egg Production, record Flockman's Module, view Flock and Farm Profile only
-        return ['dashboard', 'egg_production', 'flockman', 'flockman_module', 'flock', 'flock_list', 'farm_profile', 'mortality'].includes(moduleId);
+        // Leadman: access designated flock's record Egg Production, record Flockman's Module, view Flock, Farm Profile, mortality and Reports
+        return ['dashboard', 'egg_production', 'flockman', 'flockman_module', 'flock', 'flock_list', 'farm_profile', 'mortality', 'reports'].includes(moduleId);
       }
       if (isCollector) {
-        // Egg Collector: access designated flock and Record Egg Production only
-        return ['dashboard', 'egg_production'].includes(moduleId);
+        // Egg Collector: access designated flock, Record Egg Production and Reports
+        return ['dashboard', 'egg_production', 'reports'].includes(moduleId);
       }
       return false;
     },

@@ -109,6 +109,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   ];
 
+  const reportingItems = [
+    {
+      id: 'reports',
+      label: 'Dynamic Reports Hub',
+      sublabel: 'Print & Export Excel (Eggs, Mort, Meds)',
+      icon: FileSpreadsheet,
+      visible: permissions.canViewModule('reports'),
+      badge: 'Excel / Print',
+      badgeColor: 'bg-emerald-500 text-white font-black'
+    }
+  ];
+
   const systemItems = [
     {
       id: 'farm_profile',
@@ -235,6 +247,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <nav className="flex-1 py-4 overflow-y-auto scrollbar-thin scrollbar-thumb-forest-900">
           {renderNavGroup('Management', managementItems)}
           {renderNavGroup('Production', productionItems)}
+          {renderNavGroup('Reports & Analytics', reportingItems)}
           {renderNavGroup('System & Compliance', systemItems)}
 
           {/* Quick Action: Messenger Report */}

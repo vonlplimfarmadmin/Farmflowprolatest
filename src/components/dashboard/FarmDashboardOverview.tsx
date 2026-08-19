@@ -16,7 +16,8 @@ import {
   CheckCircle2, 
   ArrowUpRight,
   ShieldCheck,
-  Users
+  Users,
+  FileSpreadsheet
 } from 'lucide-react';
 import { RoleBadge } from '../common/RoleBadge';
 
@@ -105,26 +106,6 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
                 Welcome back, <strong className="text-mint-300">{currentUser?.fullName}</strong>. Live monitoring of {flocks.length} parent-stock breeder houses, bio-security schedules, and daily egg grading.
               </p>
             </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2.5 shrink-0">
-            <button
-              onClick={onOpenMessengerReport}
-              className="px-4 py-2.5 bg-mint-400 hover:bg-mint-300 text-forest-950 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-sm transition active:scale-95"
-            >
-              <Share2 className="w-4 h-4" />
-              <span>Messenger Daily Report</span>
-            </button>
-
-            {permissions.canRecordEggProduction() && (
-              <button
-                onClick={() => onNavigate('egg_production')}
-                className="px-4 py-2.5 bg-forest-900/80 hover:bg-forest-800 text-mint-100 rounded-xl text-xs font-bold uppercase tracking-wider border border-forest-700 flex items-center gap-2 transition"
-              >
-                <Plus className="w-4 h-4 text-mint-400" />
-                <span>Log Egg Production</span>
-              </button>
-            )}
           </div>
         </div>
       </div>

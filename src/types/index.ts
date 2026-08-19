@@ -385,9 +385,12 @@ export type ModuleType =
   | 'farm_profile'
   | 'feed_inventory'
   | 'flock'
+  | 'flock_list'
   | 'flockman'
+  | 'flockman_module'
   | 'mortality'
   | 'medicine'
   | 'body_weight'
   | 'egg_production'
+  | 'reports'
   | 'settings';

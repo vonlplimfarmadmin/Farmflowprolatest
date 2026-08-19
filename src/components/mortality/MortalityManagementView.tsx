@@ -11,8 +11,10 @@ import {
   CheckCircle2,
   Calendar,
   Layers,
-  HeartHandshake
+  HeartHandshake,
+  FileSpreadsheet
 } from 'lucide-react';
+import { exportReportToExcel, ReportMetadata, SheetData } from '../../utils/reportExportUtils';
 
 export const MortalityManagementView: React.FC = () => {
   const { 
@@ -21,6 +23,8 @@ export const MortalityManagementView: React.FC = () => {
     deleteDepletion, 
     flocks, 
     getFlockStats, 
+    farmProfile,
+    currentUser,
     permissions 
   } = useFarm();
 
@@ -83,6 +87,64 @@ export const MortalityManagementView: React.FC = () => {
   const grandTotalDepletionF = totalMortalityF + totalSpotCullF + totalMissexF + totalSpentCullF;
   const grandTotalDepletion = grandTotalDepletionM + grandTotalDepletionF;
 
+  const handleExportMortalityExcel = () => {
+    const mortData = filteredRecords.map(d => ({
+      date: d.date,
+      houseNumber: d.houseNumber,
+      penName: d.penName || d.side || 'All',
+      category: d.category,
+      males: d.maleCount || 0,
+      females: d.femaleCount || 0,
+      totalLost: (d.maleCount || 0) + (d.femaleCount || 0),
+      reasonDetails: d.reasonDetails || '',
+      source: d.sourceModule || '',
+      loggedBy: d.loggedBy || ''
+    }));
+
+    const totalM = filteredRecords.reduce((acc, d) => acc + (d.maleCount || 0), 0);
+    const totalF = filteredRecords.reduce((acc, d) => acc + (d.femaleCount || 0), 0);
+
+    const meta: ReportMetadata = {
+      companyName: farmProfile.name || 'L.P. LIM CITY FAMILY FARM INC',
+      logoUrl: farmProfile.logoUrl,
+      address: farmProfile.address,
+      contactNumber: farmProfile.contactNumber,
+      email: farmProfile.email,
+      reportTitle: `Flock Mortality & Depletion Incident Report (${selectedHouse})`,
+      dateRange: `All Recorded Incidents`,
+      houseFilter: selectedHouse,
+      generatedBy: currentUser?.fullName || 'Authorized Staff',
+      generatedAt: new Date().toLocaleString()
+    };
+
+    const sheet: SheetData = {
+      sheetName: 'Mortality & Depletion',
+      title: 'Flock Mortality, Culling & Depletion Incident Report',
+      columns: [
+        { header: 'Date', key: 'date', width: 12 },
+        { header: 'House', key: 'houseNumber', width: 10 },
+        { header: 'Side / Pen', key: 'penName', width: 12 },
+        { header: 'Category', key: 'category', width: 18 },
+        { header: 'Males Lost', key: 'males', width: 12 },
+        { header: 'Females Lost', key: 'females', width: 14 },
+        { header: 'Total Birds Lost', key: 'totalLost', width: 16 },
+        { header: 'Reason Details', key: 'reasonDetails', width: 35 },
+        { header: 'Source Module', key: 'source', width: 14 },
+        { header: 'Logged By', key: 'loggedBy', width: 18 }
+      ],
+      data: mortData,
+      summaryRow: {
+        date: 'TOTALS',
+        houseNumber: `${filteredRecords.length} records`,
+        males: totalM,
+        females: totalF,
+        totalLost: totalM + totalF
+      }
+    };
+
+    exportReportToExcel(meta, [sheet], `${farmProfile.name ? farmProfile.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Farm'}_Mortality_Report_${selectedHouse}.xlsx`);
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Banner */}
@@ -98,19 +160,31 @@ export const MortalityManagementView: React.FC = () => {
           </p>
         </div>
 
-        {/* Grand Total Depletion Metric Pill */}
-        <div className="bg-rose-50/80 border border-rose-200/80 rounded-2xl p-3 sm:px-4 flex items-center gap-3">
-          <div className="p-2.5 bg-rose-600 text-white rounded-xl shadow-xs">
-            <TrendingDown className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-wider font-bold text-rose-800">Total Farm Depletion</p>
-            <p className="text-lg font-black text-rose-950">
-              {grandTotalDepletion.toLocaleString()} birds
-            </p>
-            <p className="text-[10px] text-rose-700 font-medium">
-              {grandTotalDepletionM} Males • {grandTotalDepletionF} Females
-            </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            id="export-mortality-excel-btn"
+            onClick={handleExportMortalityExcel}
+            className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+            title="Export Excel with Company Header & Logo"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Export Excel</span>
+          </button>
+
+          {/* Grand Total Depletion Metric Pill */}
+          <div className="bg-rose-50/80 border border-rose-200/80 rounded-2xl p-3 sm:px-4 flex items-center gap-3">
+            <div className="p-2.5 bg-rose-600 text-white rounded-xl shadow-xs">
+              <TrendingDown className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider font-bold text-rose-800">Total Farm Depletion</p>
+              <p className="text-lg font-black text-rose-950">
+                {grandTotalDepletion.toLocaleString()} birds
+              </p>
+              <p className="text-[10px] text-rose-700 font-medium">
+                {grandTotalDepletionM} Males • {grandTotalDepletionF} Females
+              </p>
+            </div>
           </div>
         </div>
       </div>

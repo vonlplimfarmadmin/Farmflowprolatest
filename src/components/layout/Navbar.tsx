@@ -12,7 +12,10 @@ import {
   Menu,
   Sparkles,
   ChevronDown,
-  Database
+  Database,
+  Share2,
+  Egg,
+  Plus
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -21,6 +24,7 @@ interface NavbarProps {
   onOpenLogin: () => void;
   onOpenRegister: () => void;
   onToggleSidebar: () => void;
+  onNavigate?: (moduleId: any) => void;
   currentModule: string;
 }
 
@@ -30,6 +34,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenLogin,
   onOpenRegister,
   onToggleSidebar,
+  onNavigate,
+  currentModule
 }) => {
   const { 
     currentUser, 
@@ -39,7 +45,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     farmProfile, 
     getLowStockAlerts, 
     getUpcomingVaccines,
-    dbStatus
+    dbStatus,
+    permissions
   } = useFarm();
 
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
@@ -110,16 +117,55 @@ export const Navbar: React.FC<NavbarProps> = ({
           <span className={`w-1.5 h-1.5 rounded-full ${dbStatus.connected ? 'bg-mint-500 animate-pulse' : 'bg-amber-400'}`} />
         </button>
 
-        {/* Messenger Daily Report Button */}
+        {/* Action Pod 1: Dynamic Reports Hub */}
+        {onNavigate && (
+          <button
+            id="navbar-dynamic-reports-btn"
+            onClick={() => onNavigate('reports')}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-xs border ${
+              currentModule === 'reports'
+                ? 'bg-emerald-500 text-slate-950 border-emerald-400 ring-2 ring-emerald-300'
+                : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-950 border-emerald-200'
+            }`}
+            title="Dynamic Reports (Egg Production, Mortality, Vaccines, Meds) - Print & Export Excel"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" />
+            <span className="hidden sm:inline">Dynamic Reports</span>
+          </button>
+        )}
+
+        <div className="w-px h-5 bg-slate-200 hidden sm:block" />
+
+        {/* Action Pod 2: Messenger Daily Report */}
         <button
           id="navbar-messenger-report-btn"
           onClick={onOpenReport}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-forest-900 hover:bg-forest-800 active:scale-95 text-mint-300 border border-forest-700 rounded-xl text-xs font-bold shadow-xs transition"
-          title="Generate Daily Egg Report for Messenger"
+          title="Generate Daily Egg & Flock Summary for Messenger/WhatsApp"
         >
-          <FileSpreadsheet className="w-3.5 h-3.5 text-mint-400" />
+          <Share2 className="w-3.5 h-3.5 text-mint-400" />
           <span className="hidden md:inline">Messenger Report</span>
         </button>
+
+        {/* Action Pod 3: Log Egg Production Shortcut */}
+        {onNavigate && permissions?.canRecordEggProduction && permissions.canRecordEggProduction() && (
+          <>
+            <div className="w-px h-5 bg-slate-200 hidden lg:block" />
+            <button
+              id="navbar-log-egg-btn"
+              onClick={() => onNavigate('egg_production')}
+              className={`hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-xs border ${
+                currentModule === 'egg_production'
+                  ? 'bg-teal-700 text-white border-teal-800 ring-2 ring-teal-300'
+                  : 'bg-teal-50 hover:bg-teal-100 text-teal-900 border-teal-200'
+              }`}
+              title="Record Daily Egg Grading & Lay Rate"
+            >
+              <Plus className="w-3.5 h-3.5 text-teal-600" />
+              <span>Log Egg</span>
+            </button>
+          </>
+        )}
 
         {/* Notification Bell */}
         <button
