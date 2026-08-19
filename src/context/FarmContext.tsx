@@ -859,14 +859,31 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addFeedConsumption = (record: Omit<FeedConsumptionRecord, 'id' | 'createdAt' | 'loggedBy'>) => {
+    // If female and male quantities are provided, calculate total quantity and default feedType
+    const femaleKg = record.femaleQuantityKg ?? 0;
+    const maleKg = record.maleQuantityKg ?? 0;
+    const totalKg = (record.femaleQuantityKg !== undefined || record.maleQuantityKg !== undefined)
+      ? (femaleKg + maleKg)
+      : record.quantityKg;
+
+    const primaryFeedType = record.feedType || record.femaleFeedType || record.maleFeedType || 'BLC 1';
+
     const newRecord: FeedConsumptionRecord = {
       ...record,
+      feedType: primaryFeedType,
+      quantityKg: totalKg,
       id: 'fc_' + Date.now(),
       loggedBy: currentUser?.fullName || 'Staff',
       createdAt: new Date().toISOString()
     };
     setFeedConsumptionRecords(prev => [newRecord, ...prev]);
-    logAction('LOG_FEED_CONSUMPTION', 'feed', `Consumed ${record.quantityKg} kg of ${record.feedType} in ${record.houseNumber}.`, record.houseNumber);
+
+    const descParts = [];
+    if (record.femaleQuantityKg) descParts.push(`Females: ${record.femaleQuantityKg}kg (${record.femaleFeedType || primaryFeedType})`);
+    if (record.maleQuantityKg) descParts.push(`Males: ${record.maleQuantityKg}kg (${record.maleFeedType || primaryFeedType})`);
+    const desc = descParts.length > 0 ? descParts.join(', ') : `${totalKg}kg of ${primaryFeedType}`;
+
+    logAction('LOG_FEED_CONSUMPTION', 'feed', `Logged feed in ${record.houseNumber} [Total ${totalKg} kg] - ${desc}.`, record.houseNumber);
   };
 
   const deleteFeedConsumption = (id: string) => {
@@ -886,8 +903,17 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .reduce((sum, e) => sum + e.bags, 0);
 
       const totalConsumedKg = feedConsumptionRecords
-        .filter(r => r.feedType === ft)
-        .reduce((sum, r) => sum + r.quantityKg, 0);
+        .reduce((sum, r) => {
+          let recTotal = 0;
+          if (r.femaleFeedType !== undefined || r.maleFeedType !== undefined) {
+            if (r.femaleFeedType === ft) recTotal += (r.femaleQuantityKg || 0);
+            if (r.maleFeedType === ft) recTotal += (r.maleQuantityKg || 0);
+          } else {
+            // Legacy record without male/female breakdown
+            if (r.feedType === ft) recTotal += (r.quantityKg || 0);
+          }
+          return sum + recTotal;
+        }, 0);
 
       const currentStockKg = Math.max(0, totalReceivedKg - totalConsumedKg);
       const currentStockBags = Math.round((currentStockKg / 50) * 10) / 10;

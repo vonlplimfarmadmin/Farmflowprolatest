@@ -54,10 +54,13 @@ export const FlockmanModuleView: React.FC = () => {
   const [newPenMales, setNewPenMales] = useState(240);
   const [newPenFemales, setNewPenFemales] = useState(2300);
 
-  // Feed Log State for Side/Pen
-  const [feedType, setFeedType] = useState<FeedType>('BLC 1');
-  const [feedKg, setFeedKg] = useState<number>(725);
+  // Feed Log State for Side/Pen (in grams per bird)
+  const [femaleFeedType, setFemaleFeedType] = useState<FeedType>('BLC 1');
+  const [femaleFeedGrams, setFemaleFeedGrams] = useState<number>(155);
+  const [maleFeedType, setMaleFeedType] = useState<FeedType>('BMCC');
+  const [maleFeedGrams, setMaleFeedGrams] = useState<number>(125);
   const [feedDate, setFeedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [feedNotes, setFeedNotes] = useState<string>('');
   const [feedSuccess, setFeedSuccess] = useState(false);
 
   // Mortality State for Side/Pen
@@ -87,13 +90,22 @@ export const FlockmanModuleView: React.FC = () => {
 
   // Filter pens by side
   const sidePens = (activeFlock?.pens || []).filter(p => p.side === activeSide);
+  const sideMales = sidePens.length > 0 
+    ? sidePens.reduce((sum, p) => sum + p.males, 0) 
+    : Math.floor((stats?.currentMales || 0) / 2);
+  const sideFemales = sidePens.length > 0 
+    ? sidePens.reduce((sum, p) => sum + p.females, 0) 
+    : Math.floor((stats?.currentFemales || 0) / 2);
 
   // Recommended feed from Standard Feed Guide
   const feedGuideItem = farmProfile.standardFeedGuide.find(fg => fg.ageWeek >= (stats?.ageWeeks || 30)) || farmProfile.standardFeedGuide[farmProfile.standardFeedGuide.length - 1];
 
-  // Beginning inventory for selected feed type
-  const beginningStock = feedStockEntries
-    .filter(e => e.feedType === feedType)
+  // Beginning inventory for selected feed types
+  const beginningFemaleStock = feedStockEntries
+    .filter(e => e.feedType === femaleFeedType)
+    .reduce((sum, e) => sum + e.totalKg, 0);
+  const beginningMaleStock = feedStockEntries
+    .filter(e => e.feedType === maleFeedType)
     .reduce((sum, e) => sum + e.totalKg, 0);
 
   // Transfer Calculation Helpers
@@ -135,21 +147,39 @@ export const FlockmanModuleView: React.FC = () => {
     setShowAddPenModal(false);
   };
 
+  const femaleFeedKg = sideFemales > 0 ? Math.round((sideFemales * (Number(femaleFeedGrams) || 0)) / 1000) : 0;
+  const maleFeedKg = sideMales > 0 ? Math.round((sideMales * (Number(maleFeedGrams) || 0)) / 1000) : 0;
+  const totalFeedKg = femaleFeedKg + maleFeedKg;
+
   const handleLogFeed = (e: React.FormEvent) => {
     e.preventDefault();
-    if (feedKg <= 0 || !activeFlock) return;
+    if ((femaleFeedGrams <= 0 && maleFeedGrams <= 0) || !activeFlock) return;
 
     addFeedConsumption({
       houseNumber: activeFlock.houseNumber,
       date: feedDate,
       side: activeSide,
-      feedType,
-      quantityKg: Number(feedKg),
-      notes: `${activeSide} side feeding by Flockman`
+      femaleFeedType,
+      femaleQuantityKg: femaleFeedKg,
+      femaleGramsPerBird: Number(femaleFeedGrams) || 0,
+      maleFeedType,
+      maleQuantityKg: maleFeedKg,
+      maleGramsPerBird: Number(maleFeedGrams) || 0,
+      feedType: femaleFeedType,
+      quantityKg: totalFeedKg,
+      notes: feedNotes.trim() || `${activeSide} Side: ${femaleFeedGrams}g/bird (${femaleFeedKg}kg ${femaleFeedType}) + ${maleFeedGrams}g/bird (${maleFeedKg}kg ${maleFeedType})`
     });
 
     setFeedSuccess(true);
+    setFeedNotes('');
     setTimeout(() => setFeedSuccess(false), 2500);
+  };
+
+  const applyFeedGuidePreset = () => {
+    if (!feedGuideItem) return;
+    setFemaleFeedType(feedGuideItem.recommendedFeedType || 'BLC 1');
+    setFemaleFeedGrams(feedGuideItem.femaleGramsPerBird || 155);
+    setMaleFeedGrams(feedGuideItem.maleGramsPerBird || 125);
   };
 
   const handleLogMortality = (e: React.FormEvent) => {
@@ -436,86 +466,214 @@ export const FlockmanModuleView: React.FC = () => {
             {/* Panel 1: Feed Consumption Logger */}
             <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <Wheat className="w-4 h-4 text-teal-600" />
-                  <span>Feed Consumption ({activeSide} Side)</span>
-                </h3>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Wheat className="w-4 h-4 text-teal-600" />
+                    <span>Feed Consumption ({activeSide} Side)</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {sideFemales.toLocaleString()} females &bull; {sideMales.toLocaleString()} males on this side
+                  </p>
+                </div>
                 {feedSuccess && (
-                  <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Logged
+                  <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full flex items-center gap-1 animate-pulse">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Logged
                   </span>
                 )}
               </div>
 
-              {/* Reference Info Card */}
-              <div className="p-3 bg-teal-50/70 border border-teal-200/80 rounded-2xl text-xs space-y-1.5">
+              {/* Reference & Guide Card */}
+              <div className="p-3 bg-teal-50/80 border border-teal-200/80 rounded-2xl text-xs space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Beginning Total Stock ({feedType}):</span>
-                  <strong className="text-teal-950">{beginningStock.toLocaleString()} kg</strong>
+                  <span className="font-semibold text-teal-950">Standard Target (Wk {stats?.ageWeeks || 30}):</span>
+                  {feedGuideItem && (
+                    <button
+                      type="button"
+                      onClick={applyFeedGuidePreset}
+                      className="px-2 py-0.5 bg-teal-600 hover:bg-teal-700 text-white rounded-md text-[10px] font-bold transition shadow-2xs cursor-pointer"
+                    >
+                      Apply Guide Presets
+                    </button>
+                  )}
                 </div>
                 {feedGuideItem && (
-                  <div className="flex items-center justify-between text-teal-900">
-                    <span>Standard Feed Guide Target:</span>
-                    <strong>{feedGuideItem.femaleGramsPerBird} g/female/day • {feedGuideItem.recommendedFeedType}</strong>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] text-teal-900">
+                    <div className="p-1.5 bg-white/70 rounded-lg border border-teal-100">
+                      <span className="text-slate-600 block">Female Target:</span>
+                      <strong>{feedGuideItem.femaleGramsPerBird} g/bird</strong> &bull; {feedGuideItem.recommendedFeedType}
+                    </div>
+                    <div className="p-1.5 bg-white/70 rounded-lg border border-teal-100">
+                      <span className="text-slate-600 block">Male Target:</span>
+                      <strong>{feedGuideItem.maleGramsPerBird || 125} g/bird</strong> &bull; BMCC
+                    </div>
                   </div>
                 )}
               </div>
 
-              <form onSubmit={handleLogFeed} className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Feed Type *</label>
-                    <select
-                      value={feedType}
-                      onChange={e => setFeedType(e.target.value as FeedType)}
-                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white outline-hidden focus:outline-teal-500"
-                    >
-                      {['CSC 1', 'CSC 2', 'CGC', 'PDC', 'BLC 1', 'BLC 2', 'BLC 3', 'BMCC', 'BMCR', 'CBB'].map(ft => (
-                        <option key={ft} value={ft}>{ft}</option>
-                      ))}
-                    </select>
+              <form onSubmit={handleLogFeed} className="space-y-4">
+                {/* Feeding Date */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Feeding Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={feedDate}
+                    onChange={e => setFeedDate(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500"
+                  />
+                </div>
+
+                {/* Female Feeding Section */}
+                <div className="p-3.5 bg-rose-50/50 border border-rose-200/80 rounded-2xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-rose-950 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                      Female Feeding ({sideFemales.toLocaleString()} Birds)
+                    </span>
+                    <span className="text-[10px] font-semibold text-rose-800">
+                      Stock: {beginningFemaleStock.toLocaleString()} kg
+                    </span>
                   </div>
 
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">Female Feed Type *</label>
+                      <select
+                        value={femaleFeedType}
+                        onChange={e => setFemaleFeedType(e.target.value as FeedType)}
+                        className="w-full px-2.5 py-1.5 text-xs font-bold border border-rose-200 rounded-xl bg-white outline-hidden focus:outline-rose-500 text-rose-950"
+                      >
+                        {['CSC 1', 'CSC 2', 'CGC', 'PDC', 'BLC 1', 'BLC 2', 'BLC 3', 'BMCC', 'BMCR', 'CBB'].map(ft => (
+                          <option key={ft} value={ft}>{ft}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">Female Amount (g/bird) *</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          required
+                          value={femaleFeedGrams}
+                          onChange={e => setFemaleFeedGrams(Number(e.target.value))}
+                          className="w-full px-2.5 py-1.5 text-xs font-bold border border-rose-200 rounded-xl bg-white outline-hidden focus:outline-rose-500 text-rose-950 pr-14"
+                        />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-rose-600">
+                          g/bird
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-rose-900 bg-rose-100/60 px-2.5 py-1.5 rounded-lg">
+                    <span>Calculated Female Feed:</span>
+                    <strong>
+                      {femaleFeedKg.toLocaleString()} kg (~{(femaleFeedKg / 50).toFixed(1)} bags)
+                      {feedGuideItem && (
+                        <span className="text-[10px] text-rose-700 font-normal ml-1.5">
+                          (Target: {feedGuideItem.femaleGramsPerBird}g)
+                        </span>
+                      )}
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Male Feeding Section */}
+                <div className="p-3.5 bg-teal-50/50 border border-teal-200/80 rounded-2xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-teal-950 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+                      Male Feeding ({sideMales.toLocaleString()} Birds)
+                    </span>
+                    <span className="text-[10px] font-semibold text-teal-800">
+                      Stock: {beginningMaleStock.toLocaleString()} kg
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">Male Feed Type *</label>
+                      <select
+                        value={maleFeedType}
+                        onChange={e => setMaleFeedType(e.target.value as FeedType)}
+                        className="w-full px-2.5 py-1.5 text-xs font-bold border border-teal-200 rounded-xl bg-white outline-hidden focus:outline-teal-500 text-teal-950"
+                      >
+                        {['BMCC', 'BMCR', 'CSC 1', 'CSC 2', 'CGC', 'PDC', 'BLC 1', 'BLC 2', 'BLC 3', 'CBB'].map(ft => (
+                          <option key={ft} value={ft}>{ft}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">Male Amount (g/bird) *</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          required
+                          value={maleFeedGrams}
+                          onChange={e => setMaleFeedGrams(Number(e.target.value))}
+                          className="w-full px-2.5 py-1.5 text-xs font-bold border border-teal-200 rounded-xl bg-white outline-hidden focus:outline-teal-500 text-teal-950 pr-14"
+                        />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-teal-600">
+                          g/bird
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-teal-900 bg-teal-100/60 px-2.5 py-1.5 rounded-lg">
+                    <span>Calculated Male Feed:</span>
+                    <strong>
+                      {maleFeedKg.toLocaleString()} kg (~{(maleFeedKg / 50).toFixed(1)} bags)
+                      {feedGuideItem && (
+                        <span className="text-[10px] text-teal-700 font-normal ml-1.5">
+                          (Target: {feedGuideItem.maleGramsPerBird || 125}g)
+                        </span>
+                      )}
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Total Summary */}
+                <div className="p-3 bg-slate-900 text-white rounded-xl flex items-center justify-between text-xs">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Feeding Date</label>
-                    <input
-                      type="date"
-                      required
-                      value={feedDate}
-                      onChange={e => setFeedDate(e.target.value)}
-                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500"
-                    />
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Total Feed Logged</span>
+                    <span className="font-bold text-sm text-teal-300">
+                      {totalFeedKg.toLocaleString()} kg
+                    </span>
+                  </div>
+                  <div className="text-right text-[11px] text-slate-300">
+                    <span>~{(totalFeedKg / 50).toFixed(1)} Bags (50kg)</span>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Feed Intake in Kilograms (kg) *
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Notes / Clean-up Observations</label>
                   <input
-                    type="number"
-                    min="1"
-                    required
-                    value={feedKg}
-                    onChange={e => setFeedKg(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500 font-bold"
+                    type="text"
+                    value={feedNotes}
+                    onChange={e => setFeedNotes(e.target.value)}
+                    placeholder="e.g. Feed clean-up time 3.5 hrs, pan lines clear"
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500"
                   />
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    Equivalent to <strong>{(feedKg / 50).toFixed(1)} bags</strong> (50kg bags)
-                  </p>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={!canEditHouse}
+                  disabled={!canEditHouse || (femaleFeedGrams <= 0 && maleFeedGrams <= 0)}
                   className={`w-full py-2.5 rounded-xl text-xs font-bold text-white transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer ${
-                    canEditHouse
+                    canEditHouse && (femaleFeedGrams > 0 || maleFeedGrams > 0)
                       ? 'bg-teal-600 hover:bg-teal-700'
                       : 'bg-slate-300 cursor-not-allowed text-slate-500'
                   }`}
                 >
                   <Wheat className="w-4 h-4" />
-                  <span>Record {activeSide} Side Feed Consumption</span>
+                  <span>Record {activeSide} Side Feeding</span>
                 </button>
               </form>
             </div>

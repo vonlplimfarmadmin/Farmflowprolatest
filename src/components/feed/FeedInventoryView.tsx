@@ -24,6 +24,8 @@ export const FeedInventoryView: React.FC = () => {
     deleteFeedConsumption,
     getFeedStockSummary, 
     getLowStockAlerts,
+    getFlockStats,
+    farmProfile,
     flocks,
     permissions 
   } = useFarm();
@@ -40,16 +42,37 @@ export const FeedInventoryView: React.FC = () => {
   const [batchNumber, setBatchNumber] = useState('');
   const [notes, setNotes] = useState('');
 
-  // Log Consumption state
+  // Log Consumption state (Male & Female split in grams per bird)
   const [consHouse, setConsHouse] = useState('House 1');
   const [consDate, setConsDate] = useState(new Date().toISOString().split('T')[0]);
-  const [consFeedType, setConsFeedType] = useState<FeedType>('BLC 1');
-  const [consKg, setConsKg] = useState<number>(1450);
   const [consSide, setConsSide] = useState<'All' | 'Left' | 'Right'>('All');
+  const [consFemaleFeedType, setConsFemaleFeedType] = useState<FeedType>('BLC 1');
+  const [consFemaleGrams, setConsFemaleGrams] = useState<number>(155);
+  const [consMaleFeedType, setConsMaleFeedType] = useState<FeedType>('BMCC');
+  const [consMaleGrams, setConsMaleGrams] = useState<number>(125);
   const [consNotes, setConsNotes] = useState('');
 
   const summaries = getFeedStockSummary();
   const lowAlerts = getLowStockAlerts();
+
+  // Active flock calculations for modal
+  const selectedFlock = flocks.find(f => f.houseNumber === consHouse) || flocks[0];
+  const selectedStats = selectedFlock ? getFlockStats(selectedFlock.houseNumber, consDate) : null;
+  const activeFemales = selectedStats ? (consSide === 'All' ? selectedStats.currentFemales : Math.floor(selectedStats.currentFemales / 2)) : 0;
+  const activeMales = selectedStats ? (consSide === 'All' ? selectedStats.currentMales : Math.floor(selectedStats.currentMales / 2)) : 0;
+
+  const consFemaleKg = activeFemales > 0 ? Math.round((activeFemales * (Number(consFemaleGrams) || 0)) / 1000) : 0;
+  const consMaleKg = activeMales > 0 ? Math.round((activeMales * (Number(consMaleGrams) || 0)) / 1000) : 0;
+  const consTotalKg = consFemaleKg + consMaleKg;
+
+  const feedGuideItem = farmProfile.standardFeedGuide.find(fg => fg.ageWeek >= (selectedStats?.ageWeeks || 30)) || farmProfile.standardFeedGuide[farmProfile.standardFeedGuide.length - 1];
+
+  const applyGuideTargets = () => {
+    if (!feedGuideItem || !selectedStats) return;
+    setConsFemaleFeedType(feedGuideItem.recommendedFeedType || 'BLC 1');
+    setConsFemaleGrams(feedGuideItem.femaleGramsPerBird || 155);
+    setConsMaleGrams(feedGuideItem.maleGramsPerBird || 125);
+  };
 
   const handleAddStock = (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,15 +95,21 @@ export const FeedInventoryView: React.FC = () => {
 
   const handleLogConsumption = (e: React.FormEvent) => {
     e.preventDefault();
-    if (consKg <= 0) return;
+    if (consFemaleGrams <= 0 && consMaleGrams <= 0) return;
 
     addFeedConsumption({
       houseNumber: consHouse,
       date: consDate,
-      feedType: consFeedType,
-      quantityKg: Number(consKg),
       side: consSide,
-      notes: consNotes
+      femaleFeedType: consFemaleFeedType,
+      femaleQuantityKg: consFemaleKg,
+      femaleGramsPerBird: Number(consFemaleGrams) || 0,
+      maleFeedType: consMaleFeedType,
+      maleQuantityKg: consMaleKg,
+      maleGramsPerBird: Number(consMaleGrams) || 0,
+      feedType: consFemaleFeedType,
+      quantityKg: consTotalKg,
+      notes: consNotes.trim() || `${consHouse} (${consSide}): ${consFemaleGrams}g/bird (${consFemaleKg}kg ${consFemaleFeedType}) + ${consMaleGrams}g/bird (${consMaleKg}kg ${consMaleFeedType})`
     });
 
     setShowLogConsumptionModal(false);
@@ -292,33 +321,74 @@ export const FeedInventoryView: React.FC = () => {
               <thead>
                 <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200/80 sticky top-0">
                   <th className="py-2 px-2.5">Date</th>
-                  <th className="py-2 px-2.5">House</th>
-                  <th className="py-2 px-2.5">Type</th>
-                  <th className="py-2 px-2.5">Quantity (kg)</th>
+                  <th className="py-2 px-2.5">House / Side</th>
+                  <th className="py-2 px-2.5">Female Feeding</th>
+                  <th className="py-2 px-2.5">Male Feeding</th>
+                  <th className="py-2 px-2.5">Total (kg)</th>
                   <th className="py-2 px-2.5">Logged By</th>
                   {permissions.canDeleteRecord && <th className="py-2 px-2.5 text-right">Del</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {feedConsumptionRecords.map(record => (
-                  <tr key={record.id} className="hover:bg-slate-50 transition">
-                    <td className="py-2 px-2.5 font-medium text-slate-700">{record.date}</td>
-                    <td className="py-2 px-2.5 font-bold text-slate-900">{record.houseNumber}</td>
-                    <td className="py-2 px-2.5 font-semibold text-teal-900">{record.feedType}</td>
-                    <td className="py-2 px-2.5 font-bold text-slate-800">{record.quantityKg.toLocaleString()} kg</td>
-                    <td className="py-2 px-2.5 text-slate-500 truncate max-w-28">{record.loggedBy}</td>
-                    {permissions.canDeleteRecord && (
-                      <td className="py-2 px-2.5 text-right">
-                        <button
-                          onClick={() => deleteFeedConsumption(record.id)}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded transition"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                {feedConsumptionRecords.map(record => {
+                  const hasSplit = record.femaleFeedType || record.maleFeedType;
+                  return (
+                    <tr key={record.id} className="hover:bg-slate-50 transition">
+                      <td className="py-2 px-2.5 font-medium text-slate-700 whitespace-nowrap">{record.date}</td>
+                      <td className="py-2 px-2.5 font-bold text-slate-900 whitespace-nowrap">
+                        {record.houseNumber}
+                        {record.side && record.side !== 'All' && (
+                          <span className="ml-1 text-[10px] font-semibold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
+                            {record.side}
+                          </span>
+                        )}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td className="py-2 px-2.5">
+                        {hasSplit ? (
+                          <div className="text-[11px]">
+                            <span className="font-bold text-rose-900">{record.femaleFeedType || record.feedType}</span>
+                            <span className="text-slate-500 ml-1">({(record.femaleQuantityKg ?? 0).toLocaleString()} kg</span>
+                            {record.femaleGramsPerBird ? <span className="text-rose-700 font-semibold ml-0.5">&bull; {record.femaleGramsPerBird}g/b</span> : null}
+                            <span className="text-slate-500">)</span>
+                          </div>
+                        ) : (
+                          <span className="font-bold text-teal-900">{record.feedType}</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-2.5">
+                        {hasSplit && (record.maleQuantityKg ?? 0) > 0 ? (
+                          <div className="text-[11px]">
+                            <span className="font-bold text-teal-900">{record.maleFeedType || 'BMCC'}</span>
+                            <span className="text-slate-500 ml-1">({(record.maleQuantityKg ?? 0).toLocaleString()} kg</span>
+                            {record.maleGramsPerBird ? <span className="text-teal-700 font-semibold ml-0.5">&bull; {record.maleGramsPerBird}g/b</span> : null}
+                            <span className="text-slate-500">)</span>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-2.5 font-black text-slate-900 whitespace-nowrap">
+                        {record.quantityKg.toLocaleString()} kg
+                        <span className="text-[10px] font-normal text-slate-400 block">
+                          ~{(record.quantityKg / 50).toFixed(1)} bags
+                        </span>
+                      </td>
+                      <td className="py-2 px-2.5 text-slate-500 truncate max-w-28" title={record.notes}>
+                        {record.loggedBy}
+                      </td>
+                      {permissions.canDeleteRecord && (
+                        <td className="py-2 px-2.5 text-right">
+                          <button
+                            onClick={() => deleteFeedConsumption(record.id)}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded transition"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -459,14 +529,16 @@ export const FeedInventoryView: React.FC = () => {
         </div>
       )}
 
-      {/* Modal 2: Log Feed Consumption */}
+      {/* Modal 2: Log Feed Consumption (with Male & Female Split) */}
       {showLogConsumptionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col">
             <div className="bg-teal-950 p-5 text-white flex items-center justify-between border-b border-teal-900/50">
               <div>
-                <h3 className="font-bold text-base text-white">Record Daily Feed Consumption</h3>
-                <p className="text-xs text-teal-300/80">Deduct consumed kilograms from active silo stock</p>
+                <h3 className="font-bold text-base text-white">Log House Daily Feed Intake</h3>
+                <p className="text-xs text-teal-300/80">
+                  Record split rations for females and males &bull; {consHouse}
+                </p>
               </div>
               <button
                 onClick={() => setShowLogConsumptionModal(false)}
@@ -476,14 +548,14 @@ export const FeedInventoryView: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleLogConsumption} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleLogConsumption} className="p-6 space-y-4 overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">House Number *</label>
                   <select
                     value={consHouse}
                     onChange={e => setConsHouse(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-teal-500 outline-hidden bg-white"
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-teal-500 outline-hidden bg-white font-bold"
                   >
                     {flocks.map(f => (
                       <option key={f.id} value={f.houseNumber}>{f.houseNumber}</option>
@@ -497,51 +569,161 @@ export const FeedInventoryView: React.FC = () => {
                     required
                     value={consDate}
                     onChange={e => setConsDate(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-teal-500 outline-hidden"
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-teal-500 outline-hidden"
                   />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Feed Type *</label>
-                  <select
-                    value={consFeedType}
-                    onChange={e => setConsFeedType(e.target.value as FeedType)}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-teal-500 outline-hidden bg-white"
-                  >
-                    {['CSC 1', 'CSC 2', 'CGC', 'PDC', 'BLC 1', 'BLC 2', 'BLC 3', 'BMCC', 'BMCR', 'CBB'].map(ft => (
-                      <option key={ft} value={ft}>{ft}</option>
-                    ))}
-                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">House Side</label>
                   <select
                     value={consSide}
                     onChange={e => setConsSide(e.target.value as any)}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-teal-500 outline-hidden bg-white"
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-teal-500 outline-hidden bg-white"
                   >
-                    <option value="All">Both Sides (Full House)</option>
-                    <option value="Left">Left Side Only</option>
-                    <option value="Right">Right Side Only</option>
+                    <option value="All">Both Sides (Full)</option>
+                    <option value="Left">Left Side</option>
+                    <option value="Right">Right Side</option>
                   </select>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Feed Consumed (in Kg) *</label>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  value={consKg}
-                  onChange={e => setConsKg(Number(e.target.value))}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-teal-500 outline-hidden font-bold"
-                />
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Equivalent to ~<strong>{(consKg / 50).toFixed(1)} bags</strong> (50kg/bag)
-                </p>
+              {/* Reference Guide Target Box */}
+              {selectedStats && (
+                <div className="p-3 bg-teal-50/80 border border-teal-200 rounded-2xl text-xs space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-teal-950 font-bold">
+                      {consHouse} Population: {activeFemales.toLocaleString()} Females &bull; {activeMales.toLocaleString()} Males
+                    </span>
+                    <button
+                      type="button"
+                      onClick={applyGuideTargets}
+                      className="px-2 py-0.5 bg-teal-700 hover:bg-teal-800 text-white rounded text-[10px] font-bold cursor-pointer"
+                    >
+                      Fill Guide Target
+                    </button>
+                  </div>
+                  {feedGuideItem && (
+                    <p className="text-[11px] text-teal-800">
+                      Standard Target (Wk {selectedStats.ageWeeks}): {feedGuideItem.femaleGramsPerBird}g / female &bull; {feedGuideItem.maleGramsPerBird || 125}g / male ({feedGuideItem.recommendedFeedType})
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Female Feeding Section */}
+              <div className="p-3.5 bg-rose-50/60 border border-rose-200 rounded-2xl space-y-2.5">
+                <span className="text-xs font-bold text-rose-950 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                  Female Feeding ({activeFemales.toLocaleString()} Birds)
+                </span>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Female Feed Type *</label>
+                    <select
+                      value={consFemaleFeedType}
+                      onChange={e => setConsFemaleFeedType(e.target.value as FeedType)}
+                      className="w-full px-2.5 py-1.5 text-xs font-bold border border-rose-200 rounded-xl bg-white focus:outline-rose-500 text-rose-950"
+                    >
+                      {['CSC 1', 'CSC 2', 'CGC', 'PDC', 'BLC 1', 'BLC 2', 'BLC 3', 'BMCC', 'BMCR', 'CBB'].map(ft => (
+                        <option key={ft} value={ft}>{ft}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Female Amount (g/bird) *</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        required
+                        value={consFemaleGrams}
+                        onChange={e => setConsFemaleGrams(Number(e.target.value))}
+                        className="w-full px-2.5 py-1.5 text-xs font-bold border border-rose-200 rounded-xl bg-white focus:outline-rose-500 text-rose-950 pr-14"
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-rose-600">
+                        g/bird
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] text-rose-900 bg-rose-100/60 px-2.5 py-1.5 rounded-lg">
+                  <span>Calculated Female Feed:</span>
+                  <strong>
+                    {consFemaleKg.toLocaleString()} kg (~{(consFemaleKg / 50).toFixed(1)} bags)
+                    {feedGuideItem && (
+                      <span className="text-[10px] text-rose-700 font-normal ml-1.5">
+                        (Target: {feedGuideItem.femaleGramsPerBird}g)
+                      </span>
+                    )}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Male Feeding Section */}
+              <div className="p-3.5 bg-teal-50/60 border border-teal-200 rounded-2xl space-y-2.5">
+                <span className="text-xs font-bold text-teal-950 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+                  Male Feeding ({activeMales.toLocaleString()} Birds)
+                </span>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Male Feed Type *</label>
+                    <select
+                      value={consMaleFeedType}
+                      onChange={e => setConsMaleFeedType(e.target.value as FeedType)}
+                      className="w-full px-2.5 py-1.5 text-xs font-bold border border-teal-200 rounded-xl bg-white focus:outline-teal-500 text-teal-950"
+                    >
+                      {['BMCC', 'BMCR', 'CSC 1', 'CSC 2', 'CGC', 'PDC', 'BLC 1', 'BLC 2', 'BLC 3', 'CBB'].map(ft => (
+                        <option key={ft} value={ft}>{ft}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Male Amount (g/bird) *</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        required
+                        value={consMaleGrams}
+                        onChange={e => setConsMaleGrams(Number(e.target.value))}
+                        className="w-full px-2.5 py-1.5 text-xs font-bold border border-teal-200 rounded-xl bg-white focus:outline-teal-500 text-teal-950 pr-14"
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-teal-600">
+                        g/bird
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] text-teal-900 bg-teal-100/60 px-2.5 py-1.5 rounded-lg">
+                  <span>Calculated Male Feed:</span>
+                  <strong>
+                    {consMaleKg.toLocaleString()} kg (~{(consMaleKg / 50).toFixed(1)} bags)
+                    {feedGuideItem && (
+                      <span className="text-[10px] text-teal-700 font-normal ml-1.5">
+                        (Target: {feedGuideItem.maleGramsPerBird || 125}g)
+                      </span>
+                    )}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Total Summary */}
+              <div className="p-3 bg-slate-900 text-white rounded-xl flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Total House Intake</span>
+                  <span className="font-bold text-sm text-teal-300">
+                    {consTotalKg.toLocaleString()} kg
+                  </span>
+                </div>
+                <div className="text-right text-[11px] text-slate-300">
+                  <span>~{(consTotalKg / 50).toFixed(1)} Bags (50kg)</span>
+                </div>
               </div>
 
               <div>
@@ -551,7 +733,7 @@ export const FeedInventoryView: React.FC = () => {
                   placeholder="Clean-up time: 3.5 hrs, pan lines clean"
                   value={consNotes}
                   onChange={e => setConsNotes(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-teal-500 outline-hidden"
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-teal-500 outline-hidden"
                 />
               </div>
 
@@ -559,13 +741,14 @@ export const FeedInventoryView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowLogConsumptionModal(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-xs transition"
+                  disabled={consFemaleGrams <= 0 && consMaleGrams <= 0}
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
                 >
                   Submit Consumption
                 </button>

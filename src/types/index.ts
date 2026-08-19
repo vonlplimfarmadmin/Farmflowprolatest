@@ -87,6 +87,18 @@ export interface FeedConsumptionRecord {
   date: string;
   side?: 'Left' | 'Right' | 'All';
   penId?: string;
+  
+  // Female feeding specifications
+  femaleFeedType?: FeedType;
+  femaleQuantityKg?: number;
+  femaleGramsPerBird?: number;
+  
+  // Male feeding specifications
+  maleFeedType?: FeedType;
+  maleQuantityKg?: number;
+  maleGramsPerBird?: number;
+
+  // General / Legacy / Total
   feedType: FeedType;
   quantityKg: number;
   targetKg?: number;
