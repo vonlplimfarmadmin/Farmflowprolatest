@@ -105,8 +105,8 @@ const FarmAppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-graphite-50 flex flex-col font-sans text-graphite-900 antialiased selection:bg-mint-400 selection:text-forest-950">
-      {/* Top Demo Helper Bar: Sleek Fast Role Switching */}
-      <div className="bg-forest-950/95 backdrop-blur-md text-graphite-300 border-b border-forest-900/60 text-xs py-1 px-4 sm:px-6 flex flex-wrap items-center justify-between gap-2 shrink-0 z-50">
+      {/* Top Demo Helper Bar: Sleek Fast Role Switching (Hidden during printing) */}
+      <div className="bg-forest-950/95 backdrop-blur-md text-graphite-300 border-b border-forest-900/60 text-xs py-1 px-4 sm:px-6 flex flex-wrap items-center justify-between gap-2 shrink-0 z-50 print:hidden">
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full bg-mint-400 animate-pulse" />
           <span className="text-mint-400 font-semibold text-[11px] uppercase tracking-wider">Active Role:</span>
@@ -146,7 +146,7 @@ const FarmAppContent: React.FC = () => {
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
       />
 
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="flex flex-1 overflow-hidden relative print:overflow-visible print:h-auto print:block">
         {/* Sidebar Navigation */}
         <Sidebar
           currentModule={activeModule}
@@ -160,7 +160,7 @@ const FarmAppContent: React.FC = () => {
         />
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full print:p-0 print:m-0 print:max-w-none print:overflow-visible print:w-full">
           {isPendingApproval ? (
             <div className="max-w-md mx-auto my-12 bg-white rounded-3xl p-8 border border-amber-200 shadow-lg text-center space-y-4 animate-fadeIn">
               <div className="w-14 h-14 bg-amber-100 text-amber-700 rounded-2xl flex items-center justify-center mx-auto">

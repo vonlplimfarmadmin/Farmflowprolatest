@@ -85,7 +85,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   });
 
   return (
-    <header className="h-16 bg-white/90 backdrop-blur-md border-b border-graphite-200/80 px-4 sm:px-6 lg:px-8 flex items-center justify-between shrink-0 sticky top-0 z-40 shadow-xs">
+    <header className="h-16 bg-white/90 backdrop-blur-md border-b border-graphite-200/80 px-4 sm:px-6 lg:px-8 flex items-center justify-between shrink-0 sticky top-0 z-40 shadow-xs print:hidden">
       {/* Left: Mobile Toggle & System Label */}
       <div className="flex items-center gap-3 sm:gap-4">
         <button

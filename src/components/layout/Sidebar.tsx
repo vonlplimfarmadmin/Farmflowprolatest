@@ -206,7 +206,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <aside
         className={`fixed lg:static top-0 bottom-0 left-0 z-30 w-64 bg-forest-950 text-white flex flex-col shrink-0 transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-        } border-r border-forest-900/80 shadow-2xl lg:shadow-none select-none`}
+        } border-r border-forest-900/80 shadow-2xl lg:shadow-none select-none print:hidden`}
       >
         {/* Farm Brand Header */}
         <div className="p-5 flex items-center gap-3 border-b border-forest-900/70 bg-forest-950/80">
