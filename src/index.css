@@ -1,70 +1,80 @@
 @import "tailwindcss";
 
 @theme {
-  /* Inkberry Primary Palette (Deep berry black, dark indigo-berry hues) */
-  --color-forest-950: #120d18;
-  --color-forest-900: #1c1326;
-  --color-forest-800: #281a38;
-  --color-forest-700: #3b2552;
-  --color-forest-600: #51326f;
-  --color-forest-500: #6d4394;
-  --color-forest-400: #8c5db8;
-  --color-forest-300: #b08ad6;
-  --color-forest-200: #d4bee8;
-  --color-forest-100: #ede0f7;
-  --color-forest-50: #f8f3fc;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Outfit', 'Plus Jakarta Sans', sans-serif;
 
-  /* Inkberry & Charcoal Neutrals */
-  --color-graphite-950: #131117;
-  --color-graphite-900: #1d1a24;
-  --color-graphite-800: #2b2734;
-  --color-graphite-700: #3d3748;
-  --color-graphite-600: #554e63;
-  --color-graphite-500: #736b82;
-  --color-graphite-400: #968fa4;
-  --color-graphite-300: #beb8c9;
-  --color-graphite-200: #dedae5;
-  --color-graphite-100: #f2eff6;
-  --color-graphite-50: #faf8fc;
+  /* Primary Forest & Pine Palette centered on #013220 (950), #0B634F (800), #50C878 (400), #D1F2EB (100) */
+  --color-forest-950: #012517;
+  --color-forest-900: #033926;
+  --color-forest-800: #0B634F;
+  --color-forest-700: #0e7860;
+  --color-forest-600: #129377;
+  --color-forest-500: #29b18f;
+  --color-forest-400: #50C878;
+  --color-forest-300: #7ee09f;
+  --color-forest-200: #a7edcc;
+  --color-forest-100: #D1F2EB;
+  --color-forest-50: #edf9f6;
 
-  /* Peach Accent Palette (Warm glowing peach, coral-apricot highlights) */
-  --color-mint-950: #381206;
-  --color-mint-900: #571e0c;
-  --color-mint-800: #822f14;
-  --color-mint-700: #b6451e;
-  --color-mint-600: #dd5e2e;
-  --color-mint-500: #f77a45;
-  --color-mint-400: #ff9364;
-  --color-mint-300: #ffb18d;
-  --color-mint-200: #ffd0bb;
-  --color-mint-100: #ffe8dd;
-  --color-mint-50: #fff6f2;
+  /* Accent Mint & Emerald Palette */
+  --color-mint-950: #012517;
+  --color-mint-900: #033926;
+  --color-mint-800: #0B634F;
+  --color-mint-700: #0e7860;
+  --color-mint-600: #1aa682;
+  --color-mint-500: #38ba7b;
+  --color-mint-400: #50C878;
+  --color-mint-300: #7ee09f;
+  --color-mint-200: #a7edcc;
+  --color-mint-100: #D1F2EB;
+  --color-mint-50: #edf9f6;
 
-  /* Explicit Peach Tokens */
-  --color-peach-950: #381206;
-  --color-peach-900: #571e0c;
-  --color-peach-800: #822f14;
-  --color-peach-700: #b6451e;
-  --color-peach-600: #dd5e2e;
-  --color-peach-500: #f77a45;
-  --color-peach-400: #ff9364;
-  --color-peach-300: #ffb18d;
-  --color-peach-200: #ffd0bb;
-  --color-peach-100: #ffe8dd;
-  --color-peach-50: #fff6f2;
+  /* Refined Cool Slate & Neutral Scale with Subtle Pine Undertone */
+  --color-graphite-950: #021a12;
+  --color-graphite-900: #09261c;
+  --color-graphite-800: #113629;
+  --color-graphite-700: #1f4738;
+  --color-graphite-600: #335d4d;
+  --color-graphite-500: #527a6c;
+  --color-graphite-400: #7c9f92;
+  --color-graphite-300: #abc6bc;
+  --color-graphite-200: #d6e6df;
+  --color-graphite-100: #ebf4ef;
+  --color-graphite-50: #f6faf8;
 
-  /* Explicit Inkberry Tokens */
-  --color-inkberry-950: #120d18;
-  --color-inkberry-900: #1c1326;
-  --color-inkberry-800: #281a38;
-  --color-inkberry-700: #3b2552;
-  --color-inkberry-600: #51326f;
-  --color-inkberry-500: #6d4394;
-  --color-inkberry-400: #8c5db8;
-  --color-inkberry-300: #b08ad6;
-  --color-inkberry-200: #d4bee8;
-  --color-inkberry-100: #ede0f7;
-  --color-inkberry-50: #f8f3fc;
+  /* Explicit Palette Direct Tokens */
+  --color-palette-softmint: #D1F2EB;
+  --color-palette-emerald: #50C878;
+  --color-palette-pine: #0B634F;
+  --color-palette-darkforest: #012517;
+}
+
+/* Base polish and modern font smoothing */
+html {
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+/* Custom modern scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(11, 99, 79, 0.2);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(11, 99, 79, 0.4);
 }
 
 @media print {

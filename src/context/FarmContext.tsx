@@ -21,7 +21,14 @@ import {
   StandardHendayItem,
   StandardBodyWeightItem,
   StandardEggWeightItem,
-  BirdTransferRecord
+  BirdTransferRecord,
+  BiosecurityRequirement,
+  BiosecurityVerificationLog,
+  BiosecurityDailySummary,
+  BiosecurityStatus,
+  BiosecurityCategory,
+  BiosecurityFrequency,
+  BiosecurityCriticalLevel
 } from '../types';
 import { 
   INITIAL_FARM_PROFILE, 
@@ -36,9 +43,23 @@ import {
   INITIAL_BODY_WEIGHTS, 
   INITIAL_EGG_PRODUCTION, 
   INITIAL_WEEKLY_EGG_WEIGHTS, 
-  INITIAL_SYSTEM_LOGS 
+  INITIAL_SYSTEM_LOGS,
+  INITIAL_BIOSECURITY_REQUIREMENTS,
+  INITIAL_BIOSECURITY_LOGS,
+  INITIAL_BIOSECURITY_SUMMARIES
 } from '../data/initialData';
 import { calculateFlockAgeFromLoadingDate } from '../utils/dateCalculations';
+import {
+  OfflineQueueItem,
+  StorageQuotaInfo,
+  saveCollectionToIndexedDB,
+  saveAllCollectionsToIndexedDB,
+  loadAllCollectionsFromIndexedDB,
+  enqueueOfflineAction,
+  getOfflineQueueFromIndexedDB,
+  clearOfflineQueue,
+  getStorageQuotaInfo
+} from '../services/indexedDBStorage';
 
 export interface PermissionCheck {
   canViewModule: (moduleId: string) => boolean;
@@ -48,6 +69,8 @@ export interface PermissionCheck {
   canManageUsers: boolean;
   canManageFarmProfile: boolean;
   canManageMedicines: boolean;
+  canManageBiosecurityRequirements: boolean;
+  canVerifyBiosecurity: boolean;
   canRecordEggProduction: (houseNumber?: string) => boolean;
   canRecordFlockmanModule: (houseNumber?: string) => boolean;
   canRecordMortality: (houseNumber?: string) => boolean;
@@ -183,6 +206,30 @@ interface FarmContextType {
   addWeeklyEggWeight: (record: Omit<WeeklyEggWeightRecord, 'id' | 'createdAt' | 'loggedBy'>) => void;
   deleteWeeklyEggWeight: (id: string) => void;
 
+  // Biosecurity Compliance
+  biosecurityRequirements: BiosecurityRequirement[];
+  biosecurityLogs: BiosecurityVerificationLog[];
+  biosecuritySummaries: Record<string, BiosecurityDailySummary>;
+  addBiosecurityRequirement: (req: Omit<BiosecurityRequirement, 'id' | 'createdAt'>) => void;
+  updateBiosecurityRequirement: (id: string, updates: Partial<BiosecurityRequirement>) => void;
+  deleteBiosecurityRequirement: (id: string) => void;
+  toggleBiosecurityRequirementActive: (id: string) => void;
+  toggleBiosecurityLog: (requirementId: string, date: string, status?: BiosecurityStatus, notes?: string, correctiveAction?: string) => void;
+  batchVerifyAllBiosecurity: (date: string, status?: BiosecurityStatus) => void;
+  signoffBiosecurityDaily: (date: string, supervisorNotes?: string) => void;
+  getBiosecurityDailyStats: (date: string) => {
+    total: number;
+    verified: number;
+    passed: number;
+    failed: number;
+    naCount: number;
+    compliancePct: number;
+    isSignedOff: boolean;
+    signedOffBy?: string;
+    signedOffAt?: string;
+    supervisorNotes?: string;
+  };
+
   // System Logs & Backup
   systemLogs: SystemLog[];
   auditLogs: SystemLog[];
@@ -208,6 +255,16 @@ interface FarmContextType {
   checkDBStatus: () => Promise<void>;
   reconnectDB: (uri?: string) => Promise<{ success: boolean; message?: string }>;
   syncAllToMongoDB: () => Promise<{ success: boolean; message: string; counts?: any }>;
+
+  // Offline & IndexedDB Caching Engine
+  isOnline: boolean;
+  offlineQueue: OfflineQueueItem[];
+  pendingOfflineCount: number;
+  storageQuota: StorageQuotaInfo;
+  refreshStorageQuota: () => Promise<void>;
+  syncOfflineQueue: () => Promise<{ success: boolean; syncedCount: number; message: string }>;
+  clearOfflineSyncQueue: () => Promise<void>;
+  lastIndexedDBSync: string | null;
 
   // Permission Helpers
   permissions: PermissionCheck;
@@ -297,6 +354,21 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return saved ? JSON.parse(saved) : INITIAL_SYSTEM_LOGS;
   });
 
+  const [biosecurityRequirements, setBiosecurityRequirements] = useState<BiosecurityRequirement[]>(() => {
+    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_biosecurity_reqs`);
+    return saved ? JSON.parse(saved) : INITIAL_BIOSECURITY_REQUIREMENTS;
+  });
+
+  const [biosecurityLogs, setBiosecurityLogs] = useState<BiosecurityVerificationLog[]>(() => {
+    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_biosecurity_logs`);
+    return saved ? JSON.parse(saved) : INITIAL_BIOSECURITY_LOGS;
+  });
+
+  const [biosecuritySummaries, setBiosecuritySummaries] = useState<Record<string, BiosecurityDailySummary>>(() => {
+    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_biosecurity_summaries`);
+    return saved ? JSON.parse(saved) : INITIAL_BIOSECURITY_SUMMARIES;
+  });
+
   // MongoDB Connection State
   const [dbStatus, setDbStatus] = useState<{
     connected: boolean;
@@ -315,6 +387,66 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     hasUriConfigured: false,
     stats: { eggRecordsCount: 0, flocksCount: 0, feedRecordsCount: 0 }
   });
+
+  // Offline & IndexedDB Caching Engine State
+  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [offlineQueue, setOfflineQueue] = useState<OfflineQueueItem[]>([]);
+  const [lastIndexedDBSync, setLastIndexedDBSync] = useState<string | null>(null);
+  const [storageQuota, setStorageQuota] = useState<StorageQuotaInfo>({
+    usageMB: 0,
+    quotaMB: 0,
+    percentUsed: 0,
+    indexedDBAvailable: typeof window !== 'undefined' && 'indexedDB' in window,
+    itemCounts: {
+      flocks: 0,
+      eggRecords: 0,
+      feedRecords: 0,
+      mortalityRecords: 0,
+      medRecords: 0,
+      biosecurityLogs: 0,
+      offlineQueue: 0
+    }
+  });
+
+  const refreshStorageQuota = async () => {
+    try {
+      const info = await getStorageQuotaInfo();
+      setStorageQuota(info);
+      const queue = await getOfflineQueueFromIndexedDB();
+      setOfflineQueue(queue);
+    } catch {
+      // Ignore
+    }
+  };
+
+  // Monitor Online / Offline Network Status
+  useEffect(() => {
+    const handleOnline = async () => {
+      setIsOnline(true);
+      logAction('NETWORK_ONLINE', 'system', 'Network connection restored. Preparing automatic sync.');
+      await checkDBStatus();
+      await refreshStorageQuota();
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      logAction('NETWORK_OFFLINE', 'system', 'Operating in Offline Mode. All changes stored locally in IndexedDB.');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Initial load of offline queue and quota
+    getOfflineQueueFromIndexedDB().then(queue => {
+      setOfflineQueue(queue);
+      refreshStorageQuota();
+    });
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const checkDBStatus = async () => {
     try {
@@ -354,6 +486,44 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     checkDBStatus();
   }, []);
 
+  // Synchronize Offline Queue
+  const syncOfflineQueue = async (): Promise<{ success: boolean; syncedCount: number; message: string }> => {
+    try {
+      const queue = await getOfflineQueueFromIndexedDB();
+      const count = queue.length;
+
+      if (count === 0) {
+        return { success: true, syncedCount: 0, message: 'All records are already synchronized.' };
+      }
+
+      // If online and MongoDB is available, trigger cloud sync
+      if (isOnline && dbStatus.hasUriConfigured) {
+        await syncAllToMongoDB();
+      }
+
+      // Clear the offline queue once persisted
+      await clearOfflineQueue();
+      setOfflineQueue([]);
+      await refreshStorageQuota();
+
+      logAction('SYNC_OFFLINE_QUEUE', 'system', `Successfully synchronized ${count} queued offline operations to primary storage.`);
+      return { 
+        success: true, 
+        syncedCount: count, 
+        message: `Successfully synchronized ${count} offline farm record${count > 1 ? 's' : ''}.` 
+      };
+    } catch (err: any) {
+      return { success: false, syncedCount: 0, message: err?.message || 'Error synchronizing offline queue.' };
+    }
+  };
+
+  const clearOfflineSyncQueue = async () => {
+    await clearOfflineQueue();
+    setOfflineQueue([]);
+    await refreshStorageQuota();
+    logAction('CLEAR_OFFLINE_QUEUE', 'system', 'Cleared pending offline log queue.');
+  };
+
   // Sync All Data to MongoDB
   const syncAllToMongoDB = async () => {
     try {
@@ -382,6 +552,57 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return { success: false, message: err.message || 'Network error syncing with MongoDB' };
     }
   };
+
+  // Dual-tier asynchronous persistence to IndexedDB
+  useEffect(() => {
+    const saveStateToIndexedDB = async () => {
+      try {
+        await saveAllCollectionsToIndexedDB({
+          users,
+          farmProfile,
+          flocks,
+          feedStockEntries,
+          feedConsumptionRecords,
+          depletions,
+          transfers,
+          medProducts,
+          medStockLogs,
+          medAdministrations,
+          bodyWeights,
+          rawEggRecords,
+          weeklyEggWeights,
+          systemLogs,
+          biosecurityRequirements,
+          biosecurityLogs,
+          biosecuritySummaries
+        });
+        setLastIndexedDBSync(new Date().toISOString());
+      } catch (err) {
+        console.warn('IndexedDB auto-save non-fatal warning:', err);
+      }
+    };
+
+    // Trigger IndexedDB sync
+    saveStateToIndexedDB();
+  }, [
+    users,
+    farmProfile,
+    flocks,
+    feedStockEntries,
+    feedConsumptionRecords,
+    depletions,
+    transfers,
+    medProducts,
+    medStockLogs,
+    medAdministrations,
+    bodyWeights,
+    rawEggRecords,
+    weeklyEggWeights,
+    systemLogs,
+    biosecurityRequirements,
+    biosecurityLogs,
+    biosecuritySummaries
+  ]);
 
   // Save changes to localStorage
   useEffect(() => {
@@ -435,6 +656,18 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_logs`, JSON.stringify(systemLogs));
   }, [systemLogs]);
+
+  useEffect(() => {
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_biosecurity_reqs`, JSON.stringify(biosecurityRequirements));
+  }, [biosecurityRequirements]);
+
+  useEffect(() => {
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_biosecurity_logs`, JSON.stringify(biosecurityLogs));
+  }, [biosecurityLogs]);
+
+  useEffect(() => {
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_biosecurity_summaries`, JSON.stringify(biosecuritySummaries));
+  }, [biosecuritySummaries]);
 
   useEffect(() => {
     if (currentUser) {
@@ -883,7 +1116,25 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (record.maleQuantityKg) descParts.push(`Males: ${record.maleQuantityKg}kg (${record.maleFeedType || primaryFeedType})`);
     const desc = descParts.length > 0 ? descParts.join(', ') : `${totalKg}kg of ${primaryFeedType}`;
 
-    logAction('LOG_FEED_CONSUMPTION', 'feed', `Logged feed in ${record.houseNumber} [Total ${totalKg} kg] - ${desc}.`, record.houseNumber);
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    logAction(
+      'LOG_FEED_CONSUMPTION', 
+      'feed', 
+      `Logged feed in ${record.houseNumber} [Total ${totalKg} kg] - ${desc}${isOffline ? ' (Stored Offline in IndexedDB)' : ''}.`, 
+      record.houseNumber
+    );
+
+    if (isOffline) {
+      enqueueOfflineAction(
+        'feed',
+        'LOG_FEED_CONSUMPTION',
+        newRecord,
+        currentUser?.fullName || 'Staff',
+        record.houseNumber
+      ).then(() => {
+        getOfflineQueueFromIndexedDB().then(setOfflineQueue);
+      });
+    }
   };
 
   const deleteFeedConsumption = (id: string) => {
@@ -956,7 +1207,25 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return f;
     }));
 
-    logAction('LOG_DEPLETION', 'mortality', `Depletion (${record.category}): ${record.maleCount}M, ${record.femaleCount}F in ${record.houseNumber} (${record.side} side).`, record.houseNumber);
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    logAction(
+      'LOG_DEPLETION', 
+      'mortality', 
+      `Depletion (${record.category}): ${record.maleCount}M, ${record.femaleCount}F in ${record.houseNumber} (${record.side} side)${isOffline ? ' (Stored Offline in IndexedDB)' : ''}.`, 
+      record.houseNumber
+    );
+
+    if (isOffline) {
+      enqueueOfflineAction(
+        'mortality',
+        'LOG_DEPLETION',
+        newRecord,
+        currentUser?.fullName || 'Staff',
+        record.houseNumber
+      ).then(() => {
+        getOfflineQueueFromIndexedDB().then(setOfflineQueue);
+      });
+    }
   };
 
   const deleteDepletion = (id: string) => {
@@ -1031,7 +1300,25 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return p;
     }));
 
-    logAction('LOG_MED_ADMINISTRATION', 'medicine', `Administered ${record.unitsUsed} units of ${record.productName} in ${record.houseNumber} via ${record.method}.`, record.houseNumber);
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    logAction(
+      'LOG_MED_ADMINISTRATION', 
+      'medicine', 
+      `Administered ${record.unitsUsed} units of ${record.productName} in ${record.houseNumber} via ${record.method}${isOffline ? ' (Stored Offline in IndexedDB)' : ''}.`, 
+      record.houseNumber
+    );
+
+    if (isOffline) {
+      enqueueOfflineAction(
+        'medicine',
+        'LOG_MED_ADMINISTRATION',
+        newRecord,
+        currentUser?.fullName || 'Staff',
+        record.houseNumber
+      ).then(() => {
+        getOfflineQueueFromIndexedDB().then(setOfflineQueue);
+      });
+    }
   };
 
   const deleteMedAdministration = (id: string) => {
@@ -1084,7 +1371,26 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       createdAt: new Date().toISOString()
     };
     setBodyWeights(prev => [newRecord, ...prev]);
-    logAction('LOG_BODY_WEIGHT', 'bodyweight', `Logged Week ${record.week} weight in ${record.houseNumber} (M: ${record.maleAvgWeightGrams}g, F: ${record.femaleAvgWeightGrams}g).`, record.houseNumber);
+
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    logAction(
+      'LOG_BODY_WEIGHT', 
+      'bodyweight', 
+      `Logged Week ${record.week} weight in ${record.houseNumber} (M: ${record.maleAvgWeightGrams}g, F: ${record.femaleAvgWeightGrams}g)${isOffline ? ' (Stored Offline in IndexedDB)' : ''}.`, 
+      record.houseNumber
+    );
+
+    if (isOffline) {
+      enqueueOfflineAction(
+        'flock',
+        'LOG_BODY_WEIGHT',
+        newRecord,
+        currentUser?.fullName || 'Staff',
+        record.houseNumber
+      ).then(() => {
+        getOfflineQueueFromIndexedDB().then(setOfflineQueue);
+      });
+    }
   };
 
   const deleteBodyWeightRecord = (id: string) => {
@@ -1189,16 +1495,37 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     setRawEggRecords(prev => [newRecord, ...prev]);
-    logAction('LOG_EGG_PRODUCTION', 'egg_prod', `Recorded Egg Production in ${record.houseNumber} on ${record.date} (TEP: ${tep}, HE: ${he}, NHE: ${nhe}).`, record.houseNumber);
+
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    logAction(
+      'LOG_EGG_PRODUCTION', 
+      'egg_prod', 
+      `Recorded Egg Production in ${record.houseNumber} on ${record.date} (TEP: ${tep}, HE: ${he}, NHE: ${nhe})${isOffline ? ' (Stored Offline in IndexedDB)' : ''}.`, 
+      record.houseNumber
+    );
+
+    if (isOffline) {
+      enqueueOfflineAction(
+        'egg_production',
+        'CREATE_EGG_RECORD',
+        newRecord,
+        currentUser?.fullName || 'Staff',
+        record.houseNumber
+      ).then(() => {
+        getOfflineQueueFromIndexedDB().then(setOfflineQueue);
+      });
+    }
 
     // Asynchronously sync to MongoDB if backend is connected
-    fetch('/api/egg-records', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newRecord)
-    }).catch(err => {
-      console.warn('Could not sync egg record to MongoDB endpoint:', err);
-    });
+    if (!isOffline) {
+      fetch('/api/egg-records', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newRecord)
+      }).catch(err => {
+        console.warn('Could not sync egg record to MongoDB endpoint:', err);
+      });
+    }
   };
 
   const deleteEggProductionRecord = (id: string) => {
@@ -1228,6 +1555,224 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     logAction('DELETE_EGG_WEIGHT', 'egg_prod', `Deleted weekly egg weight record ID ${id}.`);
   };
 
+  // Biosecurity Compliance Operations
+  const addBiosecurityRequirement = (req: Omit<BiosecurityRequirement, 'id' | 'createdAt'>) => {
+    const newReq: BiosecurityRequirement = {
+      ...req,
+      id: 'bio_req_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      createdBy: currentUser?.fullName || 'Farm Manager',
+      createdAt: new Date().toISOString()
+    };
+    setBiosecurityRequirements(prev => [newReq, ...prev]);
+    logAction('ADD_BIOSECURITY_REQ', 'biosecurity', `Added biosecurity protocol: "${req.title}" (${req.category}, ${req.criticalLevel}).`);
+  };
+
+  const updateBiosecurityRequirement = (id: string, updates: Partial<BiosecurityRequirement>) => {
+    setBiosecurityRequirements(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+    logAction('UPDATE_BIOSECURITY_REQ', 'biosecurity', `Updated biosecurity protocol ID ${id}.`);
+  };
+
+  const deleteBiosecurityRequirement = (id: string) => {
+    const target = biosecurityRequirements.find(r => r.id === id);
+    setBiosecurityRequirements(prev => prev.filter(r => r.id !== id));
+    logAction('DELETE_BIOSECURITY_REQ', 'biosecurity', `Deleted biosecurity protocol: "${target?.title || id}".`);
+  };
+
+  const toggleBiosecurityRequirementActive = (id: string) => {
+    setBiosecurityRequirements(prev => prev.map(r => {
+      if (r.id === id) {
+        const nextActive = !r.active;
+        logAction('TOGGLE_BIOSECURITY_REQ', 'biosecurity', `${nextActive ? 'Activated' : 'Deactivated'} biosecurity protocol: "${r.title}".`);
+        return { ...r, active: nextActive };
+      }
+      return r;
+    }));
+  };
+
+  const calculateAndUpdateDailySummary = (date: string, updatedLogs: BiosecurityVerificationLog[], currentRequirements: BiosecurityRequirement[]) => {
+    const activeReqs = currentRequirements.filter(r => r.active);
+    const dayLogs = updatedLogs.filter(l => l.date === date);
+    const verifiedLogs = dayLogs.filter(l => l.verified);
+    const passedLogs = dayLogs.filter(l => l.status === 'pass' && l.verified);
+    const failedLogs = dayLogs.filter(l => l.status === 'fail' && l.verified);
+    const naLogs = dayLogs.filter(l => l.status === 'na' && l.verified);
+
+    const totalActive = activeReqs.length;
+    const applicableTotal = Math.max(1, totalActive - naLogs.length);
+    const complianceScorePct = totalActive === 0 ? 100 : Math.round((passedLogs.length / applicableTotal) * 100);
+
+    setBiosecuritySummaries(prev => ({
+      ...prev,
+      [date]: {
+        date,
+        totalRequirements: totalActive,
+        verifiedCount: verifiedLogs.length,
+        passedCount: passedLogs.length,
+        failedCount: failedLogs.length,
+        complianceScorePct: Math.min(100, complianceScorePct),
+        supervisorSignoff: prev[date]?.supervisorSignoff || false,
+        supervisorSignoffBy: prev[date]?.supervisorSignoffBy,
+        supervisorSignoffAt: prev[date]?.supervisorSignoffAt,
+        supervisorNotes: prev[date]?.supervisorNotes
+      }
+    }));
+  };
+
+  const toggleBiosecurityLog = (
+    requirementId: string, 
+    date: string, 
+    status?: BiosecurityStatus, 
+    notes?: string, 
+    correctiveAction?: string
+  ) => {
+    const req = biosecurityRequirements.find(r => r.id === requirementId);
+    if (!req) return;
+
+    let newLogs: BiosecurityVerificationLog[] = [];
+    const existingIndex = biosecurityLogs.findIndex(l => l.requirementId === requirementId && l.date === date);
+
+    if (existingIndex >= 0) {
+      const existing = biosecurityLogs[existingIndex];
+      let nextStatus: BiosecurityStatus = status || (existing.status === 'pass' ? 'fail' : existing.status === 'fail' ? 'na' : 'pass');
+
+      const updatedLog: BiosecurityVerificationLog = {
+        ...existing,
+        status: nextStatus,
+        verified: true,
+        verifiedBy: currentUser?.id || 'staff',
+        verifiedByName: currentUser?.fullName || 'Staff',
+        verifiedAt: new Date().toISOString(),
+        notes: notes !== undefined ? notes : existing.notes,
+        correctiveAction: correctiveAction !== undefined ? correctiveAction : existing.correctiveAction
+      };
+
+      newLogs = [...biosecurityLogs];
+      newLogs[existingIndex] = updatedLog;
+    } else {
+      const targetStatus: BiosecurityStatus = status || 'pass';
+      const newLogEntry: BiosecurityVerificationLog = {
+        id: 'blog_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+        date,
+        requirementId,
+        requirementTitle: req.title,
+        category: req.category,
+        targetArea: req.targetArea,
+        status: targetStatus,
+        verified: true,
+        verifiedBy: currentUser?.id || 'staff',
+        verifiedByName: currentUser?.fullName || 'Staff',
+        verifiedAt: new Date().toISOString(),
+        notes,
+        correctiveAction
+      };
+      newLogs = [newLogEntry, ...biosecurityLogs];
+    }
+
+    setBiosecurityLogs(newLogs);
+    calculateAndUpdateDailySummary(date, newLogs, biosecurityRequirements);
+
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    logAction(
+      'BIOSECURITY_VERIFICATION', 
+      'biosecurity', 
+      `Verified biosecurity item: "${req.title}" as [${(status || 'pass').toUpperCase()}] for date ${date}${isOffline ? ' (Stored Offline in IndexedDB)' : ''}.`
+    );
+
+    if (isOffline) {
+      enqueueOfflineAction(
+        'biosecurity',
+        'VERIFY_BIOSECURITY',
+        { requirementId, date, status: status || 'pass', notes, correctiveAction },
+        currentUser?.fullName || 'Staff'
+      ).then(() => {
+        getOfflineQueueFromIndexedDB().then(setOfflineQueue);
+      });
+    }
+  };
+
+  const batchVerifyAllBiosecurity = (date: string, status: BiosecurityStatus = 'pass') => {
+    const activeReqs = biosecurityRequirements.filter(r => r.active);
+    const existingOtherLogs = biosecurityLogs.filter(l => l.date !== date);
+    
+    const nowIso = new Date().toISOString();
+    const batchLogs: BiosecurityVerificationLog[] = activeReqs.map(req => {
+      const prev = biosecurityLogs.find(l => l.date === date && l.requirementId === req.id);
+      return {
+        id: prev?.id || ('blog_' + Date.now() + '_' + req.id),
+        date,
+        requirementId: req.id,
+        requirementTitle: req.title,
+        category: req.category,
+        targetArea: req.targetArea,
+        status,
+        verified: true,
+        verifiedBy: currentUser?.id || 'staff',
+        verifiedByName: currentUser?.fullName || 'Staff',
+        verifiedAt: nowIso,
+        notes: prev?.notes || 'Batch verified compliant'
+      };
+    });
+
+    const newLogs = [...batchLogs, ...existingOtherLogs];
+    setBiosecurityLogs(newLogs);
+    calculateAndUpdateDailySummary(date, newLogs, biosecurityRequirements);
+    logAction('BIOSECURITY_BATCH_VERIFY', 'biosecurity', `Batch-verified all ${activeReqs.length} active biosecurity requirements as [${status.toUpperCase()}] for date ${date}.`);
+  };
+
+  const signoffBiosecurityDaily = (date: string, supervisorNotes?: string) => {
+    const activeReqs = biosecurityRequirements.filter(r => r.active);
+    const dayLogs = biosecurityLogs.filter(l => l.date === date && l.verified);
+    const passed = dayLogs.filter(l => l.status === 'pass').length;
+    const failed = dayLogs.filter(l => l.status === 'fail').length;
+    const score = activeReqs.length === 0 ? 100 : Math.round((passed / activeReqs.length) * 100);
+
+    const updatedSummary: BiosecurityDailySummary = {
+      date,
+      totalRequirements: activeReqs.length,
+      verifiedCount: dayLogs.length,
+      passedCount: passed,
+      failedCount: failed,
+      complianceScorePct: score,
+      supervisorSignoff: true,
+      supervisorSignoffBy: currentUser?.fullName || 'Farm Manager',
+      supervisorSignoffAt: new Date().toISOString(),
+      supervisorNotes: supervisorNotes || 'Daily biosecurity protocols audited and verified compliant.'
+    };
+
+    setBiosecuritySummaries(prev => ({
+      ...prev,
+      [date]: updatedSummary
+    }));
+
+    logAction('BIOSECURITY_SUPERVISOR_SIGNOFF', 'biosecurity', `Manager supervisor sign-off approved for ${date} with ${score}% compliance score.`);
+  };
+
+  const getBiosecurityDailyStats = (date: string) => {
+    const activeReqs = biosecurityRequirements.filter(r => r.active);
+    const dayLogs = biosecurityLogs.filter(l => l.date === date);
+    const verified = dayLogs.filter(l => l.verified);
+    const passed = dayLogs.filter(l => l.status === 'pass' && l.verified);
+    const failed = dayLogs.filter(l => l.status === 'fail' && l.verified);
+    const naCount = dayLogs.filter(l => l.status === 'na' && l.verified).length;
+    const summary = biosecuritySummaries[date];
+
+    const applicableTotal = Math.max(1, activeReqs.length - naCount);
+    const compliancePct = activeReqs.length === 0 ? 100 : Math.min(100, Math.round((passed.length / applicableTotal) * 100));
+
+    return {
+      total: activeReqs.length,
+      verified: verified.length,
+      passed: passed.length,
+      failed: failed.length,
+      naCount,
+      compliancePct,
+      isSignedOff: Boolean(summary?.supervisorSignoff),
+      signedOffBy: summary?.supervisorSignoffBy,
+      signedOffAt: summary?.supervisorSignoffAt,
+      supervisorNotes: summary?.supervisorNotes
+    };
+  };
+
   // Reset & Backup Data
   const resetAllDataToDefaults = () => {
     setFarmProfile(INITIAL_FARM_PROFILE);
@@ -1243,6 +1788,9 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setRawEggRecords(INITIAL_EGG_PRODUCTION);
     setWeeklyEggWeights(INITIAL_WEEKLY_EGG_WEIGHTS);
     setSystemLogs(INITIAL_SYSTEM_LOGS);
+    setBiosecurityRequirements(INITIAL_BIOSECURITY_REQUIREMENTS);
+    setBiosecurityLogs(INITIAL_BIOSECURITY_LOGS);
+    setBiosecuritySummaries(INITIAL_BIOSECURITY_SUMMARIES);
     setCurrentUser(INITIAL_USERS[0]);
     localStorage.clear();
     logAction('SYSTEM_RESET', 'admin', 'Reset all farm management database to factory demo defaults.');
@@ -1331,7 +1879,10 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       bodyWeights,
       eggProductionRecords: rawEggRecords,
       weeklyEggWeights,
-      systemLogs
+      systemLogs,
+      biosecurityRequirements,
+      biosecurityLogs,
+      biosecuritySummaries
     };
     return JSON.stringify(payload, null, 2);
   };
@@ -1352,6 +1903,9 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (data.eggProductionRecords) setRawEggRecords(data.eggProductionRecords);
       if (data.weeklyEggWeights) setWeeklyEggWeights(data.weeklyEggWeights);
       if (data.systemLogs) setSystemLogs(data.systemLogs);
+      if (data.biosecurityRequirements) setBiosecurityRequirements(data.biosecurityRequirements);
+      if (data.biosecurityLogs) setBiosecurityLogs(data.biosecurityLogs);
+      if (data.biosecuritySummaries) setBiosecuritySummaries(data.biosecuritySummaries);
       logAction('IMPORT_DATA', 'admin', 'Successfully imported backup database from external JSON file.');
       return true;
     } catch {
@@ -1392,6 +1946,8 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     canManageUsers: isAdmin,
     canManageFarmProfile: isAdmin,
     canManageMedicines: isAdmin || isManager,
+    canManageBiosecurityRequirements: isAdmin || isManager,
+    canVerifyBiosecurity: true,
     
     canRecordEggProduction: (houseNumber?: string) => {
       if (isAdmin || isManager) return true;
@@ -1491,6 +2047,18 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         addWeeklyEggWeight,
         deleteWeeklyEggWeight,
 
+        biosecurityRequirements,
+        biosecurityLogs,
+        biosecuritySummaries,
+        addBiosecurityRequirement,
+        updateBiosecurityRequirement,
+        deleteBiosecurityRequirement,
+        toggleBiosecurityRequirementActive,
+        toggleBiosecurityLog,
+        batchVerifyAllBiosecurity,
+        signoffBiosecurityDaily,
+        getBiosecurityDailyStats,
+
         systemLogs,
         auditLogs: systemLogs,
         logAction,
@@ -1503,6 +2071,16 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         checkDBStatus,
         reconnectDB,
         syncAllToMongoDB,
+
+        // Offline & IndexedDB Caching Engine
+        isOnline,
+        offlineQueue,
+        pendingOfflineCount: offlineQueue.length,
+        storageQuota,
+        refreshStorageQuota,
+        syncOfflineQueue,
+        clearOfflineSyncQueue,
+        lastIndexedDBSync,
 
         permissions
       }}

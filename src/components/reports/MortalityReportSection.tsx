@@ -1,6 +1,6 @@
 import React from 'react';
 import { DepletionRecord, Flock } from '../../types';
-import { Skull, TrendingDown, HeartHandshake, ShieldAlert, Activity } from 'lucide-react';
+import { Skull, TrendingDown, HeartHandshake, ShieldAlert, Activity, BarChart2, CheckCircle2 } from 'lucide-react';
 
 interface MortalityReportSectionProps {
   depletions: DepletionRecord[];
@@ -50,130 +50,235 @@ export const MortalityReportSection: React.FC<MortalityReportSectionProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 print:grid-cols-4 print:gap-2">
-        <div className="p-4 bg-rose-50/80 border border-rose-200 rounded-2xl print:bg-white print:border-slate-300">
-          <span className="text-[11px] font-bold text-rose-900 uppercase tracking-wider block">Total Depletions</span>
-          <span className="text-2xl sm:text-3xl font-black text-rose-950 mt-1 block">
+      {/* Executive KPI Summary Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 print:grid-cols-4 print:gap-3">
+        {/* Card 1: Total Depletions */}
+        <div className="p-5 bg-white border-2 border-rose-900 rounded-3xl shadow-sm print:border-black print:p-4">
+          <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-rose-800 mb-1">
+            <span>Total Flock Depletions</span>
+            <span className="p-1 bg-rose-100 text-rose-900 rounded-lg print:hidden">
+              <Skull className="w-3.5 h-3.5" />
+            </span>
+          </div>
+          <div className="text-3xl font-black text-rose-950 font-display tracking-tight">
             {grandTotalDepletions.toLocaleString()} <span className="text-xs font-bold text-rose-700">Birds</span>
-          </span>
-          <span className="text-[11px] text-rose-700 font-semibold mt-0.5 block">
-            Females: {totalFemales.toLocaleString()} &bull; Males: {totalMales.toLocaleString()}
-          </span>
+          </div>
+          <div className="mt-2 pt-2 border-t border-rose-100 flex items-center justify-between text-[11px] text-rose-900 font-semibold print:border-slate-400">
+            <span>Females: <strong>{totalFemales.toLocaleString()}</strong></span>
+            <span>Males: <strong>{totalMales.toLocaleString()}</strong></span>
+          </div>
         </div>
 
-        <div className="p-4 bg-slate-100 border border-slate-300 rounded-2xl print:bg-white print:border-slate-300">
-          <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider block">Natural Mortality</span>
-          <span className="text-2xl sm:text-3xl font-black text-slate-900 mt-1 block">
-            {naturalMortality.toLocaleString()}
-          </span>
-          <span className="text-[11px] text-slate-600 font-semibold mt-0.5 block">
-            {grandTotalDepletions > 0 ? ((naturalMortality / grandTotalDepletions) * 100).toFixed(1) : 0}% of all depletions
-          </span>
+        {/* Card 2: Natural Mortality */}
+        <div className="p-5 bg-white border-2 border-slate-900 rounded-3xl shadow-sm print:border-black print:p-4">
+          <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-slate-700 mb-1">
+            <span>Natural Mortality</span>
+            <span className="px-2 py-0.5 bg-slate-100 text-slate-900 rounded-md font-bold text-[10px]">
+              {grandTotalDepletions > 0 ? ((naturalMortality / grandTotalDepletions) * 100).toFixed(1) : 0}% Ratio
+            </span>
+          </div>
+          <div className="text-3xl font-black text-slate-950 font-display tracking-tight">
+            {naturalMortality.toLocaleString()} <span className="text-xs font-bold text-slate-500">Dead</span>
+          </div>
+          <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-600 font-semibold print:border-slate-400">
+            <span>Daily Average: ~{depletions.length > 0 ? (naturalMortality / Math.max(1, depletions.length)).toFixed(1) : 0}</span>
+            <span className="text-slate-800 font-bold">Unassisted Loss</span>
+          </div>
         </div>
 
-        <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-2xl print:bg-white print:border-slate-300">
-          <span className="text-[11px] font-bold text-amber-900 uppercase tracking-wider block">Culls & Missex</span>
-          <span className="text-2xl sm:text-3xl font-black text-amber-950 mt-1 block">
-            {(spotCulls + missex + spentCull).toLocaleString()}
-          </span>
-          <span className="text-[11px] text-amber-700 font-semibold mt-0.5 block">
-            Spot: {spotCulls} | Missex: {missex} | Spent: {spentCull}
-          </span>
+        {/* Card 3: Culls & Missex */}
+        <div className="p-5 bg-white border-2 border-amber-900 rounded-3xl shadow-sm print:border-black print:p-4">
+          <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-amber-800 mb-1">
+            <span>Selection Culls & Missex</span>
+            <span className="px-2 py-0.5 bg-amber-100 text-amber-900 rounded-md font-bold text-[10px]">
+              {grandTotalDepletions > 0 ? (((spotCulls + missex + spentCull) / grandTotalDepletions) * 100).toFixed(1) : 0}%
+            </span>
+          </div>
+          <div className="text-3xl font-black text-amber-950 font-display tracking-tight">
+            {(spotCulls + missex + spentCull).toLocaleString()} <span className="text-xs font-bold text-amber-700">Culled</span>
+          </div>
+          <div className="mt-2 pt-2 border-t border-amber-100 flex items-center justify-between text-[11px] text-amber-900 font-semibold print:border-slate-400">
+            <span>Spot: {spotCulls}</span>
+            <span>Missex: {missex} &bull; Spent: {spentCull}</span>
+          </div>
         </div>
 
-        <div className="p-4 bg-emerald-50/80 border border-emerald-200 rounded-2xl print:bg-white print:border-slate-300">
-          <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider block">Flock Livability</span>
-          <span className="text-2xl sm:text-3xl font-black text-emerald-950 mt-1 block">
-            {cumulativeLivability.toFixed(2)}%
-          </span>
-          <span className="text-[11px] text-emerald-700 font-semibold mt-0.5 block">
-            Active Stock: {totalActivePop.toLocaleString()} Birds
-          </span>
+        {/* Card 4: Cumulative Livability */}
+        <div className="p-5 bg-white border-2 border-emerald-900 rounded-3xl shadow-sm print:border-black print:p-4">
+          <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-emerald-800 mb-1">
+            <span>Cumulative Livability</span>
+            <span className="p-1 bg-emerald-100 text-emerald-900 rounded-lg print:hidden">
+              <Activity className="w-3.5 h-3.5" />
+            </span>
+          </div>
+          <div className="text-3xl font-black text-emerald-950 font-display tracking-tight">
+            {cumulativeLivability.toFixed(2)}% <span className="text-xs font-bold text-emerald-700">Live</span>
+          </div>
+          <div className="mt-2 pt-2 border-t border-emerald-100 flex items-center justify-between text-[11px] text-emerald-900 font-semibold print:border-slate-400">
+            <span>Active: <strong>{totalActivePop.toLocaleString()}</strong> Birds</span>
+            <span className="text-emerald-700 font-bold">Target &gt;95.0%</span>
+          </div>
         </div>
       </div>
 
+      {/* Visual Depletion Reason & Classification Bar */}
+      {grandTotalDepletions > 0 && (
+        <div className="bg-white border-2 border-slate-900 rounded-3xl p-5 shadow-xs print:border-black print:p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold">
+            <span className="text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+              <BarChart2 className="w-4 h-4 text-rose-600 print:hidden" />
+              Depletion Category Proportional Analysis
+            </span>
+            <span className="text-slate-500 font-normal text-[11px]">
+              Total Classified: <strong>{grandTotalDepletions.toLocaleString()} birds</strong> ({depletions.length} events)
+            </span>
+          </div>
+
+          {/* Segmented Bar */}
+          <div className="w-full h-5 rounded-full overflow-hidden flex bg-slate-200 border border-slate-300">
+            {naturalMortality > 0 && (
+              <div 
+                style={{ width: `${(naturalMortality / grandTotalDepletions) * 100}%` }} 
+                className="bg-rose-600 hover:opacity-90 transition-all h-full"
+                title={`Natural Mortality: ${naturalMortality} (${((naturalMortality / grandTotalDepletions) * 100).toFixed(1)}%)`}
+              />
+            )}
+            {spotCulls > 0 && (
+              <div 
+                style={{ width: `${(spotCulls / grandTotalDepletions) * 100}%` }} 
+                className="bg-amber-500 hover:opacity-90 transition-all h-full"
+                title={`Spot Culls: ${spotCulls} (${((spotCulls / grandTotalDepletions) * 100).toFixed(1)}%)`}
+              />
+            )}
+            {missex > 0 && (
+              <div 
+                style={{ width: `${(missex / grandTotalDepletions) * 100}%` }} 
+                className="bg-indigo-500 hover:opacity-90 transition-all h-full"
+                title={`Missex: ${missex} (${((missex / grandTotalDepletions) * 100).toFixed(1)}%)`}
+              />
+            )}
+            {spentCull > 0 && (
+              <div 
+                style={{ width: `${(spentCull / grandTotalDepletions) * 100}%` }} 
+                className="bg-slate-700 hover:opacity-90 transition-all h-full"
+                title={`Spent Culls: ${spentCull} (${((spentCull / grandTotalDepletions) * 100).toFixed(1)}%)`}
+              />
+            )}
+          </div>
+
+          {/* Legend Items */}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-slate-700 font-medium">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-600 shrink-0" />
+              Natural Mortality: <strong>{naturalMortality} ({((naturalMortality / grandTotalDepletions) * 100).toFixed(1)}%)</strong>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
+              Spot Culls: <strong>{spotCulls} ({((spotCulls / grandTotalDepletions) * 100).toFixed(1)}%)</strong>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 shrink-0" />
+              Missex Birds: <strong>{missex} ({((missex / grandTotalDepletions) * 100).toFixed(1)}%)</strong>
+            </span>
+            {spentCull > 0 && (
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-slate-700 shrink-0" />
+                Spent Flock Culls: <strong>{spentCull} ({((spentCull / grandTotalDepletions) * 100).toFixed(1)}%)</strong>
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Main Depletions Table */}
-      <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xs print:border-slate-800 print:rounded-none">
-        <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between print:bg-slate-100 print:border-slate-800">
-          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <Skull className="w-4 h-4 text-rose-600 print:hidden" />
-            Mortality & Depletion Incident Log
-          </h3>
-          <span className="text-xs text-slate-500 font-semibold">
-            {depletions.length} {depletions.length === 1 ? 'Record' : 'Records'}
+      <div className="bg-white border-2 border-slate-900 rounded-3xl overflow-hidden shadow-sm print:border-black print:rounded-none">
+        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between print:bg-black print:text-white">
+          <div className="flex items-center gap-2">
+            <Skull className="w-4 h-4 text-rose-400" />
+            <h3 className="text-sm font-black uppercase tracking-wider">
+              Comprehensive Mortality & Depletion Incident Audit Log
+            </h3>
+          </div>
+          <span className="text-xs text-slate-300 font-mono font-bold">
+            {depletions.length} {depletions.length === 1 ? 'Incident' : 'Incidents'} Recorded
           </span>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+          <table className="w-full text-left text-xs border-collapse font-sans">
             <thead>
-              <tr className="bg-slate-100/90 text-slate-700 font-bold border-b border-slate-200 print:bg-slate-200 print:border-slate-800 text-[11px]">
-                <th className="py-2.5 px-3 whitespace-nowrap">Date</th>
-                <th className="py-2.5 px-2.5 whitespace-nowrap">House</th>
-                <th className="py-2.5 px-2.5 whitespace-nowrap">Side / Pen</th>
-                <th className="py-2.5 px-3 whitespace-nowrap">Category</th>
-                <th className="py-2.5 px-2.5 whitespace-nowrap text-right text-teal-900 font-bold bg-teal-50/40">Males</th>
-                <th className="py-2.5 px-2.5 whitespace-nowrap text-right text-rose-900 font-bold bg-rose-50/40">Females</th>
-                <th className="py-2.5 px-3 whitespace-nowrap text-right text-slate-950 font-black bg-slate-100">Total Lost</th>
-                <th className="py-2.5 px-3 whitespace-nowrap">Reason / Post-Mortem Symptoms</th>
-                <th className="py-2.5 px-2.5 whitespace-nowrap">Source</th>
-                <th className="py-2.5 px-3 whitespace-nowrap">Logged By</th>
+              <tr className="bg-slate-100 text-slate-800 font-bold border-b-2 border-slate-400 print:bg-slate-200 print:border-black text-[11px]">
+                <th className="py-3 px-3 whitespace-nowrap">Date</th>
+                <th className="py-3 px-2.5 whitespace-nowrap">House</th>
+                <th className="py-3 px-2.5 whitespace-nowrap">Side / Pen</th>
+                <th className="py-3 px-3 whitespace-nowrap">Category</th>
+                <th className="py-3 px-3 whitespace-nowrap text-right text-teal-950 font-black bg-teal-100/70">Males</th>
+                <th className="py-3 px-3 whitespace-nowrap text-right text-rose-950 font-black bg-rose-100/70">Females</th>
+                <th className="py-3 px-3.5 whitespace-nowrap text-right text-slate-950 font-black bg-slate-200/90">Total Depleted</th>
+                <th className="py-3 px-4 whitespace-nowrap">Diagnosis / Clinical Symptoms</th>
+                <th className="py-3 px-2.5 whitespace-nowrap">Source Module</th>
+                <th className="py-3 px-3 whitespace-nowrap">Authorized Logger</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 print:divide-slate-300">
+            <tbody className="divide-y divide-slate-200 print:divide-slate-400">
               {depletions.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-10 text-center text-slate-400">
-                    No mortality or depletion records found matching criteria.
+                  <td colSpan={10} className="py-12 text-center text-slate-400 font-medium">
+                    No mortality or depletion incident logs found matching active filter parameters.
                   </td>
                 </tr>
               ) : (
-                depletions.map((d) => {
+                depletions.map((d, idx) => {
                   const rowTotal = (d.maleCount || 0) + (d.femaleCount || 0);
                   const isMortality = d.category === 'Mortality';
+                  const isEven = idx % 2 === 0;
 
                   return (
-                    <tr key={d.id} className="hover:bg-slate-50 transition print:hover:bg-transparent">
-                      <td className="py-2.5 px-3 font-semibold text-slate-900 whitespace-nowrap">
+                    <tr 
+                      key={d.id || idx} 
+                      className={`transition print:hover:bg-transparent ${
+                        isEven ? 'bg-white' : 'bg-slate-50/70 print:bg-white'
+                      } hover:bg-rose-50/30`}
+                    >
+                      <td className="py-2.5 px-3 font-semibold text-slate-950 whitespace-nowrap">
                         {d.date}
                       </td>
-                      <td className="py-2.5 px-2.5 font-bold text-slate-800 whitespace-nowrap">
+                      <td className="py-2.5 px-2.5 font-bold text-slate-900 whitespace-nowrap">
                         {d.houseNumber}
                       </td>
-                      <td className="py-2.5 px-2.5 text-slate-600 whitespace-nowrap">
-                        {d.penName || d.side || 'All'}
+                      <td className="py-2.5 px-2.5 text-slate-600 whitespace-nowrap font-medium">
+                        {d.penName || d.side || 'Whole House'}
                       </td>
                       <td className="py-2.5 px-3 whitespace-nowrap">
-                        <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] uppercase tracking-wide border print:border-none print:p-0 ${
+                        <span className={`px-2.5 py-1 rounded-md font-extrabold text-[10px] uppercase tracking-wider border print:border-black ${
                           isMortality 
-                            ? 'bg-rose-50 text-rose-800 border-rose-200' 
+                            ? 'bg-rose-100 text-rose-950 border-rose-300' 
                             : d.category === 'Spot Cull'
-                            ? 'bg-amber-50 text-amber-800 border-amber-200'
+                            ? 'bg-amber-100 text-amber-950 border-amber-300'
                             : d.category === 'Missex'
-                            ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
-                            : 'bg-slate-100 text-slate-800 border-slate-300'
+                            ? 'bg-indigo-100 text-indigo-950 border-indigo-300'
+                            : 'bg-slate-200 text-slate-950 border-slate-400'
                         }`}>
                           {d.category}
                         </span>
                       </td>
-                      <td className="py-2.5 px-2.5 text-right font-mono text-teal-800 font-bold bg-teal-50/20">
+                      <td className="py-2.5 px-3 text-right font-mono text-teal-950 font-bold bg-teal-50/30">
                         {d.maleCount || 0}
                       </td>
-                      <td className="py-2.5 px-2.5 text-right font-mono text-rose-800 font-bold bg-rose-50/20">
+                      <td className="py-2.5 px-3 text-right font-mono text-rose-950 font-bold bg-rose-50/30">
                         {d.femaleCount || 0}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono font-black text-slate-950 bg-slate-100/50">
+                      <td className="py-2.5 px-3.5 text-right font-mono font-black text-slate-950 bg-slate-100">
                         {rowTotal}
                       </td>
-                      <td className="py-2.5 px-3 text-slate-700 max-w-xs truncate" title={d.reasonDetails}>
-                        {d.reasonDetails || (isMortality ? 'Routine daily mortality found on slat/floor' : 'Standard flock selection culling')}
+                      <td className="py-2.5 px-4 text-slate-800 max-w-sm truncate font-medium" title={d.reasonDetails}>
+                        {d.reasonDetails || (isMortality ? 'Routine daily inspection mortality found in slat area' : 'Flock uniformity and conformation selection cull')}
                       </td>
-                      <td className="py-2.5 px-2.5 text-[11px] text-slate-500 capitalize">
-                        {d.sourceModule === 'flockman' ? "Flockman's Log" : 'Mortality Mgmt'}
+                      <td className="py-2.5 px-2.5 text-[11px] text-slate-600 font-medium capitalize">
+                        {d.sourceModule === 'flockman' ? "Flockman Daily" : 'Veterinary Log'}
                       </td>
-                      <td className="py-2.5 px-3 text-slate-600 truncate max-w-[110px]" title={d.loggedBy}>
-                        {d.loggedBy || 'Flockman'}
+                      <td className="py-2.5 px-3 text-slate-700 truncate max-w-[120px] font-medium" title={d.loggedBy}>
+                        {d.loggedBy || 'Authorized Leadman'}
                       </td>
                     </tr>
                   );
@@ -183,21 +288,21 @@ export const MortalityReportSection: React.FC<MortalityReportSectionProps> = ({
 
             {depletions.length > 0 && (
               <tfoot>
-                <tr className="bg-slate-900 text-white font-bold border-t-2 border-slate-900 print:bg-slate-900 print:text-white text-[11px]">
-                  <td className="py-3 px-3 uppercase tracking-wider" colSpan={4}>
-                    Total Birds Depleted ({depletions.length} events)
+                <tr className="bg-slate-950 text-white font-bold border-t-2 border-slate-950 print:bg-black print:text-white text-[11px]">
+                  <td className="py-3 px-3 uppercase tracking-wider font-black" colSpan={4}>
+                    Total Flock Depletions ({depletions.length} incident logs)
                   </td>
-                  <td className="py-3 px-2.5 text-right font-mono text-teal-300 font-bold">
+                  <td className="py-3 px-3 text-right font-mono text-teal-300 font-black">
                     {totalMales.toLocaleString()}
                   </td>
-                  <td className="py-3 px-2.5 text-right font-mono text-rose-300 font-bold">
+                  <td className="py-3 px-3 text-right font-mono text-rose-300 font-black">
                     {totalFemales.toLocaleString()}
                   </td>
-                  <td className="py-3 px-3 text-right font-mono text-amber-300 font-black">
+                  <td className="py-3 px-3.5 text-right font-mono text-amber-300 font-black">
                     {grandTotalDepletions.toLocaleString()}
                   </td>
-                  <td className="py-3 px-3 text-slate-400" colSpan={3}>
-                    Natural Deaths: {naturalMortality} | Culls: {spotCulls + spentCull} | Missex: {missex}
+                  <td className="py-3 px-4 text-slate-300" colSpan={3}>
+                    Breakdown: Natural Mortality = <strong>{naturalMortality}</strong> | Selection Culls = <strong>{spotCulls + spentCull}</strong> | Missex = <strong>{missex}</strong>
                   </td>
                 </tr>
               </tfoot>

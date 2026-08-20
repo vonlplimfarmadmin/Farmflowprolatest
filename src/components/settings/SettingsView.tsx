@@ -25,6 +25,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { RoleBadge } from '../common/RoleBadge';
+import { BiosecurityComplianceView } from './BiosecurityComplianceView';
 
 export const SettingsView: React.FC = () => {
   const { 
@@ -43,7 +44,7 @@ export const SettingsView: React.FC = () => {
     clearDatabaseForNewCycle
   } = useFarm();
 
-  const [activeTab, setActiveTab] = useState<'users' | 'approvals' | 'audit' | 'backup'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'approvals' | 'biosecurity' | 'audit' | 'backup'>('users');
   const [selectedUserForHouses, setSelectedUserForHouses] = useState<User | null>(null);
   const [selectedHouses, setSelectedHouses] = useState<string[]>([]);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -147,10 +148,11 @@ export const SettingsView: React.FC = () => {
         </div>
 
         {/* Tab Buttons */}
-        <div className="flex items-center p-1 bg-slate-100/80 rounded-2xl border border-slate-200/80 self-start">
+        <div className="flex flex-wrap items-center p-1 bg-slate-100/80 rounded-2xl border border-slate-200/80 self-start gap-1">
           <button
+            id="settings-tab-users"
             onClick={() => setActiveTab('users')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'users' ? 'bg-teal-950 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -159,8 +161,9 @@ export const SettingsView: React.FC = () => {
           </button>
 
           <button
+            id="settings-tab-approvals"
             onClick={() => setActiveTab('approvals')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'approvals' ? 'bg-teal-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -173,8 +176,20 @@ export const SettingsView: React.FC = () => {
           </button>
 
           <button
+            id="settings-tab-biosecurity"
+            onClick={() => setActiveTab('biosecurity')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'biosecurity' ? 'bg-teal-950 text-emerald-300 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Biosecurity Compliance</span>
+          </button>
+
+          <button
+            id="settings-tab-audit"
             onClick={() => setActiveTab('audit')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'audit' ? 'bg-teal-950 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -183,8 +198,9 @@ export const SettingsView: React.FC = () => {
           </button>
 
           <button
+            id="settings-tab-backup"
             onClick={() => setActiveTab('backup')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'backup' ? 'bg-teal-950 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -356,6 +372,11 @@ export const SettingsView: React.FC = () => {
             </div>
           )}
         </div>
+      )}
+
+      {/* Tab: Biosecurity Compliance */}
+      {activeTab === 'biosecurity' && (
+        <BiosecurityComplianceView />
       )}
 
       {/* Tab 3: System Audit Logs */}
@@ -550,17 +571,53 @@ export const SettingsView: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-5 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3">
-              <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                <RefreshCw className="w-4 h-4 text-teal-600" />
-                <span>Storage & Offline Resilience</span>
-              </h4>
-              <p className="text-xs text-slate-600">
-                All records are automatically saved in local persistent memory. You can access all farm functions offline without interruption.
-              </p>
-              <div className="flex items-center gap-2 text-xs font-semibold text-teal-700">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Local Storage Status: Active & Synchronized</span>
+            <div className="p-5 bg-gradient-to-br from-forest-50 to-mint-50 border border-mint-200/80 rounded-3xl space-y-4 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="font-bold text-sm text-forest-950 flex items-center gap-2">
+                    <Database className="w-4 h-4 text-forest-700" />
+                    <span>IndexedDB Local Storage & Offline Engine</span>
+                  </h4>
+                  <p className="text-xs text-forest-800 mt-1 max-w-xl">
+                    High-performance IndexedDB database enables full poultry house logging with zero network connection. Pending actions sync automatically when connection restores.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const evt = new CustomEvent('open-offline-manager');
+                      window.dispatchEvent(evt);
+                    }}
+                    className="px-4 py-2 bg-forest-900 hover:bg-forest-800 text-mint-300 border border-forest-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Manage Storage & Queue</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                <div className="p-3 bg-white/80 backdrop-blur-xs rounded-2xl border border-mint-200 space-y-1">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Engine Status</span>
+                  <div className="flex items-center gap-2 text-xs font-extrabold text-forest-900">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>IndexedDB Active</span>
+                  </div>
+                </div>
+                <div className="p-3 bg-white/80 backdrop-blur-xs rounded-2xl border border-mint-200 space-y-1">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Storage Target</span>
+                  <div className="text-xs font-extrabold text-forest-900">
+                    FarmFlow_OfflineDB_v1
+                  </div>
+                </div>
+                <div className="p-3 bg-white/80 backdrop-blur-xs rounded-2xl border border-mint-200 space-y-1">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Service Worker</span>
+                  <div className="text-xs font-extrabold text-forest-900 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Multi-Tier Cached</span>
+                  </div>
+                </div>
               </div>
             </div>
 

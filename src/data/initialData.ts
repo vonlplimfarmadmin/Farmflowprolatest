@@ -11,7 +11,10 @@ import {
   UserAccount,
   DepletionRecord,
   BirdTransferRecord,
-  SystemLog
+  SystemLog,
+  BiosecurityRequirement,
+  BiosecurityVerificationLog,
+  BiosecurityDailySummary
 } from '../types';
 
 export const INITIAL_FARM_PROFILE: FarmProfile = {
@@ -744,5 +747,350 @@ export const INITIAL_SYSTEM_LOGS: SystemLog[] = [
   { id: 'log2', timestamp: '2026-08-16T17:02:10Z', userId: 'usr_admin', userName: 'Von L.P. Lim (Owner / Admin)', userRole: 'admin', action: 'GENERATE_MESSENGER_REPORT', category: 'egg_prod', details: 'Generated August 16 Daily Egg Production Messenger Report (Grand TEP: 48694)' },
   { id: 'log3', timestamp: '2026-08-16T15:05:00Z', userId: 'usr_leadman', userName: 'Eduardo Santos (Senior Leadman)', userRole: 'leadman', action: 'LOG_DEPLETION', category: 'mortality', details: 'Recorded Missex in House 5 Right side (1 female)', houseNumber: 'House 5' },
   { id: 'log4', timestamp: '2026-08-16T09:48:00Z', userId: 'usr_flockman1', userName: 'Joel Bautista (Flockman H1 & H2)', userRole: 'flockman', action: 'LOG_FEED_CONSUMPTION', category: 'feed', details: 'Logged 1420 kg BLC 1 + 114 kg BMCC for House 1', houseNumber: 'House 1' },
-  { id: 'log5', timestamp: '2026-08-16T08:15:00Z', userId: 'usr_manager', userName: 'Ramon De Jesus', userRole: 'farm_manager', action: 'INVENTORY_STOCK_CHECK', category: 'feed', details: 'Low stock notification verified for CSC 2 (3 bags) and PDC (4 bags)' }
+  { id: 'log5', timestamp: '2026-08-16T08:15:00Z', userId: 'usr_manager', userName: 'Ramon De Jesus', userRole: 'farm_manager', action: 'INVENTORY_STOCK_CHECK', category: 'feed', details: 'Low stock notification verified for CSC 2 (3 bags) and PDC (4 bags)' },
+  { id: 'log6', timestamp: '2026-08-20T06:00:00Z', userId: 'usr_leadman', userName: 'Eduardo Santos (Senior Leadman)', userRole: 'leadman', action: 'BIOSECURITY_DAILY_CHECK', category: 'biosecurity', details: 'Completed Daily Biosecurity & Gate Sanitation Verification (100% Pass)' }
 ];
+
+export const INITIAL_BIOSECURITY_REQUIREMENTS: BiosecurityRequirement[] = [
+  {
+    id: 'bio_req_1',
+    title: 'Main Gate Vehicle Undercarriage Spray & Wheel Bath',
+    description: 'All feed delivery trucks, egg vans, and authorized service vehicles must undergo deep wheel bath immersion and 360-degree undercarriage disinfectant spray before entering inner farm perimeter.',
+    category: 'site_access',
+    frequency: 'per_entry',
+    targetArea: 'Main Gate & Disinfection Arch',
+    criticalLevel: 'mandatory',
+    active: true,
+    createdBy: 'Farm Manager',
+    createdAt: '2026-01-10T08:00:00Z'
+  },
+  {
+    id: 'bio_req_2',
+    title: 'Visitor Log & 72-Hour Avian Quarantine Clearance',
+    description: 'Enforce strict registration for all non-resident personnel. Verify no contact with other poultry farms/birds in past 72 hours, thermal screening, and sanitize all personal items/handheld devices.',
+    category: 'site_access',
+    frequency: 'per_entry',
+    targetArea: 'Guard House & Reception',
+    criticalLevel: 'mandatory',
+    active: true,
+    createdBy: 'Farm Manager',
+    createdAt: '2026-01-10T08:00:00Z'
+  },
+  {
+    id: 'bio_req_3',
+    title: 'Shower-In / Shower-Out & Color-Coded Farm Jumpsuits',
+    description: 'Mandatory complete shower with antibacterial soap for all staff and authorized visitors. Change into fresh farm-issued color-coded overalls and hairnets prior to entering the production boundary.',
+    category: 'personal_hygiene',
+    frequency: 'per_shift',
+    targetArea: 'Central Shower & Locker Facility',
+    criticalLevel: 'mandatory',
+    active: true,
+    createdBy: 'Farm Manager',
+    createdAt: '2026-01-10T08:00:00Z'
+  },
+  {
+    id: 'bio_req_4',
+    title: 'Footbath Solution Replenishment (Chlorine / Virkon-S)',
+    description: 'Clean out organic matter and replenish foot dip trays at every poultry house entrance airlock with fresh sanitizer (minimum 200 ppm available chlorine or 1:100 Virkon-S).',
+    category: 'sanitation',
+    frequency: 'daily',
+    targetArea: 'Houses 1-6 Airlock Anterooms',
+    criticalLevel: 'mandatory',
+    active: true,
+    createdBy: 'Farm Manager',
+    createdAt: '2026-01-10T08:00:00Z'
+  },
+  {
+    id: 'bio_req_5',
+    title: 'Dedicated House Boot Exchange at Demarcation Line',
+    description: 'Strict Danish-barrier step-over protocol: Remove external walkway boots and step into sanitized, dedicated internal yellow rubber boots within the house anteroom.',
+    category: 'personal_hygiene',
+    frequency: 'daily',
+    targetArea: 'House Entrance Step-Over Barrier',
+    criticalLevel: 'mandatory',
+    active: true,
+    createdBy: 'Farm Manager',
+    createdAt: '2026-01-10T08:00:00Z'
+  },
+  {
+    id: 'bio_req_6',
+    title: 'Egg Sorting Tables & Grading Equipment Disinfection',
+    description: 'Clean and wipe down egg packing tables, grading trays, suction lifters, and conveyor contact points with food-safe quaternary ammonium disinfectant before morning & afternoon egg handling.',
+    category: 'egg_room',
+    frequency: 'daily',
+    targetArea: 'Central Egg Packing Station',
+    criticalLevel: 'high',
+    active: true,
+    createdBy: 'Farm Manager',
+    createdAt: '2026-01-10T08:00:00Z'
+  },
+  {
+    id: 'bio_req_7',
+    title: 'Egg Cold Storage Climate & Fogging Sanitization',
+    description: 'Verify egg cold room is operating at 18-20°C with 75-80% RH. Inspect UV air filtration and run periodic sanitizer ultra-low-volume fogging cycle.',
+    category: 'egg_room',
+    frequency: 'daily',
+    targetArea: 'Egg Cold Storage Room',
+    criticalLevel: 'high',
+    active: true,
+    createdBy: 'Farm Manager',
+    createdAt: '2026-01-10T08:00:00Z'
+  },
+  {
+    id: 'bio_req_8',
+    title: 'Drinking Water Sanitizer PPM & Chlorination Titration',
+    description: 'Perform chemical test strip titration at the farthest nipple drinker line in each house. Confirm free residual chlorine is between 2.0 to 4.0 ppm (or 25-50 ppm hydrogen peroxide).',
+    category: 'water_safety',
+    frequency: 'daily',
+    targetArea: 'House Water Dosing Manifolds',
+    criticalLevel: 'mandatory',
+    active: true,
+    createdBy: 'Farm Manager',
+    createdAt: '2026-01-10T08:00:00Z'
+  },
+  {
+    id: 'bio_req_9',
+    title: 'Rodent Bait Stations & Wild Bird Netting Inspection',
+    description: 'Inspect numbered perimeter rodent bait stations for tamper evidence and bait consumption. Check integrity of house side-wall bird netting to ensure zero wild avian ingress.',
+    category: 'pest_control',
+    frequency: 'daily',
+    targetArea: 'Farm Perimeter & House Walls',
+    criticalLevel: 'high',
+    active: true,
+    createdBy: 'Farm Manager',
+    createdAt: '2026-01-10T08:00:00Z'
+  },
+  {
+    id: 'bio_req_10',
+    title: 'Daily Mortality Bio-Secure Bagging & Incinerator/Compost Transfer',
+    description: 'Ensure all daily dead birds are promptly collected in leak-proof sealed bio-hazard bags and transferred directly to the designated composting bins or incineration pit with covers tightly secured.',
+    category: 'sanitation',
+    frequency: 'daily',
+    targetArea: 'Composting / Incinerator Pit',
+    criticalLevel: 'mandatory',
+    active: true,
+    createdBy: 'Farm Manager',
+    createdAt: '2026-01-10T08:00:00Z'
+  },
+  {
+    id: 'bio_req_11',
+    title: 'Hand Sanitizer & Ethyl Alcohol Dispenser Level Verification',
+    description: 'Check and refill 70% ethyl alcohol and chlorhexidine hand-rub dispensers at all house airlocks, feed storage entries, and staff mess halls.',
+    category: 'personal_hygiene',
+    frequency: 'daily',
+    targetArea: 'All Anterooms & Gateways',
+    criticalLevel: 'standard',
+    active: true,
+    createdBy: 'Farm Manager',
+    createdAt: '2026-01-10T08:00:00Z'
+  },
+  {
+    id: 'bio_req_12',
+    title: 'Feed Silo Concrete Pad Sweep & Feed Spill Decontamination',
+    description: 'Inspect outdoor bulk feed bin discharge boots. Sweep up all spilled crumbs and spray pad area with disinfectant to eliminate pest and wild bird attractants.',
+    category: 'pest_control',
+    frequency: 'daily',
+    targetArea: 'Bulk Feed Silo Bases',
+    criticalLevel: 'standard',
+    active: true,
+    createdBy: 'Farm Manager',
+    createdAt: '2026-01-10T08:00:00Z'
+  }
+];
+
+export const INITIAL_BIOSECURITY_LOGS: BiosecurityVerificationLog[] = [
+  // Sample logs for today (2026-08-20)
+  {
+    id: 'blog_1',
+    date: '2026-08-20',
+    requirementId: 'bio_req_1',
+    requirementTitle: 'Main Gate Vehicle Undercarriage Spray & Wheel Bath',
+    category: 'site_access',
+    targetArea: 'Main Gate & Disinfection Arch',
+    status: 'pass',
+    verified: true,
+    verifiedBy: 'usr_leadman',
+    verifiedByName: 'Eduardo Santos (Senior Leadman)',
+    verifiedAt: '2026-08-20T05:30:00Z',
+    notes: 'Chlorine solution active, wheel wash pump at 4.2 bar pressure.'
+  },
+  {
+    id: 'blog_2',
+    date: '2026-08-20',
+    requirementId: 'bio_req_2',
+    requirementTitle: 'Visitor Log & 72-Hour Avian Quarantine Clearance',
+    category: 'site_access',
+    targetArea: 'Guard House & Reception',
+    status: 'pass',
+    verified: true,
+    verifiedBy: 'usr_leadman',
+    verifiedByName: 'Eduardo Santos (Senior Leadman)',
+    verifiedAt: '2026-08-20T05:40:00Z',
+    notes: '2 feed delivery drivers registered & cleared.'
+  },
+  {
+    id: 'blog_3',
+    date: '2026-08-20',
+    requirementId: 'bio_req_3',
+    requirementTitle: 'Shower-In / Shower-Out & Color-Coded Farm Jumpsuits',
+    category: 'personal_hygiene',
+    targetArea: 'Central Shower & Locker Facility',
+    status: 'pass',
+    verified: true,
+    verifiedBy: 'usr_leadman',
+    verifiedByName: 'Eduardo Santos (Senior Leadman)',
+    verifiedAt: '2026-08-20T05:55:00Z',
+    notes: 'All 6 morning flockmen completed soap shower.'
+  },
+  {
+    id: 'blog_4',
+    date: '2026-08-20',
+    requirementId: 'bio_req_4',
+    requirementTitle: 'Footbath Solution Replenishment (Chlorine / Virkon-S)',
+    category: 'sanitation',
+    targetArea: 'Houses 1-6 Airlock Anterooms',
+    status: 'pass',
+    verified: true,
+    verifiedBy: 'usr_flockman1',
+    verifiedByName: 'Joel Bautista (Flockman H1 & H2)',
+    verifiedAt: '2026-08-20T06:10:00Z',
+    notes: 'Fresh 200 ppm chlorine solution mixed for all house entrances.'
+  },
+  {
+    id: 'blog_5',
+    date: '2026-08-20',
+    requirementId: 'bio_req_5',
+    requirementTitle: 'Dedicated House Boot Exchange at Demarcation Line',
+    category: 'personal_hygiene',
+    targetArea: 'House Entrance Step-Over Barrier',
+    status: 'pass',
+    verified: true,
+    verifiedBy: 'usr_leadman',
+    verifiedByName: 'Eduardo Santos (Senior Leadman)',
+    verifiedAt: '2026-08-20T06:20:00Z'
+  },
+  {
+    id: 'blog_6',
+    date: '2026-08-20',
+    requirementId: 'bio_req_6',
+    requirementTitle: 'Egg Sorting Tables & Grading Equipment Disinfection',
+    category: 'egg_room',
+    targetArea: 'Central Egg Packing Station',
+    status: 'pass',
+    verified: true,
+    verifiedBy: 'usr_egg_collector',
+    verifiedByName: 'Marlon Ramos',
+    verifiedAt: '2026-08-20T06:30:00Z',
+    notes: 'Wiped down with sanitized towels before collection.'
+  },
+  {
+    id: 'blog_7',
+    date: '2026-08-20',
+    requirementId: 'bio_req_7',
+    requirementTitle: 'Egg Cold Storage Climate & Fogging Sanitization',
+    category: 'egg_room',
+    targetArea: 'Egg Cold Storage Room',
+    status: 'pass',
+    verified: true,
+    verifiedBy: 'usr_egg_collector',
+    verifiedByName: 'Marlon Ramos',
+    verifiedAt: '2026-08-20T06:35:00Z',
+    notes: 'Holding temperature 18.5°C, 78% humidity.'
+  },
+  {
+    id: 'blog_8',
+    date: '2026-08-20',
+    requirementId: 'bio_req_8',
+    requirementTitle: 'Drinking Water Sanitizer PPM & Chlorination Titration',
+    category: 'water_safety',
+    targetArea: 'House Water Dosing Manifolds',
+    status: 'pass',
+    verified: true,
+    verifiedBy: 'usr_leadman',
+    verifiedByName: 'Eduardo Santos (Senior Leadman)',
+    verifiedAt: '2026-08-20T06:45:00Z',
+    notes: 'Tested 3.2 ppm free chlorine in House 1-6 lines.'
+  },
+  {
+    id: 'blog_9',
+    date: '2026-08-20',
+    requirementId: 'bio_req_9',
+    requirementTitle: 'Rodent Bait Stations & Wild Bird Netting Inspection',
+    category: 'pest_control',
+    targetArea: 'Farm Perimeter & House Walls',
+    status: 'pass',
+    verified: true,
+    verifiedBy: 'usr_leadman',
+    verifiedByName: 'Eduardo Santos (Senior Leadman)',
+    verifiedAt: '2026-08-20T06:50:00Z',
+    notes: 'Station #4 bait replaced. Bird net intact.'
+  },
+  {
+    id: 'blog_10',
+    date: '2026-08-20',
+    requirementId: 'bio_req_10',
+    requirementTitle: 'Daily Mortality Bio-Secure Bagging & Incinerator/Compost Transfer',
+    category: 'sanitation',
+    targetArea: 'Composting / Incinerator Pit',
+    status: 'pass',
+    verified: true,
+    verifiedBy: 'usr_leadman',
+    verifiedByName: 'Eduardo Santos (Senior Leadman)',
+    verifiedAt: '2026-08-20T07:00:00Z'
+  },
+  {
+    id: 'blog_11',
+    date: '2026-08-20',
+    requirementId: 'bio_req_11',
+    requirementTitle: 'Hand Sanitizer & Ethyl Alcohol Dispenser Level Verification',
+    category: 'personal_hygiene',
+    targetArea: 'All Anterooms & Gateways',
+    status: 'pass',
+    verified: true,
+    verifiedBy: 'usr_leadman',
+    verifiedByName: 'Eduardo Santos (Senior Leadman)',
+    verifiedAt: '2026-08-20T07:10:00Z'
+  },
+  {
+    id: 'blog_12',
+    date: '2026-08-20',
+    requirementId: 'bio_req_12',
+    requirementTitle: 'Feed Silo Concrete Pad Sweep & Feed Spill Decontamination',
+    category: 'pest_control',
+    targetArea: 'Bulk Feed Silo Bases',
+    status: 'pass',
+    verified: true,
+    verifiedBy: 'usr_leadman',
+    verifiedByName: 'Eduardo Santos (Senior Leadman)',
+    verifiedAt: '2026-08-20T07:15:00Z',
+    notes: 'Cleaned and disinfected area under Silo 2.'
+  }
+];
+
+export const INITIAL_BIOSECURITY_SUMMARIES: Record<string, BiosecurityDailySummary> = {
+  '2026-08-20': {
+    date: '2026-08-20',
+    totalRequirements: 12,
+    verifiedCount: 12,
+    passedCount: 12,
+    failedCount: 0,
+    complianceScorePct: 100,
+    supervisorSignoff: true,
+    supervisorSignoffBy: 'Ramon De Jesus (Farm Manager)',
+    supervisorSignoffAt: '2026-08-20T07:30:00Z',
+    supervisorNotes: 'Morning protocols verified in full compliance with Level-1 Bio-Protection standard.'
+  },
+  '2026-08-19': {
+    date: '2026-08-19',
+    totalRequirements: 12,
+    verifiedCount: 12,
+    passedCount: 11,
+    failedCount: 1,
+    complianceScorePct: 91.7,
+    supervisorSignoff: true,
+    supervisorSignoffBy: 'Ramon De Jesus (Farm Manager)',
+    supervisorSignoffAt: '2026-08-19T17:00:00Z',
+    supervisorNotes: 'Feed silo 1 boot had minor grain accumulation, immediately swept and sprayed.'
+  }
+};
+

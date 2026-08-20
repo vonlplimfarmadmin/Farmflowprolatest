@@ -366,6 +366,60 @@ export interface FarmProfile {
   standardEggWeights: StandardEggWeightItem[];
 }
 
+export type BiosecurityCategory = 
+  | 'sanitation'
+  | 'site_access'
+  | 'personal_hygiene'
+  | 'pest_control'
+  | 'egg_room'
+  | 'water_safety';
+
+export type BiosecurityFrequency = 'daily' | 'per_entry' | 'weekly' | 'per_shift';
+export type BiosecurityCriticalLevel = 'mandatory' | 'high' | 'standard';
+export type BiosecurityStatus = 'pass' | 'fail' | 'na';
+
+export interface BiosecurityRequirement {
+  id: string;
+  title: string;
+  description: string;
+  category: BiosecurityCategory;
+  frequency: BiosecurityFrequency;
+  targetArea: string;
+  criticalLevel: BiosecurityCriticalLevel;
+  active: boolean;
+  createdBy?: string;
+  createdAt: string;
+}
+
+export interface BiosecurityVerificationLog {
+  id: string;
+  date: string; // YYYY-MM-DD
+  requirementId: string;
+  requirementTitle: string;
+  category: BiosecurityCategory;
+  targetArea: string;
+  status: BiosecurityStatus;
+  verified: boolean;
+  verifiedBy: string;
+  verifiedByName: string;
+  verifiedAt: string;
+  notes?: string;
+  correctiveAction?: string;
+}
+
+export interface BiosecurityDailySummary {
+  date: string; // YYYY-MM-DD
+  totalRequirements: number;
+  verifiedCount: number;
+  passedCount: number;
+  failedCount: number;
+  complianceScorePct: number;
+  supervisorSignoff: boolean;
+  supervisorSignoffBy?: string;
+  supervisorSignoffAt?: string;
+  supervisorNotes?: string;
+}
+
 export interface SystemLog {
   id: string;
   timestamp: string;
@@ -373,7 +427,7 @@ export interface SystemLog {
   userName: string;
   userRole: UserRole;
   action: string;
-  category: 'auth' | 'flock' | 'feed' | 'mortality' | 'medicine' | 'bodyweight' | 'egg_prod' | 'admin';
+  category: 'auth' | 'flock' | 'feed' | 'mortality' | 'medicine' | 'bodyweight' | 'egg_prod' | 'admin' | 'biosecurity' | 'system' | 'backup';
   module?: string;
   performedBy?: string;
   details: string;
@@ -394,3 +448,4 @@ export type ModuleType =
   | 'egg_production'
   | 'reports'
   | 'settings';
+

@@ -772,11 +772,12 @@ export const DynamicReportsView: React.FC = () => {
               {/* Logo Preview */}
               {companyLogo && (
                 <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
-                  <div className="w-12 h-12 rounded-xl overflow-hidden bg-forest-950 shrink-0 flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-xl overflow-hidden bg-transparent border border-slate-200 shrink-0 flex items-center justify-center p-1">
                     <img 
                       src={companyLogo} 
                       alt="Logo Preview" 
-                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-contain bg-transparent"
                       onError={(e) => {
                         (e.target as any).style.display = 'none';
                       }}

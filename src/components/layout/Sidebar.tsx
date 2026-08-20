@@ -146,11 +146,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (visibleGroup.length === 0) return null;
 
     return (
-      <div className="mb-4">
-        <div className="px-6 mb-2 text-[10px] font-bold text-mint-400/90 uppercase tracking-widest">
+      <div className="mb-5">
+        <div className="px-5 mb-1.5 text-[10px] font-extrabold text-mint-400 uppercase tracking-widest">
           {title}
         </div>
-        <div className="space-y-0.5">
+        <div className="space-y-1 px-2.5">
           {visibleGroup.map(item => {
             const Icon = item.icon;
             const isActive = currentModule === item.id;
@@ -163,19 +163,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onSelectModule(item.id);
                   onClose();
                 }}
-                className={`w-full text-left flex items-center justify-between px-6 py-2.5 transition-colors group ${
+                className={`w-full text-left flex items-center justify-between px-3.5 py-2 rounded-xl transition-all duration-150 group cursor-pointer ${
                   isActive
-                    ? 'bg-forest-900 text-mint-300 border-r-4 border-mint-400 font-bold'
-                    : 'text-graphite-300 hover:bg-forest-900/60 hover:text-white font-medium'
+                    ? 'bg-gradient-to-r from-emerald-500/20 to-emerald-500/5 text-mint-300 font-bold border-l-2 border-emerald-400 shadow-2xs'
+                    : 'text-graphite-300 hover:bg-forest-900/70 hover:text-white font-medium'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-mint-400' : 'text-mint-400/60 group-hover:text-mint-300'}`} />
-                  <span className="text-xs truncate">{item.label}</span>
+                  <div className={`p-1.5 rounded-lg transition-colors ${
+                    isActive ? 'bg-emerald-500/20 text-mint-300' : 'text-mint-400/70 group-hover:text-mint-300 group-hover:bg-forest-900'
+                  }`}>
+                    <Icon className="w-4 h-4 shrink-0" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-xs truncate block">{item.label}</span>
+                  </div>
                 </div>
 
                 {item.badge && (
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${item.badgeColor}`}>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 shadow-2xs ${item.badgeColor}`}>
                     {item.badge}
                   </span>
                 )}
@@ -200,32 +206,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <aside
         className={`fixed lg:static top-0 bottom-0 left-0 z-30 w-64 bg-forest-950 text-white flex flex-col shrink-0 transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-        } border-r border-forest-900/60 shadow-2xl lg:shadow-none select-none`}
+        } border-r border-forest-900/80 shadow-2xl lg:shadow-none select-none`}
       >
         {/* Farm Brand Header */}
-        <div className="p-6 flex items-center gap-3 border-b border-forest-900/60">
+        <div className="p-5 flex items-center gap-3 border-b border-forest-900/70 bg-forest-950/80">
           {farmProfile.logoUrl ? (
-            <div className="w-10 h-10 rounded-xl overflow-hidden bg-white/95 p-0.5 shadow-md shadow-mint-500/20 shrink-0 border border-forest-800 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-2xl overflow-hidden bg-white/95 p-0.5 shadow-md shadow-black/20 shrink-0 border border-forest-800 flex items-center justify-center">
               <img
                 src={farmProfile.logoUrl}
                 alt={farmProfile.name}
                 referrerPolicy="no-referrer"
-                className="w-full h-full object-contain rounded-lg"
+                className="w-full h-full object-contain rounded-xl"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = 'none';
                 }}
               />
             </div>
           ) : (
-            <div className="w-10 h-10 bg-mint-400 text-forest-950 rounded-xl flex items-center justify-center font-black text-lg italic shadow-md shadow-mint-500/20 shrink-0">
+            <div className="w-10 h-10 bg-gradient-to-br from-mint-400 to-emerald-500 text-forest-950 rounded-2xl flex items-center justify-center font-black text-lg italic shadow-md shadow-emerald-500/20 shrink-0">
               FF
             </div>
           )}
           <div className="leading-tight min-w-0">
-            <h1 className="font-bold text-sm text-white tracking-tight truncate">
+            <h1 className="font-bold text-sm text-white tracking-tight truncate font-display">
               FarmFlow Pro
             </h1>
-            <p className="text-[10px] text-mint-400 uppercase tracking-widest font-semibold truncate">
+            <p className="text-[10px] text-mint-400 uppercase tracking-wider font-bold truncate">
               {farmProfile.name.split(' ')[0] || 'L.P. LIM'} Operations
             </p>
           </div>
@@ -233,7 +239,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Assigned Houses Indicator */}
         {currentUser && (
-          <div className="px-6 py-2.5 bg-forest-900/40 border-b border-forest-900/60 text-[11px] flex items-center justify-between">
+          <div className="px-5 py-2 bg-forest-900/30 border-b border-forest-900/60 text-[11px] flex items-center justify-between">
             <span className="text-mint-400/80 font-medium">Assigned Scope:</span>
             <span className="font-bold text-mint-100 truncate ml-2">
               {currentUser.role === 'admin' || currentUser.role === 'farm_manager' || currentUser.role === 'System Administrator' || currentUser.role === 'Farm Manager'
@@ -244,20 +250,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
 
         {/* Navigation Groups */}
-        <nav className="flex-1 py-4 overflow-y-auto scrollbar-thin scrollbar-thumb-forest-900">
+        <nav className="flex-1 py-3 overflow-y-auto scrollbar-thin scrollbar-thumb-forest-900">
           {renderNavGroup('Management', managementItems)}
           {renderNavGroup('Production', productionItems)}
           {renderNavGroup('Reports & Analytics', reportingItems)}
           {renderNavGroup('System & Compliance', systemItems)}
 
           {/* Quick Action: Messenger Report */}
-          <div className="px-6 pt-2 pb-4">
+          <div className="px-5 pt-2 pb-4">
             <button
               onClick={() => {
                 onOpenReport();
                 onClose();
               }}
-              className="w-full py-2.5 bg-mint-400 hover:bg-mint-300 active:scale-98 text-forest-950 rounded-xl text-[11px] font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all"
+              className="w-full py-2.5 bg-gradient-to-r from-mint-400 to-emerald-400 hover:from-mint-300 hover:to-emerald-300 active:scale-98 text-forest-950 rounded-xl text-[11px] font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 shadow-md shadow-mint-400/20 transition-all cursor-pointer"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span>Messenger Report</span>
@@ -266,16 +272,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
 
         {/* User Card in Footer */}
-        <div className="p-4 border-t border-forest-900/60 space-y-2">
-          <div className="flex items-center gap-3 p-3 bg-forest-900/40 rounded-xl border border-forest-900/80">
-            <div className="w-8 h-8 rounded-full bg-mint-400 text-forest-950 flex items-center justify-center text-xs font-bold uppercase shrink-0">
+        <div className="p-3 border-t border-forest-900/60 space-y-2 bg-forest-950/60">
+          <div className="flex items-center gap-2.5 p-2.5 bg-forest-900/40 rounded-xl border border-forest-900/80">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-mint-400 to-emerald-500 text-forest-950 flex items-center justify-center text-xs font-black uppercase shrink-0 shadow-xs">
               {currentUser?.username ? currentUser.username.substring(0, 2).toUpperCase() : 'SA'}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-white truncate">
+              <p className="text-xs font-bold text-white truncate">
                 {currentUser?.fullName || 'Admin User'}
               </p>
-              <p className="text-[10px] text-mint-400 truncate uppercase font-medium">
+              <p className="text-[10px] text-mint-400 truncate uppercase font-semibold">
                 {currentUser?.role ? currentUser.role.replace('_', ' ') : 'Systems Administrator'}
               </p>
             </div>
@@ -285,7 +291,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               logout();
               onClose();
             }}
-            className="w-full py-2 px-3 bg-forest-900/80 hover:bg-rose-900/30 text-rose-300 hover:text-rose-200 border border-forest-800 hover:border-rose-700/50 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2"
+            className="w-full py-1.5 px-3 bg-forest-900/60 hover:bg-rose-900/30 text-rose-300 hover:text-rose-200 border border-forest-800/80 hover:border-rose-700/50 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Sign Out</span>

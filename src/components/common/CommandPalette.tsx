@@ -80,6 +80,22 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         }
       },
       {
+        id: 'qa-productivity-trends',
+        category: 'Quick Actions',
+        title: 'Flock Productivity & Mortality Trends',
+        description: 'Interactive Recharts curves: Henday rates, depletions, feed FCR, weight',
+        icon: <Sparkles className="w-4 h-4 text-mint-400" />,
+        shortcut: 'T',
+        action: () => {
+          onNavigate('dashboard');
+          onClose();
+          setTimeout(() => {
+            const el = document.getElementById('flock-productivity-dashboard-section');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+          }, 100);
+        }
+      },
+      {
         id: 'qa-dynamic-reports',
         category: 'Quick Actions',
         title: 'Dynamic Reports Hub',

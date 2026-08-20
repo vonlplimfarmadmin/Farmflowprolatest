@@ -24,6 +24,7 @@ import { EggProductionView } from './components/eggProduction/EggProductionView'
 import { DynamicReportsView } from './components/reports/DynamicReportsView';
 import { SettingsView } from './components/settings/SettingsView';
 import { RoleBadge } from './components/common/RoleBadge';
+import { OfflineBanner } from './components/common/OfflineBanner';
 import { Shield, Sparkles, UserCheck, AlertCircle } from 'lucide-react';
 
 const FarmAppContent: React.FC = () => {
@@ -104,27 +105,26 @@ const FarmAppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-graphite-50 flex flex-col font-sans text-graphite-900 antialiased selection:bg-mint-400 selection:text-forest-950">
-      {/* Top Demo Helper Bar: Fast Role Switching for Preview / Testing */}
-      <div className="bg-forest-950 text-graphite-300 border-b border-forest-900/60 text-xs py-1.5 px-4 flex flex-wrap items-center justify-between gap-2 shrink-0">
+      {/* Top Demo Helper Bar: Sleek Fast Role Switching */}
+      <div className="bg-forest-950/95 backdrop-blur-md text-graphite-300 border-b border-forest-900/60 text-xs py-1 px-4 sm:px-6 flex flex-wrap items-center justify-between gap-2 shrink-0 z-50">
         <div className="flex items-center gap-2">
-          <Shield className="w-3.5 h-3.5 text-mint-400" />
-          <span className="text-mint-400/80 font-semibold hidden sm:inline text-[11px] uppercase tracking-wider">Role Preview:</span>
+          <div className="w-1.5 h-1.5 rounded-full bg-mint-400 animate-pulse" />
+          <span className="text-mint-400 font-semibold text-[11px] uppercase tracking-wider">Active Role:</span>
           <span className="font-bold text-white flex items-center gap-1.5 text-xs">
-            <span>Active:</span>
             {currentUser && <RoleBadge role={currentUser.role} size="sm" />}
           </span>
         </div>
 
         <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
-          <span className="text-[10px] text-mint-400/80 font-bold uppercase tracking-wider hidden md:inline">Switch Persona:</span>
+          <span className="text-[10px] text-mint-400/80 font-bold uppercase tracking-wider hidden md:inline">Quick Switch:</span>
           {(['System Administrator', 'Farm Manager', 'Flockman', 'Leadman', 'Egg Collector'] as UserRole[]).map((role) => (
             <button
               key={role}
               onClick={() => switchUserRole(role)}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition whitespace-nowrap ${
+              className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition-all duration-200 whitespace-nowrap cursor-pointer ${
                 currentUser?.role === role
-                  ? 'bg-mint-400 text-forest-950 shadow-xs ring-1 ring-mint-300'
-                  : 'bg-forest-900/80 hover:bg-forest-800 text-mint-100 border border-forest-800'
+                  ? 'bg-mint-400 text-forest-950 font-bold shadow-sm shadow-mint-400/30'
+                  : 'bg-forest-900/60 hover:bg-forest-900 text-graphite-200 hover:text-white border border-forest-800/80'
               }`}
             >
               {role.replace('System ', '')}
@@ -241,6 +241,9 @@ const FarmAppContent: React.FC = () => {
         onClose={() => setAuthModalMode(null)}
         onSwitchMode={setAuthModalMode}
       />
+
+      {/* Floating Offline Notification & Queue Sync Banner */}
+      <OfflineBanner />
     </div>
   );
 };
