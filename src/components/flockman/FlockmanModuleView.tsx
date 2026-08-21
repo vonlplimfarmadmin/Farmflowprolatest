@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useFarm } from '../../context/FarmContext';
-import { FeedType, PenConfig } from '../../types';
+import { FeedType, PenConfig, Flock } from '../../types';
 import { 
   Grid2X2, 
   Plus, 
@@ -18,7 +18,10 @@ import {
   History,
   Trash2,
   Check,
-  RotateCcw
+  RotateCcw,
+  Edit3,
+  AlertTriangle,
+  Users
 } from 'lucide-react';
 
 export const FlockmanModuleView: React.FC = () => {
@@ -53,6 +56,16 @@ export const FlockmanModuleView: React.FC = () => {
   const [newPenSide, setNewPenSide] = useState<'Left' | 'Right'>('Left');
   const [newPenMales, setNewPenMales] = useState(240);
   const [newPenFemales, setNewPenFemales] = useState(2300);
+
+  // Pen Editing & Deletion State (Farm Manager & Admin Controls)
+  const [editingPen, setEditingPen] = useState<PenConfig | null>(null);
+  const [editPenName, setEditPenName] = useState<string>('');
+  const [editPenSide, setEditPenSide] = useState<'Left' | 'Right'>('Left');
+  const [editPenMales, setEditPenMales] = useState<number>(0);
+  const [editPenFemales, setEditPenFemales] = useState<number>(0);
+  const [syncFlockPopulationWithPens, setSyncFlockPopulationWithPens] = useState<boolean>(false);
+
+  const [deletingPen, setDeletingPen] = useState<PenConfig | null>(null);
 
   // Feed Log State for Side/Pen (in grams per bird)
   const [femaleFeedType, setFemaleFeedType] = useState<FeedType>('BLC 1');
@@ -130,21 +143,97 @@ export const FlockmanModuleView: React.FC = () => {
     transferMales <= (sourceStats?.currentMales || 0) &&
     transferFemales <= (sourceStats?.currentFemales || 0);
 
+  const userRole = currentUser?.role || '';
+  const isManagerOrAdmin = 
+    userRole === 'admin' || 
+    userRole === 'System Administrator' || 
+    userRole === 'farm_manager' || 
+    userRole === 'Farm Manager';
+
   const handleAddPen = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeFlock) return;
 
     const newPen: PenConfig = {
       id: 'pen_' + Date.now(),
-      name: newPenName,
+      name: newPenName.trim() || `Pen ${newPenSide[0]}${(activeFlock.pens || []).length + 1}`,
       side: newPenSide,
-      males: Number(newPenMales),
-      females: Number(newPenFemales)
+      males: Math.max(0, Number(newPenMales) || 0),
+      females: Math.max(0, Number(newPenFemales) || 0)
     };
 
     const updatedPens = [...(activeFlock.pens || []), newPen];
     updateFlock(activeFlock.id, { pens: updatedPens });
+    setTransferFeedback({
+      type: 'success',
+      message: `Created new ${newPen.name} (${newPen.side} side) with ${newPen.males.toLocaleString()} males and ${newPen.females.toLocaleString()} females.`
+    });
     setShowAddPenModal(false);
+    setTimeout(() => setTransferFeedback(null), 4000);
+  };
+
+  const handleOpenEditPen = (pen: PenConfig) => {
+    setEditingPen(pen);
+    setEditPenName(pen.name);
+    setEditPenSide(pen.side);
+    setEditPenMales(pen.males);
+    setEditPenFemales(pen.females);
+    setSyncFlockPopulationWithPens(false);
+  };
+
+  const handleSavePenEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeFlock || !editingPen) return;
+
+    const parsedMales = Math.max(0, Number(editPenMales) || 0);
+    const parsedFemales = Math.max(0, Number(editPenFemales) || 0);
+
+    const updatedPens = (activeFlock.pens || []).map(p => {
+      if (p.id === editingPen.id) {
+        return {
+          ...p,
+          name: editPenName.trim() || p.name,
+          side: editPenSide,
+          males: parsedMales,
+          females: parsedFemales
+        };
+      }
+      return p;
+    });
+
+    const totalPenMales = updatedPens.reduce((acc, p) => acc + p.males, 0);
+    const totalPenFemales = updatedPens.reduce((acc, p) => acc + p.females, 0);
+
+    const flockUpdates: Partial<Flock> = {
+      pens: updatedPens,
+      ...(syncFlockPopulationWithPens ? {
+        currentMales: totalPenMales,
+        currentFemales: totalPenFemales
+      } : {})
+    };
+
+    updateFlock(activeFlock.id, flockUpdates);
+    setTransferFeedback({
+      type: 'success',
+      message: `Successfully updated ${editPenName} population: ${parsedMales.toLocaleString()} Males, ${parsedFemales.toLocaleString()} Females${syncFlockPopulationWithPens ? ' (and synchronized house total)' : ''}.`
+    });
+    setEditingPen(null);
+    setTimeout(() => setTransferFeedback(null), 4000);
+  };
+
+  const handleConfirmDeletePen = () => {
+    if (!activeFlock || !deletingPen) return;
+
+    const penNameToRemove = deletingPen.name;
+    const updatedPens = (activeFlock.pens || []).filter(p => p.id !== deletingPen.id);
+
+    updateFlock(activeFlock.id, { pens: updatedPens });
+    setTransferFeedback({
+      type: 'success',
+      message: `Pen "${penNameToRemove}" was successfully removed from ${activeFlock.houseNumber}.`
+    });
+    setDeletingPen(null);
+    setTimeout(() => setTransferFeedback(null), 4000);
   };
 
   const femaleFeedKg = sideFemales > 0 ? Math.round((sideFemales * (Number(femaleFeedGrams) || 0)) / 1000) : 0;
@@ -407,54 +496,125 @@ export const FlockmanModuleView: React.FC = () => {
 
               {/* Side Pens List */}
               <div className="pt-2 border-t border-slate-100">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Pens in {activeSide} Side ({sidePens.length} Pens)</span>
-                  </h4>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-teal-600" />
+                      <span>Pens in {activeSide} Side ({sidePens.length} Pens)</span>
+                    </h4>
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      &bull; Side Totals: <strong className="text-teal-700">{sideMales.toLocaleString()} M</strong> / <strong className="text-rose-700">{sideFemales.toLocaleString()} F</strong> ({ (sideMales + sideFemales).toLocaleString() } birds)
+                    </span>
+                  </div>
 
-                  {permissions.canRecordFlockmanModule(selectedHouse) && (
-                    <button
-                      onClick={() => {
-                        setNewPenSide(activeSide);
-                        setNewPenName(`Pen ${activeSide[0]}${sidePens.length + 1}`);
-                        setShowAddPenModal(true);
-                      }}
-                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>Add Pen</span>
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {isManagerOrAdmin && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 font-bold flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-amber-600" />
+                        Manager / Admin Controls Active
+                      </span>
+                    )}
+
+                    {(isManagerOrAdmin || permissions.canRecordFlockmanModule(selectedHouse)) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewPenSide(activeSide);
+                          setNewPenName(`Pen ${activeSide[0]}${sidePens.length + 1}`);
+                          setShowAddPenModal(true);
+                        }}
+                        className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add Pen</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {sidePens.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic py-2">No pens configured for this side yet.</p>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                    {sidePens.map(pen => (
-                      <div
-                        key={pen.id}
-                        className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-1"
+                  <div className="p-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                    <p className="text-xs text-slate-500 font-medium">No pens configured for {activeSide} side yet.</p>
+                    {isManagerOrAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewPenSide(activeSide);
+                          setNewPenName(`Pen ${activeSide[0]}1`);
+                          setShowAddPenModal(true);
+                        }}
+                        className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 text-white text-xs font-bold rounded-xl hover:bg-teal-700 transition"
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-xs text-slate-900">{pen.name}</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-white font-medium text-slate-500 border border-slate-200">
-                            {pen.side} Side
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Create First Pen</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+                    {sidePens.map(pen => {
+                      const penTotal = pen.males + pen.females;
+                      const penRatio = pen.males > 0 ? (pen.females / pen.males).toFixed(1) : '0';
+                      return (
+                        <div
+                          key={pen.id}
+                          className="p-3.5 bg-slate-50/90 hover:bg-white border border-slate-200 hover:border-teal-300 hover:shadow-xs rounded-2xl space-y-2.5 transition-all flex flex-col justify-between"
+                        >
                           <div>
-                            <span className="text-[10px] text-teal-700 block font-medium">Males</span>
-                            <span className="font-bold text-teal-950">{pen.males}</span>
+                            <div className="flex items-center justify-between">
+                              <span className="font-extrabold text-xs text-slate-900 flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+                                {pen.name}
+                              </span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-white font-bold text-slate-600 border border-slate-200 shadow-2xs">
+                                {pen.side} Side
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-xs pt-2">
+                              <div className="p-2 bg-teal-50/70 rounded-xl border border-teal-100">
+                                <span className="text-[10px] text-teal-700 block font-bold uppercase tracking-wider">Males</span>
+                                <span className="font-extrabold text-sm text-teal-950">{pen.males.toLocaleString()}</span>
+                              </div>
+                              <div className="p-2 bg-rose-50/70 rounded-xl border border-rose-100">
+                                <span className="text-[10px] text-rose-700 block font-bold uppercase tracking-wider">Females</span>
+                                <span className="font-extrabold text-sm text-rose-950">{pen.females.toLocaleString()}</span>
+                              </div>
+                            </div>
+
+                            <div className="pt-2 flex items-center justify-between text-[11px] text-slate-500 font-medium border-t border-slate-200/60 mt-1">
+                              <span>Total: <strong className="text-slate-800">{penTotal.toLocaleString()}</strong></span>
+                              <span>Ratio: <strong className="text-purple-700">1:{penRatio}</strong></span>
+                            </div>
                           </div>
-                          <div>
-                            <span className="text-[10px] text-rose-600 block font-medium">Females</span>
-                            <span className="font-bold text-rose-950">{pen.females}</span>
-                          </div>
+
+                          {/* Action Buttons for Farm Manager & Admin */}
+                          {isManagerOrAdmin && (
+                            <div className="pt-2 border-t border-slate-200/70 flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditPen(pen)}
+                                className="flex-1 py-1.5 px-2 bg-white hover:bg-teal-50 text-teal-800 border border-teal-200 hover:border-teal-400 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition shadow-2xs cursor-pointer"
+                                title={`Edit ${pen.name} Population`}
+                              >
+                                <Edit3 className="w-3.5 h-3.5 text-teal-600" />
+                                <span>Edit Pop.</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setDeletingPen(pen)}
+                                className="py-1.5 px-2.5 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 hover:border-rose-400 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition shadow-2xs cursor-pointer"
+                                title={`Delete ${pen.name}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                <span className="hidden sm:inline">Delete</span>
+                              </button>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1431,6 +1591,311 @@ export const FlockmanModuleView: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: EDIT PEN POPULATION (FARM MANAGER & ADMIN)                          */}
+      {/* ========================================================================= */}
+      {editingPen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden">
+            <div className="bg-teal-950 p-5 text-white flex items-center justify-between border-b border-teal-900/50">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-teal-800 text-teal-200">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-white">Edit Pen Population</h3>
+                  <p className="text-xs text-teal-300/80">{activeFlock.houseNumber} &bull; {editingPen.name} ({editingPen.side} Side)</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setEditingPen(null)} 
+                className="text-teal-400 hover:text-white p-1 rounded-lg cursor-pointer transition text-lg"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePenEdit} className="p-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Pen Name / Identifier *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editPenName}
+                    onChange={e => setEditPenName(e.target.value)}
+                    placeholder="e.g. Pen L1"
+                    className="w-full px-3 py-2 text-xs font-bold border border-slate-200 rounded-xl focus:outline-teal-500 outline-hidden"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Side Placement *</label>
+                  <select
+                    value={editPenSide}
+                    onChange={e => setEditPenSide(e.target.value as any)}
+                    className="w-full px-3 py-2 text-xs font-bold border border-slate-200 rounded-xl bg-white outline-hidden focus:outline-teal-500"
+                  >
+                    <option value="Left">Left Side</option>
+                    <option value="Right">Right Side</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Male & Female Population Inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                {/* Males */}
+                <div className="p-3.5 bg-teal-50/70 border border-teal-200 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-teal-950 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-teal-600"></span>
+                      Male Population
+                    </label>
+                    <span className="text-[10px] font-bold text-teal-700 uppercase">Birds</span>
+                  </div>
+
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={editPenMales}
+                    onChange={e => setEditPenMales(Math.max(0, Number(e.target.value)))}
+                    className="w-full px-3 py-2 text-base font-black border border-teal-300 rounded-xl outline-hidden focus:outline-teal-600 bg-white text-teal-950"
+                  />
+
+                  {/* Quick Adjust buttons */}
+                  <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setEditPenMales(prev => Math.max(0, prev - 10))}
+                      className="px-2 py-0.5 text-[10px] font-bold bg-white border border-teal-200 rounded-md hover:bg-teal-100 text-teal-800 cursor-pointer"
+                    >
+                      -10
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditPenMales(prev => Math.max(0, prev - 5))}
+                      className="px-2 py-0.5 text-[10px] font-bold bg-white border border-teal-200 rounded-md hover:bg-teal-100 text-teal-800 cursor-pointer"
+                    >
+                      -5
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditPenMales(prev => prev + 5)}
+                      className="px-2 py-0.5 text-[10px] font-bold bg-white border border-teal-200 rounded-md hover:bg-teal-100 text-teal-800 cursor-pointer"
+                    >
+                      +5
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditPenMales(prev => prev + 10)}
+                      className="px-2 py-0.5 text-[10px] font-bold bg-white border border-teal-200 rounded-md hover:bg-teal-100 text-teal-800 cursor-pointer"
+                    >
+                      +10
+                    </button>
+                  </div>
+                </div>
+
+                {/* Females */}
+                <div className="p-3.5 bg-rose-50/70 border border-rose-200 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-rose-950 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-rose-600"></span>
+                      Female Population
+                    </label>
+                    <span className="text-[10px] font-bold text-rose-700 uppercase">Birds</span>
+                  </div>
+
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={editPenFemales}
+                    onChange={e => setEditPenFemales(Math.max(0, Number(e.target.value)))}
+                    className="w-full px-3 py-2 text-base font-black border border-rose-300 rounded-xl outline-hidden focus:outline-rose-600 bg-white text-rose-950"
+                  />
+
+                  {/* Quick Adjust buttons */}
+                  <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setEditPenFemales(prev => Math.max(0, prev - 50))}
+                      className="px-2 py-0.5 text-[10px] font-bold bg-white border border-rose-200 rounded-md hover:bg-rose-100 text-rose-800 cursor-pointer"
+                    >
+                      -50
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditPenFemales(prev => Math.max(0, prev - 25))}
+                      className="px-2 py-0.5 text-[10px] font-bold bg-white border border-rose-200 rounded-md hover:bg-rose-100 text-rose-800 cursor-pointer"
+                    >
+                      -25
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditPenFemales(prev => prev + 25)}
+                      className="px-2 py-0.5 text-[10px] font-bold bg-white border border-rose-200 rounded-md hover:bg-rose-100 text-rose-800 cursor-pointer"
+                    >
+                      +25
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditPenFemales(prev => prev + 50)}
+                      className="px-2 py-0.5 text-[10px] font-bold bg-white border border-rose-200 rounded-md hover:bg-rose-100 text-rose-800 cursor-pointer"
+                    >
+                      +50
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Real-time Summary Card */}
+              <div className="p-3.5 bg-slate-900 text-white rounded-2xl space-y-2 text-xs">
+                <div className="flex items-center justify-between text-teal-300 font-bold text-xs border-b border-slate-800 pb-2">
+                  <span>Pen Population Metrics</span>
+                  <span>Total: {(Number(editPenMales) + Number(editPenFemales)).toLocaleString()} Birds</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-[11px] text-slate-300 pt-1">
+                  <div>
+                    <span className="block text-slate-400">M:F Mating Ratio:</span>
+                    <strong className="text-white text-sm">
+                      {editPenMales > 0 && editPenFemales > 0 
+                        ? `1 : ${(Number(editPenFemales) / Number(editPenMales)).toFixed(1)}`
+                        : 'N/A'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="block text-slate-400">Current House Males / Females:</span>
+                    <strong className="text-white">
+                      {stats?.currentMales.toLocaleString()}M / {stats?.currentFemales.toLocaleString()}F
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Synchronize Option */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={syncFlockPopulationWithPens}
+                    onChange={e => setSyncFlockPopulationWithPens(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded text-teal-600 focus:ring-teal-500 border-slate-300"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">
+                      Synchronize {activeFlock.houseNumber} total population
+                    </span>
+                    <span className="text-[11px] text-slate-500 block mt-0.5">
+                      Recalculates active house totals to match the exact sum of all configured pen partitions.
+                    </span>
+                  </div>
+                </label>
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const penToDelete = editingPen;
+                    setEditingPen(null);
+                    setDeletingPen(penToDelete);
+                  }}
+                  className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Pen</span>
+                </button>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingPen(null)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Save Changes</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: DELETE PEN CONFIRMATION (FARM MANAGER & ADMIN)                      */}
+      {/* ========================================================================= */}
+      {deletingPen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden">
+            <div className="bg-rose-950 p-5 text-white flex items-center justify-between border-b border-rose-900/50">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-rose-800 text-rose-200">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-white">Delete Pen Partition</h3>
+                  <p className="text-xs text-rose-300/80">{activeFlock.houseNumber} &bull; {deletingPen.name}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setDeletingPen(null)} 
+                className="text-rose-400 hover:text-white p-1 rounded-lg cursor-pointer transition text-lg"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Are you sure you want to permanently delete <strong>{deletingPen.name}</strong> from <strong>{activeFlock.houseNumber}</strong>?
+              </p>
+
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl space-y-1.5 text-xs text-rose-950">
+                <div className="font-bold flex items-center justify-between">
+                  <span>{deletingPen.name} ({deletingPen.side} Side)</span>
+                  <span className="px-2 py-0.5 bg-rose-200 text-rose-900 rounded-md text-[10px] font-black">
+                    {(deletingPen.males + deletingPen.females).toLocaleString()} Birds
+                  </span>
+                </div>
+                <p className="text-[11px] text-rose-800">
+                  Males: <strong>{deletingPen.males.toLocaleString()}</strong> &bull; Females: <strong>{deletingPen.females.toLocaleString()}</strong>
+                </p>
+              </div>
+
+              <p className="text-[11px] text-slate-500 italic">
+                Note: This removes the pen subdivision record from this house. If these birds are still present in the house, you can allocate their numbers across remaining pens.
+              </p>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setDeletingPen(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeletePen}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Confirm Delete</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
