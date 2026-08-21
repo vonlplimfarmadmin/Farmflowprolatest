@@ -160,13 +160,16 @@ export const CompanyReportHeader: React.FC<CompanyReportHeaderProps> = ({
 };
 
 export const CompanyReportSignatures: React.FC = () => {
-  const { currentUser } = useFarm();
+  const { farmProfile, currentUser } = useFarm();
 
   const formattedDate = new Date().toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric'
   });
+
+  const animalHealthSpecialistName = farmProfile.animalHealthSpecialist || 'Dr. Roberto M. Santos, DVM';
+  const executiveLeaderName = farmProfile.presidentCeo || farmProfile.farmOwners || 'Von L.P. Lim';
 
   return (
     <div className="mt-10 pt-8 border-t-2 border-slate-900 print:border-t-2 print:border-black print:mt-8 page-break-inside-avoid">
@@ -195,14 +198,14 @@ export const CompanyReportSignatures: React.FC = () => {
           </div>
         </div>
 
-        {/* Signer 2: Verified by Veterinarian / QA */}
+        {/* Signer 2: Verified by Animal Health Specialist / QA */}
         <div className="bg-slate-50 border border-slate-300 rounded-2xl p-4 space-y-4 print:bg-white print:border-black">
           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
             Step 2: Technical & Health Audit
           </div>
           <div className="h-12 flex flex-col justify-end items-center">
-            <span className="font-serif italic text-slate-400 print:text-slate-800 text-xs">Dr. R. M. Santos, DVM</span>
-            <span className="text-[10px] text-slate-500">Farm Veterinarian & QA Lead</span>
+            <span className="font-serif italic text-slate-700 print:text-slate-800 text-xs font-bold">{animalHealthSpecialistName}</span>
+            <span className="text-[10px] text-slate-500">Animal Health Specialist & QA Lead</span>
           </div>
           <div className="border-t border-slate-400 pt-2 flex justify-between text-[10px] text-slate-600">
             <span className="font-bold uppercase text-slate-900">Verified By</span>
@@ -210,14 +213,14 @@ export const CompanyReportSignatures: React.FC = () => {
           </div>
         </div>
 
-        {/* Signer 3: Approved by Operations Manager */}
+        {/* Signer 3: Approved by President / CEO */}
         <div className="bg-slate-50 border border-slate-300 rounded-2xl p-4 space-y-4 print:bg-white print:border-black">
           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
             Step 3: Executive Approval
           </div>
           <div className="h-12 flex flex-col justify-end items-center">
-            <span className="font-serif italic text-slate-400 print:text-slate-800 text-xs">V. P. Lim</span>
-            <span className="text-[10px] text-slate-500">Farm Operations Director</span>
+            <span className="font-serif italic text-slate-700 print:text-slate-800 text-xs font-bold">{executiveLeaderName}</span>
+            <span className="text-[10px] text-slate-500">President / CEO / Farm Operations</span>
           </div>
           <div className="border-t border-slate-400 pt-2 flex justify-between text-[10px] text-slate-600">
             <span className="font-bold uppercase text-slate-900">Approved By</span>

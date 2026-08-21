@@ -359,6 +359,17 @@ export interface FarmProfile {
   email: string;
   establishedYear: string;
   currency: string;
+  farmOwners?: string;
+  presidentCeo?: string;
+  cfo?: string;
+  animalHealthSpecialist?: string;
+  animalProductionSpecialist?: string;
+  industrySector?: string;
+  primaryBreeds?: string;
+  facilityHousesCount?: string;
+  totalBirdCapacity?: string;
+  dailyEggCapacity?: string;
+  farmOverviewNotes?: string;
   standardVaccinationProgram: StandardMedProgramItem[];
   standardFeedGuide: StandardFeedGuideItem[];
   standardHenday: StandardHendayItem[];

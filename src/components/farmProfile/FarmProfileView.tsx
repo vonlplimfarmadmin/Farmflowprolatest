@@ -19,7 +19,19 @@ import {
   Camera,
   Upload,
   Image as ImageIcon,
-  Sparkles
+  Sparkles,
+  Users,
+  UserCheck,
+  Briefcase,
+  Stethoscope,
+  Activity,
+  DollarSign,
+  ShieldCheck,
+  Award,
+  Layers,
+  FileText,
+  Warehouse,
+  Info
 } from 'lucide-react';
 import { CompanyLogoUploadModal } from './CompanyLogoUploadModal';
 import { 
@@ -51,7 +63,39 @@ export const FarmProfileView: React.FC = () => {
   const [contactNumber, setContactNumber] = useState(farmProfile.contactNumber);
   const [email, setEmail] = useState(farmProfile.email);
   const [establishedYear, setEstablishedYear] = useState(farmProfile.establishedYear);
+  const [farmOwners, setFarmOwners] = useState(farmProfile.farmOwners || '');
+  const [presidentCeo, setPresidentCeo] = useState(farmProfile.presidentCeo || '');
+  const [cfo, setCfo] = useState(farmProfile.cfo || '');
+  const [animalHealthSpecialist, setAnimalHealthSpecialist] = useState(farmProfile.animalHealthSpecialist || '');
+  const [animalProductionSpecialist, setAnimalProductionSpecialist] = useState(farmProfile.animalProductionSpecialist || '');
+  const [industrySector, setIndustrySector] = useState(farmProfile.industrySector || 'Commercial Broiler-Breeder Parent Stock (PS)');
+  const [primaryBreeds, setPrimaryBreeds] = useState(farmProfile.primaryBreeds || 'Cobb 500 & Ross 308 Parent Stock');
+  const [facilityHousesCount, setFacilityHousesCount] = useState(farmProfile.facilityHousesCount || '6 Environmentally Controlled (EC)');
+  const [totalBirdCapacity, setTotalBirdCapacity] = useState(farmProfile.totalBirdCapacity || '~60,000 Breeders');
+  const [dailyEggCapacity, setDailyEggCapacity] = useState(farmProfile.dailyEggCapacity || '~50,000 Eggs/day');
+  const [farmOverviewNotes, setFarmOverviewNotes] = useState(farmProfile.farmOverviewNotes || '');
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Sync state on opening edit form
+  const handleOpenEditInfo = () => {
+    setName(farmProfile.name);
+    setAddress(farmProfile.address);
+    setContactNumber(farmProfile.contactNumber);
+    setEmail(farmProfile.email);
+    setEstablishedYear(farmProfile.establishedYear);
+    setFarmOwners(farmProfile.farmOwners || '');
+    setPresidentCeo(farmProfile.presidentCeo || '');
+    setCfo(farmProfile.cfo || '');
+    setAnimalHealthSpecialist(farmProfile.animalHealthSpecialist || '');
+    setAnimalProductionSpecialist(farmProfile.animalProductionSpecialist || '');
+    setIndustrySector(farmProfile.industrySector || 'Commercial Broiler-Breeder Parent Stock (PS)');
+    setPrimaryBreeds(farmProfile.primaryBreeds || 'Cobb 500 & Ross 308 Parent Stock');
+    setFacilityHousesCount(farmProfile.facilityHousesCount || '6 Environmentally Controlled (EC)');
+    setTotalBirdCapacity(farmProfile.totalBirdCapacity || '~60,000 Breeders');
+    setDailyEggCapacity(farmProfile.dailyEggCapacity || '~50,000 Eggs/day');
+    setFarmOverviewNotes(farmProfile.farmOverviewNotes || '');
+    setIsEditingInfo(true);
+  };
 
   // Vaccine Modal
   const [showAddVaccine, setShowAddVaccine] = useState(false);
@@ -95,7 +139,18 @@ export const FarmProfileView: React.FC = () => {
       address,
       contactNumber,
       email,
-      establishedYear
+      establishedYear,
+      farmOwners,
+      presidentCeo,
+      cfo,
+      animalHealthSpecialist,
+      animalProductionSpecialist,
+      industrySector,
+      primaryBreeds,
+      facilityHousesCount,
+      totalBirdCapacity,
+      dailyEggCapacity,
+      farmOverviewNotes
     });
     setIsEditingInfo(false);
     setSaveSuccess(true);
@@ -275,8 +330,8 @@ export const FarmProfileView: React.FC = () => {
             {!isEditingInfo ? (
               <button
                 id="edit-farm-profile-btn"
-                onClick={() => setIsEditingInfo(true)}
-                className="px-4 py-2.5 bg-mint-400 hover:bg-mint-300 text-forest-950 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition shadow-xs"
+                onClick={handleOpenEditInfo}
+                className="px-4 py-2.5 bg-mint-400 hover:bg-mint-300 text-forest-950 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition shadow-xs cursor-pointer"
               >
                 <Edit3 className="w-3.5 h-3.5" />
                 <span>Edit Profile Info</span>
@@ -284,7 +339,7 @@ export const FarmProfileView: React.FC = () => {
             ) : (
               <button
                 onClick={() => setIsEditingInfo(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold transition"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold transition cursor-pointer"
               >
                 Cancel
               </button>
@@ -295,11 +350,11 @@ export const FarmProfileView: React.FC = () => {
 
       {/* Profile Edit Form if active */}
       {isEditingInfo && (
-        <form onSubmit={handleSaveInfo} className="bg-white rounded-2xl border border-forest-200/80 p-6 shadow-xs space-y-4 animate-fadeIn">
-          <div className="flex items-center justify-between">
+        <form onSubmit={handleSaveInfo} className="bg-white rounded-2xl border border-forest-200/80 p-6 shadow-xs space-y-6 animate-fadeIn">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <Building2 className="w-4 h-4 text-forest-800" />
-              <span>Update Farm Identity & Contact Details</span>
+              <span>Update Farm Profile, Leadership & Technical Specialists</span>
             </h3>
             <span className="text-[11px] text-slate-500 font-medium">Official Registry Information</span>
           </div>
@@ -329,73 +384,247 @@ export const FarmProfileView: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowLogoModal(true)}
-              className="px-3 py-1.5 bg-forest-950 hover:bg-forest-900 text-mint-400 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+              className="px-3 py-1.5 bg-forest-950 hover:bg-forest-900 text-mint-400 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
             >
               <Upload className="w-3.5 h-3.5" />
               <span>{farmProfile.logoUrl ? 'Change Logo' : 'Upload Logo'}</span>
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Farm Enterprise Name</label>
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={e => setName(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-mint-500 focus:border-mint-500 outline-hidden"
-              />
+          {/* Section 1: Enterprise & Contact Info */}
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 pb-1 border-b border-slate-200">
+              <Building2 className="w-3.5 h-3.5 text-forest-700" />
+              <span>1. Enterprise & Contact Details</span>
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Farm Enterprise Name</label>
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  placeholder="e.g. L.P. LIM CITY FAMILY FARM INC"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-mint-500 focus:border-mint-500 outline-hidden"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Address / Complex</label>
+                <input
+                  type="text"
+                  required
+                  value={address}
+                  onChange={e => setAddress(e.target.value)}
+                  placeholder="e.g. San Jose Agro-Industrial Complex, Batangas"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-mint-500 focus:border-mint-500 outline-hidden"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Address / Complex</label>
-              <input
-                type="text"
-                required
-                value={address}
-                onChange={e => setAddress(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-mint-500 focus:border-mint-500 outline-hidden"
-              />
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Contact Phone</label>
+                <input
+                  type="text"
+                  value={contactNumber}
+                  onChange={e => setContactNumber(e.target.value)}
+                  placeholder="+63 917 555 2473"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-mint-500 focus:border-mint-500 outline-hidden"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Official Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="von.lplimfarm@gmail.com"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-mint-500 focus:border-mint-500 outline-hidden"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Est. Year</label>
+                <input
+                  type="text"
+                  value={establishedYear}
+                  onChange={e => setEstablishedYear(e.target.value)}
+                  placeholder="2012"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-mint-500 focus:border-mint-500 outline-hidden"
+                />
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Contact Phone</label>
-              <input
-                type="text"
-                value={contactNumber}
-                onChange={e => setContactNumber(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-mint-500 focus:border-mint-500 outline-hidden"
-              />
+          {/* Section 2: Farm Overview & Operational Specifications */}
+          <div className="space-y-4 pt-2">
+            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 pb-1 border-b border-slate-200">
+              <Layers className="w-3.5 h-3.5 text-forest-700" />
+              <span>2. Farm Overview & Facility Specifications</span>
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Industry Sector</label>
+                <input
+                  type="text"
+                  value={industrySector}
+                  onChange={e => setIndustrySector(e.target.value)}
+                  placeholder="e.g. Commercial Broiler-Breeder Parent Stock (PS)"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-mint-500 focus:border-mint-500 outline-hidden"
+                />
+                <span className="text-[10px] text-slate-400">Primary agricultural sub-sector / production classification</span>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Primary Breeds</label>
+                <input
+                  type="text"
+                  value={primaryBreeds}
+                  onChange={e => setPrimaryBreeds(e.target.value)}
+                  placeholder="e.g. Cobb 500 & Ross 308 Parent Stock"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-mint-500 focus:border-mint-500 outline-hidden"
+                />
+                <span className="text-[10px] text-slate-400">Genetics strains & breeder lines raised</span>
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Official Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-mint-500 focus:border-mint-500 outline-hidden"
-              />
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Active Houses / Facility Type</label>
+                <input
+                  type="text"
+                  value={facilityHousesCount}
+                  onChange={e => setFacilityHousesCount(e.target.value)}
+                  placeholder="e.g. 6 Environmentally Controlled (EC)"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-mint-500 focus:border-mint-500 outline-hidden"
+                />
+                <span className="text-[10px] text-slate-400">Number of active sheds & technology</span>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Total Bird Capacity</label>
+                <input
+                  type="text"
+                  value={totalBirdCapacity}
+                  onChange={e => setTotalBirdCapacity(e.target.value)}
+                  placeholder="e.g. ~60,000 Breeders"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-mint-500 focus:border-mint-500 outline-hidden"
+                />
+                <span className="text-[10px] text-slate-400">Max standing breeder flock volume</span>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Daily Egg Capacity</label>
+                <input
+                  type="text"
+                  value={dailyEggCapacity}
+                  onChange={e => setDailyEggCapacity(e.target.value)}
+                  placeholder="e.g. ~50,000 Eggs/day"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-mint-500 focus:border-mint-500 outline-hidden"
+                />
+                <span className="text-[10px] text-slate-400">Peak hatching egg daily collection</span>
+              </div>
             </div>
+
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Est. Year</label>
-              <input
-                type="text"
-                value={establishedYear}
-                onChange={e => setEstablishedYear(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-mint-500 focus:border-mint-500 outline-hidden"
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Farm Overview / Mission & Background Notes</label>
+              <textarea
+                rows={2}
+                value={farmOverviewNotes}
+                onChange={e => setFarmOverviewNotes(e.target.value)}
+                placeholder="State-of-the-art closed-tunnel ventilated poultry breeder facility operating under strict biosecurity and animal welfare compliance standards..."
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-mint-500 focus:border-mint-500 outline-hidden resize-none"
               />
+              <span className="text-[10px] text-slate-400">Facility profile, ventilation standards, and operational commitment</span>
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          {/* Section 3: Executive Leadership & Corporate Officers */}
+          <div className="space-y-4 pt-2">
+            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 pb-1 border-b border-slate-200">
+              <Briefcase className="w-3.5 h-3.5 text-forest-700" />
+              <span>3. Executive Leadership & Corporate Officers</span>
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Farm Owner/s</label>
+                <input
+                  type="text"
+                  value={farmOwners}
+                  onChange={e => setFarmOwners(e.target.value)}
+                  placeholder="e.g. L.P. Lim & Family"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-mint-500 focus:border-mint-500 outline-hidden"
+                />
+                <span className="text-[10px] text-slate-400">Principal owner(s) / Proprietors</span>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">President / CEO</label>
+                <input
+                  type="text"
+                  value={presidentCeo}
+                  onChange={e => setPresidentCeo(e.target.value)}
+                  placeholder="e.g. Von L.P. Lim"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-mint-500 focus:border-mint-500 outline-hidden"
+                />
+                <span className="text-[10px] text-slate-400">Chief Executive Officer</span>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Chief Financial Officer (CFO)</label>
+                <input
+                  type="text"
+                  value={cfo}
+                  onChange={e => setCfo(e.target.value)}
+                  placeholder="e.g. Patricia C. Lim, CPA"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-mint-500 focus:border-mint-500 outline-hidden"
+                />
+                <span className="text-[10px] text-slate-400">Financial administration & audit</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 4: Technical & Animal Health Specialists */}
+          <div className="space-y-4 pt-2">
+            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 pb-1 border-b border-slate-200">
+              <Stethoscope className="w-3.5 h-3.5 text-forest-700" />
+              <span>4. Key Technical & Animal Specialists</span>
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Animal Health Specialist Name</label>
+                <input
+                  type="text"
+                  value={animalHealthSpecialist}
+                  onChange={e => setAnimalHealthSpecialist(e.target.value)}
+                  placeholder="e.g. Dr. Roberto M. Santos, DVM"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-mint-500 focus:border-mint-500 outline-hidden"
+                />
+                <span className="text-[10px] text-slate-400">Veterinarian & flock biosecurity lead</span>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Animal Production Specialist</label>
+                <input
+                  type="text"
+                  value={animalProductionSpecialist}
+                  onChange={e => setAnimalProductionSpecialist(e.target.value)}
+                  placeholder="e.g. Engr. Gabriel S. Mendoza, PAS"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-mint-500 focus:border-mint-500 outline-hidden"
+                />
+                <span className="text-[10px] text-slate-400">Breeder nutrition & production specialist</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsEditingInfo(false)}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+            >
+              Cancel
+            </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-mint-400 hover:bg-mint-300 text-forest-950 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-xs transition"
+              className="px-5 py-2 bg-mint-400 hover:bg-mint-300 text-forest-950 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-xs transition cursor-pointer"
             >
               <Save className="w-3.5 h-3.5" />
-              <span>Save Changes</span>
+              <span>Save Farm Overview & Profile</span>
             </button>
           </div>
         </form>
@@ -478,125 +707,372 @@ export const FarmProfileView: React.FC = () => {
 
       {/* Tab 1: General Info */}
       {activeTab === 'info' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Card 1: Company Logo & Identity */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Company Logo</h4>
-                {farmProfile.logoUrl ? (
-                  <span className="text-[10px] bg-mint-50 text-forest-900 border border-mint-200 font-bold px-2 py-0.5 rounded-full">
-                    Active Logo
-                  </span>
-                ) : (
-                  <span className="text-[10px] bg-slate-100 text-slate-600 font-medium px-2 py-0.5 rounded-full">
-                    Default Emblem
-                  </span>
-                )}
-              </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center gap-3">
-                <div className="w-14 h-14 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden p-1 shrink-0">
+        <div className="space-y-6">
+          {/* Top Row: Basic Info & Facilities */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Card 1: Company Logo & Identity */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Company Logo</h4>
                   {farmProfile.logoUrl ? (
-                    <img
-                      src={farmProfile.logoUrl}
-                      alt="Farm Logo"
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-contain"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
+                    <span className="text-[10px] bg-mint-50 text-forest-900 border border-mint-200 font-bold px-2 py-0.5 rounded-full">
+                      Active Logo
+                    </span>
                   ) : (
-                    <span className="font-black text-forest-950 text-lg">LP</span>
+                    <span className="text-[10px] bg-slate-100 text-slate-600 font-medium px-2 py-0.5 rounded-full">
+                      Default Emblem
+                    </span>
                   )}
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-900 truncate">Official Brand Crest</p>
-                  <p className="text-[10px] text-slate-500">
-                    {farmProfile.logoUrl ? 'Custom PNG/SVG Logo' : 'Default text monogram'}
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center gap-3">
+                  <div className="w-14 h-14 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden p-1 shrink-0">
+                    {farmProfile.logoUrl ? (
+                      <img
+                        src={farmProfile.logoUrl}
+                        alt="Farm Logo"
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <span className="font-black text-forest-950 text-lg">LP</span>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-900 truncate">Official Brand Crest</p>
+                    <p className="text-[10px] text-slate-500">
+                      {farmProfile.logoUrl ? 'Custom PNG/SVG Logo' : 'Default text monogram'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {permissions.canManageFarmProfile && (
+                <div className="pt-4 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowLogoModal(true)}
+                    className="flex-1 px-3 py-2 bg-forest-950 hover:bg-forest-900 text-mint-400 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{farmProfile.logoUrl ? 'Update Logo' : 'Upload Logo'}</span>
+                  </button>
+                  {farmProfile.logoUrl && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveLogo}
+                      title="Remove logo"
+                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition border border-slate-200 cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Card 2: Farm Overview */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-forest-700" />
+                    <span>Farm Overview</span>
+                  </h4>
+                  {permissions.canManageFarmProfile && (
+                    <button
+                      type="button"
+                      onClick={handleOpenEditInfo}
+                      className="text-[11px] font-bold text-forest-800 hover:text-forest-950 flex items-center gap-1 hover:underline cursor-pointer"
+                      title="Edit Farm Overview"
+                    >
+                      <Edit3 className="w-3 h-3 text-mint-600" />
+                      <span>Edit</span>
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-3 text-sm">
+                  <div>
+                    <p className="text-xs text-slate-500">Enterprise</p>
+                    <p className="font-semibold text-slate-900">{farmProfile.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Industry Sector</p>
+                    <p className="font-semibold text-slate-900">{farmProfile.industrySector || 'Commercial Broiler-Breeder Parent Stock (PS)'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Established</p>
+                    <p className="font-semibold text-slate-900">
+                      {farmProfile.establishedYear} 
+                      {(() => {
+                        const yr = parseInt(farmProfile.establishedYear, 10);
+                        const cur = new Date().getFullYear();
+                        return !isNaN(yr) && yr <= cur ? ` (${cur - yr} Years of Operation)` : '';
+                      })()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Primary Breeds</p>
+                    <p className="font-semibold text-slate-900">{farmProfile.primaryBreeds || 'Cobb 500 & Ross 308 Parent Stock'}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3: Contact & Logistics */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-forest-700" />
+                    <span>Contact & Logistics</span>
+                  </h4>
+                  {permissions.canManageFarmProfile && (
+                    <button
+                      type="button"
+                      onClick={handleOpenEditInfo}
+                      className="text-[11px] font-bold text-forest-800 hover:text-forest-950 flex items-center gap-1 hover:underline cursor-pointer"
+                      title="Edit Contact Info"
+                    >
+                      <Edit3 className="w-3 h-3 text-mint-600" />
+                      <span>Edit</span>
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-slate-400 shrink-0" />
+                    <span className="text-slate-800 font-medium truncate">{farmProfile.contactNumber}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-slate-400 shrink-0" />
+                    <span className="text-slate-800 font-medium truncate">{farmProfile.email}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
+                    <span className="text-slate-800 font-medium line-clamp-2">{farmProfile.address}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 4: Facility Capacity */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Warehouse className="w-3.5 h-3.5 text-forest-700" />
+                    <span>Facility Capacity</span>
+                  </h4>
+                  {permissions.canManageFarmProfile && (
+                    <button
+                      type="button"
+                      onClick={handleOpenEditInfo}
+                      className="text-[11px] font-bold text-forest-800 hover:text-forest-950 flex items-center gap-1 hover:underline cursor-pointer"
+                      title="Edit Facility Capacity"
+                    >
+                      <Edit3 className="w-3 h-3 text-mint-600" />
+                      <span>Edit</span>
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-600">Active Houses:</span>
+                    <span className="font-bold text-slate-900">{farmProfile.facilityHousesCount || '6 Environmentally Controlled (EC)'}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-600">Total Bird Capacity:</span>
+                    <span className="font-bold text-slate-900">{farmProfile.totalBirdCapacity || '~60,000 Breeders'}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-600">Daily Egg Capacity:</span>
+                    <span className="font-bold text-slate-900">{farmProfile.dailyEggCapacity || '~50,000 Eggs/day'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Farm Operational Profile Narrative Banner */}
+          {(farmProfile.farmOverviewNotes || permissions.canManageFarmProfile) && (
+            <div className="bg-gradient-to-br from-forest-950 to-slate-900 text-white rounded-2xl p-5 sm:p-6 shadow-sm border border-forest-800 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-2 rounded-xl bg-forest-900/80 text-mint-400 border border-mint-500/20">
+                    <FileText className="w-4 h-4" />
+                  </span>
+                  <div>
+                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                      <span>Farm Operational Profile & Facility Standards</span>
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-mint-400/20 text-mint-300 border border-mint-400/30">
+                        OFFICIAL RECORD
+                      </span>
+                    </h4>
+                    <p className="text-xs text-slate-300">Operational commitment, climate automation & biosecurity protocols</p>
+                  </div>
+                </div>
+                {permissions.canManageFarmProfile && (
+                  <button
+                    type="button"
+                    onClick={handleOpenEditInfo}
+                    className="px-3 py-1.5 bg-mint-400 hover:bg-mint-300 text-forest-950 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer shrink-0"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>Edit Overview</span>
+                  </button>
+                )}
+              </div>
+              <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-normal bg-white/5 rounded-xl p-4 border border-white/10">
+                {farmProfile.farmOverviewNotes || 'State-of-the-art closed-tunnel ventilated poultry breeder facility operating under strict biosecurity and animal welfare compliance standards.'}
+              </p>
+            </div>
+          )}
+
+          {/* Section: Executive Leadership & Corporate Governance */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-xl bg-forest-950 text-mint-300">
+                  <Briefcase className="w-4 h-4 text-mint-400" />
+                </span>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">Executive Leadership & Farm Ownership</h4>
+                  <p className="text-xs text-slate-500">Corporate governance, executive authority, and financial administration</p>
+                </div>
+              </div>
+              <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-forest-50 text-forest-800 border border-forest-200 self-start">
+                GOVERNANCE & OFFICERS
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Farm Owner/s */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-amber-700" />
+                    Farm Owner / Owners
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                    Ownership
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-base font-black text-slate-900">
+                    {farmProfile.farmOwners || 'Not Specified'}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Proprietor & Primary Asset Holding
+                  </p>
+                </div>
+              </div>
+
+              {/* President / CEO */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <UserCheck className="w-3.5 h-3.5 text-forest-800" />
+                    President / CEO
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-forest-50 text-forest-900 border border-forest-200">
+                    Executive
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-base font-black text-slate-900">
+                    {farmProfile.presidentCeo || 'Not Specified'}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Strategic Leadership & Operations Head
+                  </p>
+                </div>
+              </div>
+
+              {/* CFO */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <DollarSign className="w-3.5 h-3.5 text-emerald-700" />
+                    Chief Financial Officer (CFO)
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-900 border border-emerald-200">
+                    Finance
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-base font-black text-slate-900">
+                    {farmProfile.cfo || 'Not Specified'}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Financial Planning & Corporate Audit
                   </p>
                 </div>
               </div>
             </div>
-
-            {permissions.canManageFarmProfile && (
-              <div className="pt-4 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowLogoModal(true)}
-                  className="flex-1 px-3 py-2 bg-forest-950 hover:bg-forest-900 text-mint-400 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>{farmProfile.logoUrl ? 'Update Logo' : 'Upload Logo'}</span>
-                </button>
-                {farmProfile.logoUrl && (
-                  <button
-                    type="button"
-                    onClick={handleRemoveLogo}
-                    title="Remove logo"
-                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition border border-slate-200"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            )}
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Farm Overview</h4>
-            <div className="space-y-3 text-sm">
-              <div>
-                <p className="text-xs text-slate-500">Enterprise</p>
-                <p className="font-semibold text-slate-900">{farmProfile.name}</p>
+          {/* Section: Key Technical Specialists & Animal Care */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-xl bg-forest-950 text-mint-300">
+                  <Stethoscope className="w-4 h-4 text-mint-400" />
+                </span>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">Key Technical Specialists & Flock Care</h4>
+                  <p className="text-xs text-slate-500">Veterinary health surveillance, vaccination protocols, and production yield optimization</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-slate-500">Industry Sector</p>
-                <p className="font-semibold text-slate-900">Commercial Broiler-Breeder Parent Stock (PS)</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500">Established</p>
-                <p className="font-semibold text-slate-900">{farmProfile.establishedYear} (14 Years of Operation)</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500">Primary Breeds</p>
-                <p className="font-semibold text-slate-900">Cobb 500 & Ross 308 Parent Stock</p>
-              </div>
+              <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-teal-50 text-teal-800 border border-teal-200 self-start">
+                TECHNICAL DIRECTORS
+              </span>
             </div>
-          </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Contact & Logistics</h4>
-            <div className="space-y-3 text-sm">
-              <div className="flex items-center gap-2">
-                <Phone className="w-4 h-4 text-slate-400" />
-                <span className="text-slate-800 font-medium">{farmProfile.contactNumber}</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Animal Health Specialist */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <Stethoscope className="w-3.5 h-3.5 text-teal-700" />
+                    Animal Health Specialist Name
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-50 text-teal-900 border border-teal-200">
+                    Veterinary Lead (DVM)
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-base font-black text-slate-900">
+                    {farmProfile.animalHealthSpecialist || 'Not Specified'}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Biosecurity Programs, Veterinary Medication, Mortality Audits & Immunization Compliance
+                  </p>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Mail className="w-4 h-4 text-slate-400" />
-                <span className="text-slate-800 font-medium">{farmProfile.email}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-slate-400" />
-                <span className="text-slate-800 font-medium">{farmProfile.address}</span>
-              </div>
-            </div>
-          </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Facility Capacity</h4>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-600">Active Houses:</span>
-                <span className="font-bold text-slate-900">6 Environmentally Controlled (EC)</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-600">Total Bird Capacity:</span>
-                <span className="font-bold text-slate-900">~60,000 Breeders</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-600">Daily Egg Capacity:</span>
-                <span className="font-bold text-slate-900">~50,000 Eggs/day</span>
+              {/* Animal Production Specialist */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5 text-indigo-700" />
+                    Animal Production Specialist
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-900 border border-indigo-200">
+                    Production Lead
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-base font-black text-slate-900">
+                    {farmProfile.animalProductionSpecialist || 'Not Specified'}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Breeder Nutrition Formulas, Hen-Day Yield Benchmarks, Feed Guide Standards & Hatching Target Delivery
+                  </p>
+                </div>
               </div>
             </div>
           </div>
