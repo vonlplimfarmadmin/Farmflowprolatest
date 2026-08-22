@@ -3,16 +3,17 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+export const PRODUCTION_DB_NAME = 'farmflow_db';
+
 let isConnected = false;
 let lastError: string | null = null;
 
-// Candidates for connection: environment variable or user-provided URI
+// Production Candidates for connection targeting farmflow_db
 const DEFAULT_FALLBACK_URIS = [
-  // User string with username:password split
+  // Primary connection string with farmflow_db database
   'mongodb+srv://vonlplimfarm_db_user:kv5FvZZDssnVJ0Vk@farmflowv3.qlbn8c1.mongodb.net/farmflow_db?retryWrites=true&w=majority&appName=farmflowv3',
-  // User string exact format with farmflow_db database
+  // Alternative formatting targeting farmflow_db
   'mongodb+srv://vonlplimfarm_db_userkv5FvZZDssnVJ0Vk:@farmflowv3.qlbn8c1.mongodb.net/farmflow_db?retryWrites=true&w=majority&appName=farmflowv3',
-  // User string as provided
   'mongodb+srv://vonlplimfarm_db_userkv5FvZZDssnVJ0Vk:@farmflowv3.qlbn8c1.mongodb.net/?appName=farmflowv3'
 ];
 
@@ -27,7 +28,7 @@ export async function connectDB(customUri?: string): Promise<{ success: boolean;
     urisToTry.push(process.env.MONGODB_URI.trim());
   }
 
-  // Also include the fallback URIs
+  // Also include fallback URIs
   for (const fb of DEFAULT_FALLBACK_URIS) {
     if (!urisToTry.includes(fb)) {
       urisToTry.push(fb);
@@ -37,14 +38,14 @@ export async function connectDB(customUri?: string): Promise<{ success: boolean;
   if (mongoose.connection.readyState === 1) {
     isConnected = true;
     lastError = null;
-    return { success: true, dbName: mongoose.connection.name };
+    return { success: true, dbName: mongoose.connection.name || PRODUCTION_DB_NAME };
   }
 
   for (const uri of urisToTry) {
     try {
       // Mask credentials for console log
       const masked = uri.replace(/\/\/([^:]+):([^@]+)@/, '//$1:****@');
-      console.log(`🔄 [MongoDB] Attempting connection to: ${masked}`);
+      console.log(`🔄 [MongoDB] Connecting to production database [${PRODUCTION_DB_NAME}] via: ${masked}`);
 
       // Disconnect any lingering socket if in connecting/disconnecting state
       if (mongoose.connection.readyState !== 0) {
@@ -52,14 +53,15 @@ export async function connectDB(customUri?: string): Promise<{ success: boolean;
       }
 
       await mongoose.connect(uri, {
+        dbName: PRODUCTION_DB_NAME,
         serverSelectionTimeoutMS: 5000,
         connectTimeoutMS: 5000,
       });
 
       isConnected = true;
       lastError = null;
-      console.log('✅ [MongoDB] Successfully connected to MongoDB:', mongoose.connection.name || 'farmflow_db');
-      return { success: true, dbName: mongoose.connection.name || 'farmflow_db' };
+      console.log(`✅ [MongoDB] Successfully connected to production database: ${mongoose.connection.name || PRODUCTION_DB_NAME}`);
+      return { success: true, dbName: mongoose.connection.name || PRODUCTION_DB_NAME };
     } catch (error: any) {
       const errMsg = error.message || String(error);
       if (errMsg.includes('whitelist') || errMsg.includes('Could not connect to any servers')) {
@@ -69,12 +71,12 @@ export async function connectDB(customUri?: string): Promise<{ success: boolean;
       } else {
         lastError = errMsg;
       }
-      console.warn('⚠️ [MongoDB] Connection attempt failed:', lastError);
+      console.warn(`⚠️ [MongoDB] Connection attempt failed for ${PRODUCTION_DB_NAME}:`, lastError);
     }
   }
 
   isConnected = false;
-  return { success: false, message: lastError || 'Failed to connect to MongoDB Atlas' };
+  return { success: false, message: lastError || `Failed to connect to MongoDB production database: ${PRODUCTION_DB_NAME}` };
 }
 
 export function getDBStatus() {
@@ -86,7 +88,7 @@ export function getDBStatus() {
   return {
     connected: readyState === 1,
     state: stateStr,
-    dbName: mongoose.connection.name || (readyState === 1 ? 'farmflow_db' : null),
+    dbName: mongoose.connection.name || (readyState === 1 ? PRODUCTION_DB_NAME : PRODUCTION_DB_NAME),
     hasUriConfigured: true,
     lastError: readyState === 1 ? null : lastError,
   };
