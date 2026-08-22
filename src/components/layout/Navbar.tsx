@@ -4,6 +4,7 @@ import { RoleBadge } from '../common/RoleBadge';
 import { MongoStatusModal } from '../common/MongoStatusModal';
 import { OfflineSyncManager } from '../common/OfflineSyncManager';
 import { PWAInstallPrompt } from '../common/PWAInstallPrompt';
+import { AppAccessQRModal } from '../common/AppAccessQRModal';
 import { 
   Bell, 
   FileSpreadsheet, 
@@ -22,7 +23,8 @@ import {
   HelpCircle,
   Wifi,
   WifiOff,
-  CloudOff
+  CloudOff,
+  QrCode
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -65,6 +67,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [showMongoModal, setShowMongoModal] = useState(false);
   const [showOfflineModal, setShowOfflineModal] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
 
   useEffect(() => {
     const handleOpenOffline = () => setShowOfflineModal(true);
@@ -244,6 +247,17 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         )}
 
+        {/* QR Code Quick Access Button */}
+        <button
+          id="navbar-qr-access-btn"
+          onClick={() => setShowQRModal(true)}
+          className="p-2 text-graphite-600 hover:text-forest-900 hover:bg-forest-50 rounded-xl transition flex items-center justify-center cursor-pointer"
+          title="Scan QR Code for Mobile Access / Print Badge"
+          aria-label="App QR Code Access"
+        >
+          <QrCode className="w-4 h-4 text-forest-700" />
+        </button>
+
         {/* Notification Bell */}
         <button
           id="navbar-notifications-btn"
@@ -380,6 +394,11 @@ export const Navbar: React.FC<NavbarProps> = ({
       <OfflineSyncManager
         isOpen={showOfflineModal}
         onClose={() => setShowOfflineModal(false)}
+      />
+
+      <AppAccessQRModal
+        isOpen={showQRModal}
+        onClose={() => setShowQRModal(false)}
       />
     </header>
   );

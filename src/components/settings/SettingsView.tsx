@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useFarm } from '../../context/FarmContext';
 import { UserRole, User } from '../../types';
+import { QRCodeSVG } from 'qrcode.react';
 import { 
   Users, 
   ShieldCheck, 
@@ -22,7 +23,12 @@ import {
   Smartphone,
   Monitor,
   Apple,
-  Sparkles
+  Sparkles,
+  QrCode,
+  Printer,
+  Copy,
+  Building2,
+  Globe
 } from 'lucide-react';
 import { RoleBadge } from '../common/RoleBadge';
 import { BiosecurityComplianceView } from './BiosecurityComplianceView';
@@ -44,7 +50,7 @@ export const SettingsView: React.FC = () => {
     clearDatabaseForNewCycle
   } = useFarm();
 
-  const [activeTab, setActiveTab] = useState<'users' | 'approvals' | 'biosecurity' | 'audit' | 'backup'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'approvals' | 'biosecurity' | 'audit' | 'backup' | 'qr'>('users');
   const [selectedUserForHouses, setSelectedUserForHouses] = useState<User | null>(null);
   const [selectedHouses, setSelectedHouses] = useState<string[]>([]);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -54,6 +60,10 @@ export const SettingsView: React.FC = () => {
   const [isClearing, setIsClearing] = useState(false);
   const [clearConfirmationText, setClearConfirmationText] = useState('');
   const [clearFeedback, setClearFeedback] = useState<string | null>(null);
+  const [qrStationName, setQrStationName] = useState('All Poultry Houses & Egg Room');
+  const [qrCopiedLink, setQrCopiedLink] = useState(false);
+  const qrRef = useRef<HTMLDivElement>(null);
+  const appOrigin = typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://ais-pre-cupjad67n6ntomphx2p2z3-116744961637.asia-east1.run.app';
 
   const handleClearCycle = async () => {
     if (clearConfirmationText.trim().toUpperCase() !== 'START FRESH') {
@@ -206,6 +216,17 @@ export const SettingsView: React.FC = () => {
           >
             <Download className="w-3.5 h-3.5" />
             <span>Data Backup</span>
+          </button>
+
+          <button
+            id="settings-tab-qr"
+            onClick={() => setActiveTab('qr')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'qr' ? 'bg-forest-900 text-mint-300 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <QrCode className="w-3.5 h-3.5 text-mint-400" />
+            <span>Mobile QR Access</span>
           </button>
         </div>
       </div>
@@ -642,6 +663,141 @@ export const SettingsView: React.FC = () => {
                   <Trash2 className="w-4 h-4" />
                   <span>Start Fresh Cycle</span>
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 6: Mobile QR Code Access & Station Badges */}
+      {activeTab === 'qr' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                  <QrCode className="w-5 h-5 text-forest-800" />
+                  <span>Mobile App Access & Station Badges</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Generate instant-access QR codes for flockmen, egg sorters, and field technicians to scan on mobile phones.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(appOrigin);
+                    setQrCopiedLink(true);
+                    setTimeout(() => setQrCopiedLink(false), 2000);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border shadow-2xs ${
+                    qrCopiedLink
+                      ? 'bg-emerald-500 text-white border-emerald-600'
+                      : 'bg-slate-50 hover:bg-slate-100 text-slate-800 border-slate-200'
+                  }`}
+                >
+                  {qrCopiedLink ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>URL Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Copy App URL</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3.5 py-1.5 bg-forest-900 hover:bg-forest-950 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5 text-mint-400" />
+                  <span>Print Station Poster</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Grid Layout: QR Showcase & Instructions */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+              
+              {/* Left Column: Visual QR Code Card */}
+              <div className="md:col-span-5 flex flex-col items-center justify-center p-6 bg-gradient-to-b from-forest-950 via-slate-900 to-forest-900 rounded-3xl text-white text-center shadow-lg border border-forest-800/60">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-mint-400 bg-forest-900/90 px-3 py-1 rounded-full border border-mint-400/20 mb-4">
+                  Official Station Access QR
+                </span>
+
+                <div 
+                  ref={qrRef}
+                  className="p-4 bg-white rounded-2xl shadow-xl border-4 border-mint-400/80 mb-4"
+                >
+                  <QRCodeSVG
+                    value={appOrigin}
+                    size={200}
+                    level="H"
+                    includeMargin={false}
+                  />
+                </div>
+
+                <div className="space-y-1 max-w-xs">
+                  <p className="text-sm font-black text-white">
+                    {qrStationName || 'Farm Station'}
+                  </p>
+                  <p className="text-xs text-slate-300">
+                    Scan with iOS Camera or Android Lens to instantly open the Login / Register screen.
+                  </p>
+                </div>
+              </div>
+
+              {/* Right Column: Station Configuration & Workflow details */}
+              <div className="md:col-span-7 space-y-4">
+                
+                {/* Station Name Customizer */}
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-forest-700" />
+                    <span>Station Location Label for Signage</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={qrStationName}
+                    onChange={e => setQrStationName(e.target.value)}
+                    placeholder="e.g. House 1 Entrance, Feed Silo Station, Egg Room"
+                    className="w-full px-3.5 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-forest-700 focus:outline-hidden font-medium"
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    This title will appear at the top of printable posters placed near house disinfectant footbaths and egg sorting stations.
+                  </p>
+                </div>
+
+                {/* Direct App Link Display */}
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5">
+                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5 text-forest-700" />
+                    <span>App Target Web Address</span>
+                  </span>
+                  <div className="p-2.5 bg-white rounded-xl border border-slate-200 text-xs font-mono text-slate-800 break-all">
+                    {appOrigin}
+                  </div>
+                </div>
+
+                {/* Biosecure Access Guidelines */}
+                <div className="p-4 bg-forest-50/70 border border-forest-200/80 rounded-2xl space-y-2">
+                  <div className="flex items-center gap-2 text-forest-950 font-bold text-xs">
+                    <ShieldCheck className="w-4 h-4 text-forest-800 shrink-0" />
+                    <span>New User Security Protocol:</span>
+                  </div>
+                  <ul className="text-xs text-forest-900 space-y-1 list-disc list-inside">
+                    <li><strong>Login / Register Gate:</strong> New users are directed to the login/registration screen first before accessing any farm records.</li>
+                    <li><strong>Instant Registration:</strong> Field workers can register their names, contact details, and assigned house numbers directly from their phones.</li>
+                    <li><strong>Offline Caching:</strong> Once opened, the progressive applet caches locally in IndexedDB for continuous logging even when Wi-Fi drops.</li>
+                  </ul>
+                </div>
+
               </div>
             </div>
           </div>

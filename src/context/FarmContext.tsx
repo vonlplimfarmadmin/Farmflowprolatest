@@ -135,7 +135,7 @@ interface FarmContextType {
   users: UserAccount[];
   login: (username: string, password?: string) => { success: boolean; message: string; user?: UserAccount };
   logout: () => void;
-  registerUser: (userData: Omit<UserAccount, 'id' | 'createdAt' | 'status'> & { password?: string }) => { success: boolean; message: string };
+  registerUser: (userData: Omit<UserAccount, 'id' | 'createdAt' | 'status'> & { password?: string }, autoActivate?: boolean) => { success: boolean; message: string; user?: UserAccount };
   recoverAccount: (username: string, answer: string, newPassword?: string) => { success: boolean; message: string };
   approveUser: (userId: string, designatedHouses?: string[]) => void;
   rejectUser: (userId: string) => void;
@@ -275,13 +275,18 @@ const FarmContext = createContext<FarmContextType | undefined>(undefined);
 const LOCAL_STORAGE_KEY = 'broiler_breeder_farm_data_v2';
 
 export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Load initial states from LocalStorage or defaults
+  // Load initial states from LocalStorage or defaults (new users see login/register screen first)
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
     const saved = localStorage.getItem('broiler_breeder_active_user');
     if (saved) {
-      try { return JSON.parse(saved); } catch { /* ignore */ }
+      try { 
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.id && parsed.username) {
+          return parsed;
+        }
+      } catch { /* ignore */ }
     }
-    return INITIAL_USERS[0]; // default to Admin for immediate full interactivity
+    return null; // Require login or registration first
   });
 
   const [users, setUsers] = useState<UserAccount[]>(() => {
@@ -721,7 +726,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.removeItem('broiler_breeder_active_user');
   };
 
-  const registerUser = (userData: Omit<UserAccount, 'id' | 'createdAt' | 'status'>) => {
+  const registerUser = (userData: Omit<UserAccount, 'id' | 'createdAt' | 'status'> & { password?: string }, autoActivate = false) => {
     const exists = users.some(u => u.username.toLowerCase() === userData.username.toLowerCase().trim());
     if (exists) {
       return { success: false, message: 'Username already exists. Please choose another.' };
@@ -730,7 +735,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const newUser: UserAccount = {
       ...userData,
       id: 'usr_' + Date.now(),
-      status: 'pending',
+      status: autoActivate ? 'active' : 'pending',
       createdAt: new Date().toISOString(),
       registeredAt: new Date().toISOString().split('T')[0],
       designatedHouses: userData.designatedHouses && userData.designatedHouses.length > 0 
@@ -739,6 +744,16 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     setUsers(prev => [...prev, newUser]);
+    if (autoActivate) {
+      setCurrentUser(newUser);
+      logAction('USER_REGISTRATION', 'auth', `New user registered and active: ${newUser.fullName} (${newUser.username}) as [${newUser.role}].`);
+      return { 
+        success: true, 
+        message: `Welcome, ${newUser.fullName}! Your staff account is activated.`,
+        user: newUser
+      };
+    }
+
     logAction('USER_REGISTRATION', 'auth', `New user registered: ${newUser.fullName} (${newUser.username}) awaiting approval.`);
     return { 
       success: true, 
