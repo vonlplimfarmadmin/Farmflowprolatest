@@ -603,6 +603,19 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (remoteProfile && typeof remoteProfile === 'object' && 'name' in remoteProfile) {
           setFarmProfile(prev => ({ ...prev, ...(remoteProfile as Partial<FarmProfile>) }));
         }
+        if (Array.isArray(json.data.users) && json.data.users.length > 0) {
+          setUsers(prev => {
+            const map = new Map<string, UserAccount>(prev.map(u => [u.username.toLowerCase(), u]));
+            json.data.users.forEach((ru: any) => {
+              if (ru && ru.username) {
+                const key = ru.username.toLowerCase();
+                const existing = map.get(key);
+                map.set(key, existing ? { ...existing, ...ru } : ru);
+              }
+            });
+            return Array.from(map.values());
+          });
+        }
 
         logAction('MONGODB_AUTO_HYDRATE', 'system', 'Automatically synchronized mobile state from MongoDB Atlas.');
         return { success: true, message: 'Hydrated latest farm records from MongoDB.' };
@@ -683,7 +696,8 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         depletions,
         medAdmins: medAdministrations,
         bodyWeights,
-        biosecurityLogs
+        biosecurityLogs,
+        users
       };
 
       const res = await fetch('/api/db/sync-all', {
@@ -846,10 +860,37 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Auth Functions
-  const login = (username: string, _password?: string) => {
-    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase().trim());
+  const login = (identifier: string, _password?: string) => {
+    if (!identifier) {
+      return { success: false, message: 'Please enter your username, email address, or staff ID.' };
+    }
+    const clean = identifier.trim().toLowerCase();
+    
+    // Multi-attribute lookup: username, email, full name, or user id
+    let user = users.find(u => 
+      u.username.toLowerCase() === clean ||
+      (u.email && u.email.toLowerCase() === clean) ||
+      (u.id && u.id.toLowerCase() === clean) ||
+      (u.fullName && u.fullName.toLowerCase() === clean)
+    );
+
+    // Fallback friendly alias resolution for mobile convenience
     if (!user) {
-      return { success: false, message: 'User account not found. Please register or verify username.' };
+      if (clean === 'admin' || clean === 'von' || clean === 'vonlim' || clean === 'von.lplimfarm' || clean.includes('von.lplimfarm')) {
+        user = users.find(u => u.username === 'admin' || (u.email && u.email.includes('von.lplimfarm')));
+      } else if (clean === 'manager' || clean === 'farm_manager' || clean === 'farmmanager') {
+        user = users.find(u => u.username === 'farm_mgr_ramon' || u.role === 'Farm Manager');
+      } else if (clean === 'flockman' || clean === 'flockman1') {
+        user = users.find(u => u.username === 'flockman_joel' || u.role === 'Flockman');
+      } else if (clean === 'collector' || clean === 'collector1' || clean === 'egg_collector') {
+        user = users.find(u => u.username === 'collector_marlon' || u.role === 'Egg Collector');
+      } else if (clean === 'leadman' || clean === 'leadman1') {
+        user = users.find(u => u.username === 'leadman_eduardo' || u.role === 'Leadman / Technician');
+      }
+    }
+
+    if (!user) {
+      return { success: false, message: 'User account not found. You can sign in with your email (e.g. von.lplimfarm@gmail.com) or username (e.g. admin).' };
     }
     if (user.status === 'pending') {
       return { success: false, message: 'Your account registration is pending approval by the System Administrator.' };
@@ -874,9 +915,12 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const registerUser = (userData: Omit<UserAccount, 'id' | 'createdAt' | 'status'> & { password?: string }, autoActivate = false) => {
-    const exists = users.some(u => u.username.toLowerCase() === userData.username.toLowerCase().trim());
+    const exists = users.some(u => 
+      u.username.toLowerCase() === userData.username.toLowerCase().trim() ||
+      (userData.email && u.email && u.email.toLowerCase() === userData.email.toLowerCase().trim())
+    );
     if (exists) {
-      return { success: false, message: 'Username already exists. Please choose another.' };
+      return { success: false, message: 'Username or email already exists. Please choose another.' };
     }
 
     const newUser: UserAccount = {
@@ -891,6 +935,16 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     setUsers(prev => [...prev, newUser]);
+
+    // Asynchronously save new user to MongoDB
+    if (typeof fetch !== 'undefined') {
+      fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser)
+      }).catch(e => console.warn('Background MongoDB user sync error:', e));
+    }
+
     if (autoActivate) {
       setCurrentUser(newUser);
       logAction('USER_REGISTRATION', 'auth', `New user registered and active: ${newUser.fullName} (${newUser.username}) as [${newUser.role}].`);

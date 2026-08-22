@@ -13,6 +13,7 @@ import {
   BodyWeightModel, 
   BiosecurityLogModel 
 } from './server/models/FarmCollections';
+import { UserAccountModel } from './server/models/UserAccount';
 
 dotenv.config();
 
@@ -51,6 +52,7 @@ async function startServer() {
       medAdminsCount: 0,
       bodyWeightsCount: 0,
       biosecurityLogsCount: 0,
+      usersCount: 0,
     };
 
     if (status.connected) {
@@ -62,6 +64,7 @@ async function startServer() {
         stats.medAdminsCount = await MedAdminModel.countDocuments();
         stats.bodyWeightsCount = await BodyWeightModel.countDocuments();
         stats.biosecurityLogsCount = await BiosecurityLogModel.countDocuments();
+        stats.usersCount = await UserAccountModel.countDocuments();
       } catch (err: any) {
         console.warn('Error reading count stats:', err.message);
       }
@@ -91,7 +94,7 @@ async function startServer() {
         return res.json({ connected: false, message: 'MongoDB not connected' });
       }
 
-      const [eggRecords, flocks, feedRecords, farmProfile, depletions, medAdmins, bodyWeights, biosecurityLogs] = await Promise.all([
+      const [eggRecords, flocks, feedRecords, farmProfile, depletions, medAdmins, bodyWeights, biosecurityLogs, users] = await Promise.all([
         EggRecordModel.find().sort({ date: -1 }).lean(),
         FlockModel.find().sort({ houseNumber: 1 }).lean(),
         FeedRecordModel.find().sort({ date: -1 }).lean(),
@@ -100,6 +103,7 @@ async function startServer() {
         MedAdminModel.find().sort({ date: -1 }).lean(),
         BodyWeightModel.find().sort({ date: -1 }).lean(),
         BiosecurityLogModel.find().sort({ date: -1 }).lean(),
+        UserAccountModel.find().sort({ createdAt: -1 }).lean(),
       ]);
 
       res.json({
@@ -113,6 +117,7 @@ async function startServer() {
           medAdmins,
           bodyWeights,
           biosecurityLogs,
+          users,
         },
       });
     } catch (err: any) {
@@ -293,7 +298,8 @@ async function startServer() {
         depletions,
         medAdmins,
         bodyWeights,
-        biosecurityLogs
+        biosecurityLogs,
+        users
       } = req.body;
 
       let insertedEggs = 0;
@@ -303,6 +309,20 @@ async function startServer() {
       let insertedMedAdmins = 0;
       let insertedBodyWeights = 0;
       let insertedBiosecurity = 0;
+      let insertedUsers = 0;
+
+      if (Array.isArray(users) && users.length > 0) {
+        for (const u of users) {
+          if (u.id || u.username) {
+            await UserAccountModel.findOneAndUpdate(
+              { username: u.username },
+              u,
+              { upsert: true }
+            );
+            insertedUsers++;
+          }
+        }
+      }
 
       if (Array.isArray(eggRecords) && eggRecords.length > 0) {
         for (const record of eggRecords) {
@@ -401,10 +421,46 @@ async function startServer() {
           medAdmins: insertedMedAdmins,
           bodyWeights: insertedBodyWeights,
           biosecurityLogs: insertedBiosecurity,
+          users: insertedUsers,
         },
       });
     } catch (err: any) {
       res.status(500).json({ error: 'Sync failed', details: err.message });
+    }
+  });
+
+  // 6.1 Users Collection Endpoints
+  app.get('/api/users', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({ connected: false, users: [] });
+      }
+
+      const users = await UserAccountModel.find().sort({ createdAt: -1 });
+      res.json({ connected: true, users });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to fetch users', details: err.message });
+    }
+  });
+
+  app.post('/api/users', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({ connected: false, message: 'MongoDB not connected' });
+      }
+
+      const userData = req.body;
+      const user = await UserAccountModel.findOneAndUpdate(
+        { username: userData.username },
+        userData,
+        { upsert: true, new: true }
+      );
+
+      res.json({ connected: true, user });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to save user', details: err.message });
     }
   });
 

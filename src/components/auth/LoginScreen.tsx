@@ -98,14 +98,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     setIsLoading(true);
 
     setTimeout(() => {
-      const res = login(username, password);
+      const res = login(username.trim(), password);
       setIsLoading(false);
       if (!res.success) {
         setErrorMessage(res.message);
       } else {
         setSuccessMessage(`Authenticated successfully. Loading ${res.user?.fullName || 'dashboard'}...`);
       }
-    }, 400);
+    }, 300);
   };
 
   const handleRegister = (e: React.FormEvent) => {
@@ -391,10 +391,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 </div>
               )}
 
-              {/* Username Field */}
+              {/* Username / Email Field */}
               <div className="space-y-1">
                 <label htmlFor="login-username-input" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Username or Staff ID
+                  Username or Email Address
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -404,12 +404,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                     id="login-username-input"
                     type="text"
                     required
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    autoComplete="username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="e.g. admin, manager, flockman1"
+                    placeholder="e.g. von.lplimfarm@gmail.com or admin"
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-forest-700 focus:border-transparent transition"
                   />
                 </div>
+                <p className="text-[10px] text-slate-500">
+                  You can log in with your email (<span className="text-forest-800 font-mono font-bold">von.lplimfarm@gmail.com</span>) or username (<span className="text-forest-800 font-mono font-bold">admin</span>).
+                </p>
               </div>
 
               {/* Password Field */}
@@ -436,6 +443,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                     id="login-password-input"
                     type={showPassword ? 'text' : 'password'}
                     required
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
@@ -486,16 +497,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               <div className="pt-4 border-t border-slate-200">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                    Quick Staff 1-Click Access:
+                    Quick 1-Click Role Login:
                   </span>
-                  <span className="text-[10px] text-slate-400">Click to autofill</span>
+                  <span className="text-[10px] text-slate-400">Tap to autofill & login</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   {[
-                    { role: 'System Administrator' as UserRole, label: 'Admin (Full Access)', user: 'admin' },
-                    { role: 'Farm Manager' as UserRole, label: 'Farm Manager', user: 'manager' },
-                    { role: 'Flockman' as UserRole, label: 'Flockman (House 1)', user: 'flockman1' },
-                    { role: 'Egg Collector' as UserRole, label: 'Egg Collector', user: 'collector1' },
+                    { role: 'System Administrator' as UserRole, label: 'Admin (Von L.P. Lim)', user: 'admin', hint: 'von.lplimfarm@gmail.com' },
+                    { role: 'Farm Manager' as UserRole, label: 'Farm Manager (Ramon)', user: 'farm_mgr_ramon', hint: 'Operations' },
+                    { role: 'Flockman' as UserRole, label: 'Flockman (Joel)', user: 'flockman_joel', hint: 'House 1 & 2' },
+                    { role: 'Egg Collector' as UserRole, label: 'Egg Collector (Marlon)', user: 'collector_marlon', hint: 'Collection' },
                   ].map((item) => (
                     <button
                       key={item.role}
@@ -504,7 +515,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                       className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-left text-slate-800 transition hover:border-slate-300 cursor-pointer"
                     >
                       <p className="font-bold text-[11px] text-forest-900 truncate">{item.label}</p>
-                      <p className="text-[10px] text-slate-500 font-mono mt-0.5">u: {item.user} / p: pass123</p>
+                      <p className="text-[10px] text-slate-500 font-mono mt-0.5 truncate">{item.hint}</p>
                     </button>
                   ))}
                 </div>
