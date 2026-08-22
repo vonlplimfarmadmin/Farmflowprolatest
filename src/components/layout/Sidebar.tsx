@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useFarm } from '../../context/FarmContext';
 import { AppAccessQRModal } from '../common/AppAccessQRModal';
+import { CrossPlatformModal } from '../common/CrossPlatformModal';
 import { 
   Building2, 
   Wheat, 
@@ -15,7 +16,8 @@ import {
   FileSpreadsheet,
   LayoutDashboard,
   LogOut,
-  QrCode
+  QrCode,
+  Smartphone
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -35,6 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { currentUser, permissions, getLowStockAlerts, getUpcomingVaccines, users, farmProfile, logout } = useFarm();
   const [showQRModal, setShowQRModal] = useState(false);
+  const [showCrossPlatformModal, setShowCrossPlatformModal] = useState(false);
 
   const lowFeeds = getLowStockAlerts();
   const upcomingVaccines = getUpcomingVaccines();
@@ -289,33 +292,48 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => {
+                setShowCrossPlatformModal(true);
+              }}
+              className="py-1.5 px-2 bg-forest-900/80 hover:bg-forest-800 text-mint-300 border border-forest-800/80 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer"
+              title="Add FarmFlow to Phone Home Screen"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-mint-400" />
+              <span>Add App</span>
+            </button>
             <button
               onClick={() => setShowQRModal(true)}
-              className="flex-1 py-1.5 px-2 bg-forest-900/60 hover:bg-forest-800 text-mint-300 border border-forest-800/80 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer"
+              className="py-1.5 px-2 bg-forest-900/60 hover:bg-forest-800 text-mint-300 border border-forest-800/80 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer"
               title="Scan QR Code for Mobile Access"
             >
               <QrCode className="w-3.5 h-3.5 text-mint-400" />
-              <span>Mobile QR</span>
-            </button>
-            <button
-              onClick={() => {
-                logout();
-                onClose();
-              }}
-              className="py-1.5 px-3 bg-forest-900/60 hover:bg-rose-900/30 text-rose-300 hover:text-rose-200 border border-forest-800/80 hover:border-rose-700/50 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer"
-              title="Sign Out"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Sign Out</span>
+              <span>QR Poster</span>
             </button>
           </div>
+          <button
+            onClick={() => {
+              logout();
+              onClose();
+            }}
+            className="w-full py-1.5 px-3 bg-forest-900/40 hover:bg-rose-900/30 text-rose-300 hover:text-rose-200 border border-forest-800/80 hover:border-rose-700/50 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer"
+            title="Sign Out"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out</span>
+          </button>
         </div>
       </aside>
 
       <AppAccessQRModal
         isOpen={showQRModal}
         onClose={() => setShowQRModal(false)}
+      />
+
+      <CrossPlatformModal
+        isOpen={showCrossPlatformModal}
+        onClose={() => setShowCrossPlatformModal(false)}
       />
     </>
   );

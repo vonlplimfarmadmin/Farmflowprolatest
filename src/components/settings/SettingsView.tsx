@@ -225,8 +225,8 @@ export const SettingsView: React.FC = () => {
               activeTab === 'qr' ? 'bg-forest-900 text-mint-300 shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <QrCode className="w-3.5 h-3.5 text-mint-400" />
-            <span>Mobile QR Access</span>
+            <Smartphone className="w-3.5 h-3.5 text-mint-400" />
+            <span>Cross-Platform & Mobile</span>
           </button>
         </div>
       </div>
@@ -669,18 +669,19 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* Tab 6: Mobile QR Code Access & Station Badges */}
+      {/* Tab 6: Cross-Platform & Mobile App Setup Center */}
       {activeTab === 'qr' && (
         <div className="space-y-6">
+          {/* Main Card: QR Code & Station Badges */}
           <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
               <div>
                 <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                  <QrCode className="w-5 h-5 text-forest-800" />
-                  <span>Mobile App Access & Station Badges</span>
+                  <Smartphone className="w-5 h-5 text-forest-800" />
+                  <span>Cross-Platform App & Station Access</span>
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Generate instant-access QR codes for flockmen, egg sorters, and field technicians to scan on mobile phones.
+                  Universal multi-device deployment for Android smartphones, iPhones/iPads, and PC/Mac desktop workstations.
                 </p>
               </div>
 
@@ -748,7 +749,7 @@ export const SettingsView: React.FC = () => {
                     {qrStationName || 'Farm Station'}
                   </p>
                   <p className="text-xs text-slate-300">
-                    Scan with iOS Camera or Android Lens to instantly open the Login / Register screen.
+                    Scan with iOS Camera, Android Lens, or PC Webcam to instantly open the Login / Register gateway.
                   </p>
                 </div>
               </div>
@@ -789,17 +790,86 @@ export const SettingsView: React.FC = () => {
                 <div className="p-4 bg-forest-50/70 border border-forest-200/80 rounded-2xl space-y-2">
                   <div className="flex items-center gap-2 text-forest-950 font-bold text-xs">
                     <ShieldCheck className="w-4 h-4 text-forest-800 shrink-0" />
-                    <span>New User Security Protocol:</span>
+                    <span>Cross-Platform Biosecurity Protocol:</span>
                   </div>
                   <ul className="text-xs text-forest-900 space-y-1 list-disc list-inside">
-                    <li><strong>Login / Register Gate:</strong> New users are directed to the login/registration screen first before accessing any farm records.</li>
-                    <li><strong>Instant Registration:</strong> Field workers can register their names, contact details, and assigned house numbers directly from their phones.</li>
-                    <li><strong>Offline Caching:</strong> Once opened, the progressive applet caches locally in IndexedDB for continuous logging even when Wi-Fi drops.</li>
+                    <li><strong>Login / Register Gate:</strong> New users are directed to the authentication screen first before accessing any farm records.</li>
+                    <li><strong>Role Scoping:</strong> Flockmen and Egg Collectors only see their assigned houses on mobile screens.</li>
+                    <li><strong>Offline Sync:</strong> Caches seamlessly in IndexedDB so farm data is never lost during connectivity blackouts.</li>
                   </ul>
                 </div>
 
               </div>
             </div>
+          </div>
+
+          {/* Three-Column Platform Breakdown Cards (Android, iOS, PC) */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            {/* Android Card */}
+            <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-4 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <h4 className="font-extrabold text-sm text-slate-900">Android OS (Chrome / Edge)</h4>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Direct 1-tap installation to home screen with native app icon, offline caching, and haptic feedback on keypad touches.
+                </p>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs space-y-1 text-slate-700 font-medium">
+                  <div className="flex items-center gap-1.5 text-emerald-800 font-bold text-[11px]">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>How to Install:</span>
+                  </div>
+                  <p>1. Open Chrome & scan station QR.</p>
+                  <p>2. Tap the <strong>"Install App"</strong> banner or menu (⋮) &gt; <strong>Add to Home screen</strong>.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* iOS Card */}
+            <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-4 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="w-10 h-10 rounded-2xl bg-slate-100 text-slate-800 flex items-center justify-center">
+                  <Apple className="w-5 h-5" />
+                </div>
+                <h4 className="font-extrabold text-sm text-slate-900">Apple iOS (iPhone & iPad)</h4>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Full standalone app experience with bottom navigation bar, safe-area notched display support, and offline persistence.
+                </p>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs space-y-1 text-slate-700 font-medium">
+                  <div className="flex items-center gap-1.5 text-slate-900 font-bold text-[11px]">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>How to Install:</span>
+                  </div>
+                  <p>1. Open Safari & navigate to FarmFlow.</p>
+                  <p>2. Tap the <strong>Share</strong> button (box with up arrow).</p>
+                  <p>3. Select <strong>"Add to Home Screen"</strong>.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* PC Desktop Card */}
+            <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-4 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center">
+                  <Monitor className="w-5 h-5" />
+                </div>
+                <h4 className="font-extrabold text-sm text-slate-900">PC / Mac / Linux Workstations</h4>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Run as a dedicated windowed desktop application with high-speed keyboard shortcuts (Ctrl+K, D, E, M, R), full-size spreadsheets, and high-res printouts.
+                </p>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs space-y-1 text-slate-700 font-medium">
+                  <div className="flex items-center gap-1.5 text-blue-900 font-bold text-[11px]">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>How to Install:</span>
+                  </div>
+                  <p>1. In Chrome/Edge, click the <strong>Install icon (⊕)</strong> in the address bar.</p>
+                  <p>2. Pin FarmFlow Pro to your Taskbar or Dock.</p>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       )}

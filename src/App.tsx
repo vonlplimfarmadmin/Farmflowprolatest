@@ -3,13 +3,17 @@ import { FarmProvider, useFarm } from './context/FarmContext';
 import { ModuleType, UserRole } from './types';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
+import { MobileBottomNav } from './components/layout/MobileBottomNav';
 import { NotificationDrawer } from './components/layout/NotificationDrawer';
 import { AuthModals } from './components/auth/AuthModals';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { MessengerReportQuickModal } from './components/layout/MessengerReportQuickModal';
 import { CommandPalette } from './components/common/CommandPalette';
 import { KeyboardShortcutsModal } from './components/common/KeyboardShortcutsModal';
+import { CrossPlatformModal } from './components/common/CrossPlatformModal';
+import { MobileInstallBanner } from './components/common/MobileInstallBanner';
 import { ToastProvider, useToast } from './components/common/ToastContainer';
+import { detectPlatform, triggerHaptic } from './utils/platform';
 
 // Views
 import { FarmDashboardOverview } from './components/dashboard/FarmDashboardOverview';
@@ -36,8 +40,9 @@ const FarmAppContent: React.FC = () => {
   const [isMessengerReportOpen, setIsMessengerReportOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const [isCrossPlatformOpen, setIsCrossPlatformOpen] = useState(false);
 
-  // Global UX Keyboard Shortcuts
+  // Global UX Keyboard Shortcuts for PC Desktop and Tablet users
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't trigger hotkeys if typing in input/textarea/select
@@ -61,7 +66,7 @@ const FarmAppContent: React.FC = () => {
       }
 
       // Single Key Navigations when no modal is open
-      if (!isCommandPaletteOpen && !isShortcutsOpen && !isMessengerReportOpen && !isNotificationOpen) {
+      if (!isCommandPaletteOpen && !isShortcutsOpen && !isMessengerReportOpen && !isNotificationOpen && !isCrossPlatformOpen) {
         if (e.key === 'd' || e.key === 'D') {
           setActiveModule('dashboard');
         } else if (e.key === 'e' || e.key === 'E') {
@@ -80,7 +85,7 @@ const FarmAppContent: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isCommandPaletteOpen, isShortcutsOpen, isMessengerReportOpen, isNotificationOpen]);
+  }, [isCommandPaletteOpen, isShortcutsOpen, isMessengerReportOpen, isNotificationOpen, isCrossPlatformOpen]);
 
   // If no user is logged in, present full-page LoginScreen
   if (!currentUser) {
@@ -159,8 +164,8 @@ const FarmAppContent: React.FC = () => {
           onOpenReport={() => setIsMessengerReportOpen(true)}
         />
 
-        {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full print:p-0 print:m-0 print:max-w-none print:overflow-visible print:w-full">
+        {/* Main Content Area (With bottom padding on mobile for MobileBottomNav) */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-24 md:pb-8 max-w-7xl mx-auto w-full print:p-0 print:m-0 print:max-w-none print:overflow-visible print:w-full">
           {isPendingApproval ? (
             <div className="max-w-md mx-auto my-12 bg-white rounded-3xl p-8 border border-amber-200 shadow-lg text-center space-y-4 animate-fadeIn">
               <div className="w-14 h-14 bg-amber-100 text-amber-700 rounded-2xl flex items-center justify-center mx-auto">
@@ -212,6 +217,13 @@ const FarmAppContent: React.FC = () => {
         </main>
       </div>
 
+      {/* Mobile Native Bottom Navigation Bar for Android & iOS */}
+      <MobileBottomNav
+        currentModule={activeModule}
+        onNavigate={setActiveModule}
+        onOpenMenu={() => setIsSidebarOpen(true)}
+      />
+
       {/* Global Modals, Drawers & Palettes */}
       <NotificationDrawer
         isOpen={isNotificationOpen}
@@ -236,6 +248,11 @@ const FarmAppContent: React.FC = () => {
         onClose={() => setIsShortcutsOpen(false)}
       />
 
+      <CrossPlatformModal
+        isOpen={isCrossPlatformOpen}
+        onClose={() => setIsCrossPlatformOpen(false)}
+      />
+
       <AuthModals
         mode={authModalMode}
         onClose={() => setAuthModalMode(null)}
@@ -244,6 +261,9 @@ const FarmAppContent: React.FC = () => {
 
       {/* Floating Offline Notification & Queue Sync Banner */}
       <OfflineBanner />
+
+      {/* Mobile Add to Home Screen Floating Smart Banner */}
+      <MobileInstallBanner />
     </div>
   );
 };
