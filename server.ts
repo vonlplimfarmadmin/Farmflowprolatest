@@ -7,6 +7,12 @@ import { EggRecordModel } from './server/models/EggRecord';
 import { FlockModel } from './server/models/Flock';
 import { FeedRecordModel } from './server/models/FeedRecord';
 import { FarmProfileModel } from './server/models/FarmProfile';
+import { 
+  DepletionModel, 
+  MedAdminModel, 
+  BodyWeightModel, 
+  BiosecurityLogModel 
+} from './server/models/FarmCollections';
 
 dotenv.config();
 
@@ -41,6 +47,10 @@ async function startServer() {
       eggRecordsCount: 0,
       flocksCount: 0,
       feedRecordsCount: 0,
+      depletionsCount: 0,
+      medAdminsCount: 0,
+      bodyWeightsCount: 0,
+      biosecurityLogsCount: 0,
     };
 
     if (status.connected) {
@@ -48,6 +58,10 @@ async function startServer() {
         stats.eggRecordsCount = await EggRecordModel.countDocuments();
         stats.flocksCount = await FlockModel.countDocuments();
         stats.feedRecordsCount = await FeedRecordModel.countDocuments();
+        stats.depletionsCount = await DepletionModel.countDocuments();
+        stats.medAdminsCount = await MedAdminModel.countDocuments();
+        stats.bodyWeightsCount = await BodyWeightModel.countDocuments();
+        stats.biosecurityLogsCount = await BiosecurityLogModel.countDocuments();
       } catch (err: any) {
         console.warn('Error reading count stats:', err.message);
       }
@@ -67,6 +81,43 @@ async function startServer() {
       message: result.message,
       status: getDBStatus(),
     });
+  });
+
+  // 1.1 Pull All Database Data (For Mobile Auto-Hydration)
+  app.get('/api/db/pull-all', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({ connected: false, message: 'MongoDB not connected' });
+      }
+
+      const [eggRecords, flocks, feedRecords, farmProfile, depletions, medAdmins, bodyWeights, biosecurityLogs] = await Promise.all([
+        EggRecordModel.find().sort({ date: -1 }).lean(),
+        FlockModel.find().sort({ houseNumber: 1 }).lean(),
+        FeedRecordModel.find().sort({ date: -1 }).lean(),
+        FarmProfileModel.findOne({ id: 'farm_profile_main' }).lean(),
+        DepletionModel.find().sort({ date: -1 }).lean(),
+        MedAdminModel.find().sort({ date: -1 }).lean(),
+        BodyWeightModel.find().sort({ date: -1 }).lean(),
+        BiosecurityLogModel.find().sort({ date: -1 }).lean(),
+      ]);
+
+      res.json({
+        connected: true,
+        data: {
+          eggRecords,
+          flocks,
+          feedRecords,
+          farmProfile,
+          depletions,
+          medAdmins,
+          bodyWeights,
+          biosecurityLogs,
+        },
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to pull all records from MongoDB', details: err.message });
+    }
   });
 
   // 2. Egg Production Records
@@ -230,14 +281,28 @@ async function startServer() {
       if (!status.connected) {
         return res.status(400).json({
           connected: false,
-          error: 'MongoDB is not connected. Please provide a valid MONGODB_URI in Settings/Environment.',
+          error: 'MongoDB is not connected. Please verify connection or network whitelist in Atlas.',
         });
       }
 
-      const { eggRecords, flocks, feedRecords, farmProfile } = req.body;
+      const { 
+        eggRecords, 
+        flocks, 
+        feedRecords, 
+        farmProfile,
+        depletions,
+        medAdmins,
+        bodyWeights,
+        biosecurityLogs
+      } = req.body;
+
       let insertedEggs = 0;
       let insertedFlocks = 0;
       let insertedFeed = 0;
+      let insertedDepletions = 0;
+      let insertedMedAdmins = 0;
+      let insertedBodyWeights = 0;
+      let insertedBiosecurity = 0;
 
       if (Array.isArray(eggRecords) && eggRecords.length > 0) {
         for (const record of eggRecords) {
@@ -272,6 +337,50 @@ async function startServer() {
         }
       }
 
+      if (Array.isArray(depletions) && depletions.length > 0) {
+        for (const dep of depletions) {
+          await DepletionModel.findOneAndUpdate(
+            { id: dep.id },
+            dep,
+            { upsert: true }
+          );
+          insertedDepletions++;
+        }
+      }
+
+      if (Array.isArray(medAdmins) && medAdmins.length > 0) {
+        for (const med of medAdmins) {
+          await MedAdminModel.findOneAndUpdate(
+            { id: med.id },
+            med,
+            { upsert: true }
+          );
+          insertedMedAdmins++;
+        }
+      }
+
+      if (Array.isArray(bodyWeights) && bodyWeights.length > 0) {
+        for (const bw of bodyWeights) {
+          await BodyWeightModel.findOneAndUpdate(
+            { id: bw.id },
+            bw,
+            { upsert: true }
+          );
+          insertedBodyWeights++;
+        }
+      }
+
+      if (Array.isArray(biosecurityLogs) && biosecurityLogs.length > 0) {
+        for (const bio of biosecurityLogs) {
+          await BiosecurityLogModel.findOneAndUpdate(
+            { id: bio.id },
+            bio,
+            { upsert: true }
+          );
+          insertedBiosecurity++;
+        }
+      }
+
       if (farmProfile) {
         await FarmProfileModel.findOneAndUpdate(
           { id: 'farm_profile_main' },
@@ -288,6 +397,10 @@ async function startServer() {
           eggRecords: insertedEggs,
           flocks: insertedFlocks,
           feedRecords: insertedFeed,
+          depletions: insertedDepletions,
+          medAdmins: insertedMedAdmins,
+          bodyWeights: insertedBodyWeights,
+          biosecurityLogs: insertedBiosecurity,
         },
       });
     } catch (err: any) {
@@ -310,6 +423,10 @@ async function startServer() {
       await EggRecordModel.deleteMany({});
       await FlockModel.deleteMany({});
       await FeedRecordModel.deleteMany({});
+      await DepletionModel.deleteMany({});
+      await MedAdminModel.deleteMany({});
+      await BodyWeightModel.deleteMany({});
+      await BiosecurityLogModel.deleteMany({});
       
       res.json({
         success: true,

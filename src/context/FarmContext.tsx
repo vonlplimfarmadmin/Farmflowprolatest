@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 import { 
   UserAccount, 
   UserRole, 
@@ -49,6 +49,7 @@ import {
   INITIAL_BIOSECURITY_SUMMARIES
 } from '../data/initialData';
 import { calculateFlockAgeFromLoadingDate } from '../utils/dateCalculations';
+import { detectPlatform } from '../utils/platform';
 import {
   OfflineQueueItem,
   StorageQuotaInfo,
@@ -239,22 +240,30 @@ interface FarmContextType {
   exportDataJson: () => string;
   importDataJson: (jsonStr: string) => boolean;
 
-  // MongoDB Cloud Persistence
+  // MongoDB Cloud Persistence (Auto for Mobile & Enterprise)
+  isMobileDevice: boolean;
+  databaseEngine: 'mongodb' | 'indexeddb';
   dbStatus: {
     connected: boolean;
     state: string;
     dbName: string | null;
     hasUriConfigured: boolean;
     lastError?: string | null;
+    isAutoMobileDB?: boolean;
     stats?: {
       eggRecordsCount: number;
       flocksCount: number;
       feedRecordsCount: number;
+      depletionsCount?: number;
+      medAdminsCount?: number;
+      bodyWeightsCount?: number;
+      biosecurityLogsCount?: number;
     };
   };
   checkDBStatus: () => Promise<void>;
   reconnectDB: (uri?: string) => Promise<{ success: boolean; message?: string }>;
   syncAllToMongoDB: () => Promise<{ success: boolean; message: string; counts?: any }>;
+  pullAllFromMongoDB: () => Promise<{ success: boolean; message: string }>;
 
   // Offline & IndexedDB Caching Engine
   isOnline: boolean;
@@ -374,22 +383,46 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return saved ? JSON.parse(saved) : INITIAL_BIOSECURITY_SUMMARIES;
   });
 
+  // Platform & Mobile Auto-Routing Engine
+  const platformInfo = useMemo(() => {
+    return detectPlatform();
+  }, []);
+
+  const isMobileDevice = useMemo(() => {
+    return (
+      platformInfo.isMobile || 
+      platformInfo.isTablet || 
+      (typeof navigator !== 'undefined' && /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent)) ||
+      (typeof window !== 'undefined' && window.innerWidth <= 768)
+    );
+  }, [platformInfo]);
+
+  // MongoDB is the default Auto Enterprise Database for Mobile and Cloud
+  const [databaseEngine] = useState<'mongodb' | 'indexeddb'>('mongodb');
+
   // MongoDB Connection State
   const [dbStatus, setDbStatus] = useState<{
     connected: boolean;
     state: string;
     dbName: string | null;
     hasUriConfigured: boolean;
+    lastError?: string | null;
+    isAutoMobileDB?: boolean;
     stats?: {
       eggRecordsCount: number;
       flocksCount: number;
       feedRecordsCount: number;
+      depletionsCount?: number;
+      medAdminsCount?: number;
+      bodyWeightsCount?: number;
+      biosecurityLogsCount?: number;
     };
   }>({
     connected: false,
-    state: 'Checking...',
+    state: 'Checking MongoDB...',
     dbName: null,
     hasUriConfigured: false,
+    isAutoMobileDB: isMobileDevice,
     stats: { eggRecordsCount: 0, flocksCount: 0, feedRecordsCount: 0 }
   });
 
@@ -428,8 +461,9 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const handleOnline = async () => {
       setIsOnline(true);
-      logAction('NETWORK_ONLINE', 'system', 'Network connection restored. Preparing automatic sync.');
+      logAction('NETWORK_ONLINE', 'system', 'Network connection restored. Preparing automatic MongoDB synchronization.');
       await checkDBStatus();
+      await pullAllFromMongoDB();
       await refreshStorageQuota();
     };
 
@@ -458,14 +492,18 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const res = await fetch('/api/db/status');
       if (res.ok) {
         const data = await res.json();
-        setDbStatus(data);
+        setDbStatus({
+          ...data,
+          isAutoMobileDB: isMobileDevice
+        });
       }
     } catch {
       setDbStatus({
         connected: false,
-        state: 'Offline Mode',
+        state: 'Offline Mode (Local Cache)',
         dbName: null,
-        hasUriConfigured: false
+        hasUriConfigured: false,
+        isAutoMobileDB: isMobileDevice
       });
     }
   };
@@ -479,7 +517,10 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
       const data = await res.json();
       if (data.status) {
-        setDbStatus(data.status);
+        setDbStatus({
+          ...data.status,
+          isAutoMobileDB: isMobileDevice
+        });
       }
       return { success: Boolean(data.success), message: data.message };
     } catch (err: any) {
@@ -487,9 +528,111 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Pull All Farm Records from MongoDB (Auto-Hydration on Mobile & Cloud)
+  const pullAllFromMongoDB = async (): Promise<{ success: boolean; message: string }> => {
+    try {
+      const res = await fetch('/api/db/pull-all');
+      if (!res.ok) {
+        return { success: false, message: 'Could not contact MongoDB server endpoint.' };
+      }
+      const json = await res.json();
+      if (json.connected && json.data) {
+        const { 
+          eggRecords, 
+          flocks: remoteFlocks, 
+          feedRecords, 
+          farmProfile: remoteProfile, 
+          depletions: remoteDepletions, 
+          medAdmins, 
+          bodyWeights: remoteWeights, 
+          biosecurityLogs: remoteBio 
+        } = json.data;
+        
+        if (Array.isArray(eggRecords) && eggRecords.length > 0) {
+          setRawEggRecords(prev => {
+            const existingIds = new Set(prev.map(r => r.id));
+            const newFromRemote = eggRecords.filter((r: any) => !existingIds.has(r.id));
+            return [...newFromRemote, ...prev];
+          });
+        }
+        if (Array.isArray(remoteFlocks) && remoteFlocks.length > 0) {
+          setFlocks(prev => {
+            const map = new Map<string, Flock>(prev.map(f => [f.houseNumber, f]));
+            remoteFlocks.forEach((rf: any) => {
+              const existing = map.get(rf.houseNumber);
+              map.set(rf.houseNumber, existing ? { ...existing, ...rf } : rf);
+            });
+            return Array.from(map.values());
+          });
+        }
+        if (Array.isArray(feedRecords) && feedRecords.length > 0) {
+          setFeedConsumptionRecords(prev => {
+            const existingIds = new Set(prev.map(r => r.id));
+            const newFromRemote = feedRecords.filter((r: any) => !existingIds.has(r.id));
+            return [...newFromRemote, ...prev];
+          });
+        }
+        if (Array.isArray(remoteDepletions) && remoteDepletions.length > 0) {
+          setDepletions(prev => {
+            const existingIds = new Set(prev.map(r => r.id));
+            const newFromRemote = remoteDepletions.filter((r: any) => !existingIds.has(r.id));
+            return [...newFromRemote, ...prev];
+          });
+        }
+        if (Array.isArray(medAdmins) && medAdmins.length > 0) {
+          setMedAdministrations(prev => {
+            const existingIds = new Set(prev.map(r => r.id));
+            const newFromRemote = medAdmins.filter((r: any) => !existingIds.has(r.id));
+            return [...newFromRemote, ...prev];
+          });
+        }
+        if (Array.isArray(remoteWeights) && remoteWeights.length > 0) {
+          setBodyWeights(prev => {
+            const existingIds = new Set(prev.map(r => r.id));
+            const newFromRemote = remoteWeights.filter((r: any) => !existingIds.has(r.id));
+            return [...newFromRemote, ...prev];
+          });
+        }
+        if (Array.isArray(remoteBio) && remoteBio.length > 0) {
+          setBiosecurityLogs(prev => {
+            const existingIds = new Set(prev.map(r => `${r.requirementId}_${r.date}`));
+            const newFromRemote = remoteBio.filter((r: any) => !existingIds.has(`${r.requirementId}_${r.date}`));
+            return [...newFromRemote, ...prev];
+          });
+        }
+        if (remoteProfile && typeof remoteProfile === 'object' && 'name' in remoteProfile) {
+          setFarmProfile(prev => ({ ...prev, ...(remoteProfile as Partial<FarmProfile>) }));
+        }
+
+        logAction('MONGODB_AUTO_HYDRATE', 'system', 'Automatically synchronized mobile state from MongoDB Atlas.');
+        return { success: true, message: 'Hydrated latest farm records from MongoDB.' };
+      }
+      return { success: false, message: 'MongoDB not connected or empty' };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Error pulling MongoDB data' };
+    }
+  };
+
+  // Auto-connect and auto-sync on mount
   useEffect(() => {
-    checkDBStatus();
-  }, []);
+    const initDatabase = async () => {
+      await checkDBStatus();
+      // On mobile or online, auto-pull any remote MongoDB updates
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        await pullAllFromMongoDB();
+      }
+    };
+    initDatabase();
+
+    // Set up a background sync interval every 45 seconds when online
+    const interval = setInterval(() => {
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        checkDBStatus();
+      }
+    }, 45000);
+
+    return () => clearInterval(interval);
+  }, [isMobileDevice]);
 
   // Synchronize Offline Queue
   const syncOfflineQueue = async (): Promise<{ success: boolean; syncedCount: number; message: string }> => {
@@ -502,7 +645,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       // If online and MongoDB is available, trigger cloud sync
-      if (isOnline && dbStatus.hasUriConfigured) {
+      if (isOnline && (dbStatus.hasUriConfigured || dbStatus.connected)) {
         await syncAllToMongoDB();
       }
 
@@ -511,7 +654,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setOfflineQueue([]);
       await refreshStorageQuota();
 
-      logAction('SYNC_OFFLINE_QUEUE', 'system', `Successfully synchronized ${count} queued offline operations to primary storage.`);
+      logAction('SYNC_OFFLINE_QUEUE', 'system', `Successfully synchronized ${count} queued offline operations to MongoDB.`);
       return { 
         success: true, 
         syncedCount: count, 
@@ -536,7 +679,11 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         eggRecords: rawEggRecords,
         flocks,
         feedRecords: feedConsumptionRecords,
-        farmProfile
+        farmProfile,
+        depletions,
+        medAdmins: medAdministrations,
+        bodyWeights,
+        biosecurityLogs
       };
 
       const res = await fetch('/api/db/sync-all', {
@@ -548,7 +695,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const data = await res.json();
       if (res.ok && data.success) {
         await checkDBStatus();
-        logAction('MONGODB_SYNC', 'admin', `Successfully synced ${data.counts?.eggRecords || 0} egg records and ${data.counts?.flocks || 0} flocks to MongoDB.`);
+        logAction('MONGODB_SYNC', 'admin', `Successfully synced farm collections to MongoDB.`);
         return { success: true, message: data.message || 'Synced successfully to MongoDB!', counts: data.counts };
       } else {
         return { success: false, message: data.error || 'Failed to sync to MongoDB' };
@@ -2083,9 +2230,12 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         importDataJson,
 
         dbStatus,
+        isMobileDevice,
+        databaseEngine,
         checkDBStatus,
         reconnectDB,
         syncAllToMongoDB,
+        pullAllFromMongoDB,
 
         // Offline & IndexedDB Caching Engine
         isOnline,

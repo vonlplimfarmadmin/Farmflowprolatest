@@ -256,9 +256,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-forest-900/80 border border-forest-800/80 text-xs">
             <Database className={`w-3.5 h-3.5 ${dbStatus.connected ? 'text-mint-400' : 'text-amber-400'}`} />
-            <span className="text-[11px] text-slate-300 hidden md:inline">Storage:</span>
+            <span className="text-[11px] text-slate-300 hidden md:inline">DB Engine:</span>
             <span className={`text-[11px] font-bold ${dbStatus.connected ? 'text-mint-300' : 'text-amber-300'}`}>
-              {dbStatus.connected ? 'Cloud DB' : 'IndexedDB Ready'}
+              {dbStatus.connected ? 'MongoDB Active' : 'MongoDB (Auto)'}
             </span>
             <span className={`w-2 h-2 rounded-full ${dbStatus.connected ? 'bg-mint-400 animate-pulse' : 'bg-amber-400'}`}></span>
           </div>

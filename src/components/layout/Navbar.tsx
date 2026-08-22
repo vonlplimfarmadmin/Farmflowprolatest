@@ -166,20 +166,20 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </button>
 
-        {/* MongoDB Status Indicator */}
+        {/* MongoDB Status Indicator (Mobile & Cloud Auto Database) */}
         <button
           id="navbar-mongo-status-btn"
           onClick={() => setShowMongoModal(true)}
           className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition border shadow-2xs cursor-pointer ${
             dbStatus.connected
-              ? 'bg-mint-50 text-forest-950 border-mint-200 hover:bg-mint-100'
+              ? 'bg-mint-50 text-forest-950 border-mint-200 hover:bg-mint-100 ring-1 ring-mint-300'
               : 'bg-graphite-100/80 text-graphite-700 border-graphite-200 hover:bg-graphite-200/80'
           }`}
-          title={dbStatus.connected ? `Connected to MongoDB (${dbStatus.dbName})` : 'MongoDB: Local Storage Mode'}
+          title={dbStatus.connected ? `MongoDB Auto Connected (${dbStatus.dbName || 'Atlas'})` : 'MongoDB Auto Database Engine (Click to check/sync)'}
         >
           <Database className={`w-3.5 h-3.5 ${dbStatus.connected ? 'text-forest-800' : 'text-graphite-500'}`} />
-          <span className="hidden lg:inline text-[11px] font-medium">
-            {dbStatus.connected ? 'MongoDB' : 'Local DB'}
+          <span className="hidden lg:inline text-[11px] font-semibold">
+            {dbStatus.connected ? 'MongoDB (Auto)' : 'MongoDB Sync'}
           </span>
           <span className={`w-1.5 h-1.5 rounded-full ${dbStatus.connected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
         </button>

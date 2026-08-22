@@ -45,8 +45,10 @@ export const SettingsView: React.FC = () => {
     flocks,
     permissions,
     dbStatus,
+    isMobileDevice,
     checkDBStatus,
     syncAllToMongoDB,
+    pullAllFromMongoDB,
     clearDatabaseForNewCycle
   } = useFarm();
 
@@ -55,6 +57,7 @@ export const SettingsView: React.FC = () => {
   const [selectedHouses, setSelectedHouses] = useState<string[]>([]);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isPulling, setIsPulling] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
   const [showClearModal, setShowClearModal] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
@@ -92,6 +95,18 @@ export const SettingsView: React.FC = () => {
       setSyncFeedback(res.message);
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const handlePullFromMongo = async () => {
+    setIsPulling(true);
+    setSyncFeedback(null);
+    try {
+      const res = await pullAllFromMongoDB();
+      setSyncFeedback(res.message);
+      await checkDBStatus();
+    } finally {
+      setIsPulling(false);
     }
   };
 
@@ -455,57 +470,79 @@ export const SettingsView: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* MongoDB Cloud Storage */}
+            {/* MongoDB Cloud & Mobile Auto Database */}
             <div className={`p-5 rounded-2xl border space-y-3 md:col-span-2 ${
               dbStatus.connected ? 'bg-mint-50/70 border-mint-200' : 'bg-graphite-50 border-graphite-200'
             }`}>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2.5 rounded-xl ${dbStatus.connected ? 'bg-mint-500 text-forest-950' : 'bg-graphite-200 text-graphite-700'}`}>
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className={`p-2.5 rounded-xl mt-0.5 shrink-0 ${dbStatus.connected ? 'bg-mint-500 text-forest-950 shadow-xs' : 'bg-graphite-200 text-graphite-700'}`}>
                     <Database className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-sm text-graphite-900 flex items-center gap-2">
-                      <span>MongoDB Cloud Persistence</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="font-bold text-sm text-graphite-900">
+                        MongoDB Enterprise Database
+                      </h4>
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
                         dbStatus.connected ? 'bg-mint-200 text-forest-900' : 'bg-amber-100 text-amber-900'
                       }`}>
-                        {dbStatus.connected ? 'Connected' : 'Local Mode'}
+                        {dbStatus.connected ? 'Connected & Active' : 'Auto-Connecting'}
                       </span>
-                    </h4>
-                    <p className="text-xs text-graphite-600">
+                      {isMobileDevice && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-forest-900 text-mint-300">
+                          📱 Mobile Auto Engine: MongoDB
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-graphite-600 mt-1">
                       {dbStatus.connected 
-                        ? `Connected to database "${dbStatus.dbName}". All egg collections, flocks, and feed entries are synced to the cloud.`
-                        : 'Connect MongoDB to automatically back up all production metrics and collaborate across devices in real-time.'}
+                        ? `Connected to MongoDB database "${dbStatus.dbName || 'FarmFlow'}". Mobile devices automatically route all egg collections, feed logs, and mortality directly to MongoDB.`
+                        : 'Mobile devices automatically prioritize MongoDB. When connected, all poultry houses sync seamlessly across phones, tablets, and computers.'}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
                   <button
                     onClick={checkDBStatus}
-                    className="p-2 bg-white rounded-xl border border-graphite-200 hover:bg-graphite-50 text-graphite-700 text-xs font-bold transition shadow-2xs"
+                    className="p-2 bg-white rounded-xl border border-graphite-200 hover:bg-graphite-50 text-graphite-700 text-xs font-bold transition shadow-2xs cursor-pointer"
                     title="Check MongoDB status"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                   </button>
+
+                  <button
+                    onClick={handlePullFromMongo}
+                    disabled={isPulling || !dbStatus.connected}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-2xs border cursor-pointer ${
+                      dbStatus.connected
+                        ? 'bg-white hover:bg-mint-50 border-mint-200 text-forest-900'
+                        : 'bg-graphite-100 text-graphite-400 border-graphite-200 cursor-not-allowed'
+                    }`}
+                    title="Pull remote farm records from MongoDB Atlas into this device"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isPulling ? 'animate-spin' : ''}`} />
+                    <span>{isPulling ? 'Hydrating...' : 'Pull from MongoDB'}</span>
+                  </button>
+
                   <button
                     onClick={handleSyncToMongo}
                     disabled={isSyncing || !dbStatus.connected}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs ${
+                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer ${
                       dbStatus.connected
                         ? 'bg-forest-900 hover:bg-forest-850 text-white'
                         : 'bg-graphite-200 text-graphite-400 cursor-not-allowed'
                     }`}
                   >
                     <CloudUpload className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                    <span>{isSyncing ? 'Syncing...' : 'Sync All Data to MongoDB'}</span>
+                    <span>{isSyncing ? 'Syncing...' : 'Push All Data to MongoDB'}</span>
                   </button>
                 </div>
               </div>
 
               {dbStatus.connected && dbStatus.stats && (
-                <div className="grid grid-cols-3 gap-3 pt-3 border-t border-mint-200/60 text-center">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-3 border-t border-mint-200/60 text-center">
                   <div className="bg-white/80 p-2.5 rounded-xl border border-mint-100">
                     <span className="block text-[10px] text-graphite-500 font-bold uppercase">Egg Logs in DB</span>
                     <span className="text-base font-extrabold text-forest-950">{dbStatus.stats.eggRecordsCount}</span>
@@ -518,12 +555,17 @@ export const SettingsView: React.FC = () => {
                     <span className="block text-[10px] text-graphite-500 font-bold uppercase">Feed Logs in DB</span>
                     <span className="text-base font-extrabold text-forest-950">{dbStatus.stats.feedRecordsCount}</span>
                   </div>
+                  <div className="bg-white/80 p-2.5 rounded-xl border border-mint-100">
+                    <span className="block text-[10px] text-graphite-500 font-bold uppercase">Mortality / Depletions</span>
+                    <span className="text-base font-extrabold text-forest-950">{dbStatus.stats.depletionsCount ?? 0}</span>
+                  </div>
                 </div>
               )}
 
               {syncFeedback && (
-                <div className="p-3 bg-white rounded-xl border border-graphite-200 text-xs font-medium text-forest-900">
-                  {syncFeedback}
+                <div className="p-3 bg-white rounded-xl border border-graphite-200 text-xs font-medium text-forest-900 flex items-center justify-between">
+                  <span>{syncFeedback}</span>
+                  <button onClick={() => setSyncFeedback(null)} className="text-[10px] text-graphite-500 hover:text-graphite-800 font-bold">Dismiss</button>
                 </div>
               )}
             </div>
