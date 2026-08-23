@@ -1088,20 +1088,22 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const ageWeeks = ageCalc.ageWeeks;
 
     const houseDepletions = depletions.filter(d => d.houseNumber === houseNumber);
-    const totalMaleDepleted = houseDepletions.reduce((sum, d) => sum + d.maleCount, 0);
-    const totalFemaleDepleted = houseDepletions.reduce((sum, d) => sum + d.femaleCount, 0);
+    const totalMaleDepleted = houseDepletions.reduce((sum, d) => sum + (Number(d.maleCount) || 0), 0);
+    const totalFemaleDepleted = houseDepletions.reduce((sum, d) => sum + (Number(d.femaleCount) || 0), 0);
     const totalDepleted = totalMaleDepleted + totalFemaleDepleted;
 
-    const initialTotal = flock.initialMales + flock.initialFemales;
-    const currentMales = Math.max(0, flock.currentMales);
-    const currentFemales = Math.max(0, flock.currentFemales);
+    const initialTotal = (Number(flock.initialMales) || 0) + (Number(flock.initialFemales) || 0);
+    const currentMales = Math.max(0, Number(flock.currentMales) || 0);
+    const currentFemales = Math.max(0, Number(flock.currentFemales) || 0);
     const totalCurrent = currentMales + currentFemales;
 
-    const livabilityPct = initialTotal > 0 ? (totalCurrent / initialTotal) * 100 : 100;
+    const rawLivability = initialTotal > 0 ? (totalCurrent / initialTotal) * 100 : 100;
+    const livabilityPct = isNaN(rawLivability) ? 100 : rawLivability;
     
     let maleToFemaleRatioStr = '0 : 0';
     if (currentMales > 0 && currentFemales > 0) {
-      maleToFemaleRatioStr = `1 : ${(currentFemales / currentMales).toFixed(1)}`;
+      const ratio = currentFemales / currentMales;
+      maleToFemaleRatioStr = `1 : ${isNaN(ratio) ? '0.0' : ratio.toFixed(1)}`;
     } else if (currentMales > 0 && currentFemales === 0) {
       maleToFemaleRatioStr = `${currentMales.toLocaleString()} M (1 : 0)`;
     } else if (currentMales === 0 && currentFemales > 0) {
@@ -1110,14 +1112,15 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       maleToFemaleRatioStr = '0 : 0';
     }
 
-    const maleRatioPct = totalCurrent > 0 ? (currentMales / totalCurrent) * 100 : 0;
+    const rawMaleRatio = totalCurrent > 0 ? (currentMales / totalCurrent) * 100 : 0;
+    const maleRatioPct = isNaN(rawMaleRatio) ? 0 : rawMaleRatio;
 
     return {
       flock,
-      ageWeeks,
-      ageDays: ageCalc.ageDays,
-      totalDaysFromLoading: ageCalc.totalDaysFromLoading,
-      weekAndDayStr: ageCalc.weekAndDayStr,
+      ageWeeks: isNaN(ageWeeks) ? 1 : ageWeeks,
+      ageDays: ageCalc.ageDays || 1,
+      totalDaysFromLoading: ageCalc.totalDaysFromLoading || 1,
+      weekAndDayStr: ageCalc.weekAndDayStr || 'Wk 1 D1',
       currentMales,
       currentFemales,
       totalCurrent,
@@ -1364,20 +1367,20 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return ALL_FEED_TYPES.map(ft => {
       const totalReceivedKg = feedStockEntries
         .filter(e => e.feedType === ft)
-        .reduce((sum, e) => sum + e.totalKg, 0);
+        .reduce((sum, e) => sum + (Number(e.totalKg) || 0), 0);
       const totalReceivedBags = feedStockEntries
         .filter(e => e.feedType === ft)
-        .reduce((sum, e) => sum + e.bags, 0);
+        .reduce((sum, e) => sum + (Number(e.bags) || 0), 0);
 
       const totalConsumedKg = feedConsumptionRecords
         .reduce((sum, r) => {
           let recTotal = 0;
           if (r.femaleFeedType !== undefined || r.maleFeedType !== undefined) {
-            if (r.femaleFeedType === ft) recTotal += (r.femaleQuantityKg || 0);
-            if (r.maleFeedType === ft) recTotal += (r.maleQuantityKg || 0);
+            if (r.femaleFeedType === ft) recTotal += (Number(r.femaleQuantityKg) || 0);
+            if (r.maleFeedType === ft) recTotal += (Number(r.maleQuantityKg) || 0);
           } else {
             // Legacy record without male/female breakdown
-            if (r.feedType === ft) recTotal += (r.quantityKg || 0);
+            if (r.feedType === ft) recTotal += (Number(r.quantityKg) || 0);
           }
           return sum + recTotal;
         }, 0);

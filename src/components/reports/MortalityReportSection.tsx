@@ -21,19 +21,19 @@ export const MortalityReportSection: React.FC<MortalityReportSectionProps> = ({
   // Breakdown by Category
   const naturalMortality = depletions
     .filter(d => d.category === 'Mortality')
-    .reduce((acc, d) => acc + d.maleCount + d.femaleCount, 0);
+    .reduce((acc, d) => acc + (Number(d.maleCount) || 0) + (Number(d.femaleCount) || 0), 0);
 
   const spotCulls = depletions
     .filter(d => d.category === 'Spot Cull')
-    .reduce((acc, d) => acc + d.maleCount + d.femaleCount, 0);
+    .reduce((acc, d) => acc + (Number(d.maleCount) || 0) + (Number(d.femaleCount) || 0), 0);
 
   const missex = depletions
     .filter(d => d.category === 'Missex')
-    .reduce((acc, d) => acc + d.maleCount + d.femaleCount, 0);
+    .reduce((acc, d) => acc + (Number(d.maleCount) || 0) + (Number(d.femaleCount) || 0), 0);
 
   const spentCull = depletions
     .filter(d => d.category === 'Spent Cull')
-    .reduce((acc, d) => acc + d.maleCount + d.femaleCount, 0);
+    .reduce((acc, d) => acc + (Number(d.maleCount) || 0) + (Number(d.femaleCount) || 0), 0);
 
   // Total current population across active flocks
   const totalActiveMales = flocks.reduce((acc, f) => acc + (f.currentMales || 0), 0);
@@ -47,6 +47,12 @@ export const MortalityReportSection: React.FC<MortalityReportSectionProps> = ({
   const cumulativeLivability = totalInitialPop > 0 
     ? (totalActivePop / totalInitialPop) * 100 
     : 100;
+
+  const safePct = (part: number, total: number) => {
+    if (!total || total <= 0) return '0.0';
+    const val = (part / total) * 100;
+    return isNaN(val) ? '0.0' : val.toFixed(1);
+  };
 
   return (
     <div className="space-y-6">
@@ -74,14 +80,14 @@ export const MortalityReportSection: React.FC<MortalityReportSectionProps> = ({
           <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-slate-700 mb-1">
             <span>Natural Mortality</span>
             <span className="px-2 py-0.5 bg-slate-100 text-slate-900 rounded-md font-bold text-[10px]">
-              {grandTotalDepletions > 0 ? ((naturalMortality / grandTotalDepletions) * 100).toFixed(1) : 0}% Ratio
+              {safePct(naturalMortality, grandTotalDepletions)}% Ratio
             </span>
           </div>
           <div className="text-3xl font-black text-slate-950 font-display tracking-tight">
             {naturalMortality.toLocaleString()} <span className="text-xs font-bold text-slate-500">Dead</span>
           </div>
           <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-600 font-semibold print:border-slate-400">
-            <span>Daily Average: ~{depletions.length > 0 ? (naturalMortality / Math.max(1, depletions.length)).toFixed(1) : 0}</span>
+            <span>Daily Average: ~{depletions.length > 0 ? (naturalMortality / Math.max(1, depletions.length)).toFixed(1) : '0.0'}</span>
             <span className="text-slate-800 font-bold">Unassisted Loss</span>
           </div>
         </div>
@@ -91,7 +97,7 @@ export const MortalityReportSection: React.FC<MortalityReportSectionProps> = ({
           <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-amber-800 mb-1">
             <span>Selection Culls & Missex</span>
             <span className="px-2 py-0.5 bg-amber-100 text-amber-900 rounded-md font-bold text-[10px]">
-              {grandTotalDepletions > 0 ? (((spotCulls + missex + spentCull) / grandTotalDepletions) * 100).toFixed(1) : 0}%
+              {safePct(spotCulls + missex + spentCull, grandTotalDepletions)}%
             </span>
           </div>
           <div className="text-3xl font-black text-amber-950 font-display tracking-tight">
@@ -112,7 +118,7 @@ export const MortalityReportSection: React.FC<MortalityReportSectionProps> = ({
             </span>
           </div>
           <div className="text-3xl font-black text-emerald-950 font-display tracking-tight">
-            {cumulativeLivability.toFixed(2)}% <span className="text-xs font-bold text-emerald-700">Live</span>
+            {typeof cumulativeLivability === 'number' && !isNaN(cumulativeLivability) ? cumulativeLivability.toFixed(2) : '100.00'}% <span className="text-xs font-bold text-emerald-700">Live</span>
           </div>
           <div className="mt-2 pt-2 border-t border-emerald-100 flex items-center justify-between text-[11px] text-emerald-900 font-semibold print:border-slate-400">
             <span>Active: <strong>{totalActivePop.toLocaleString()}</strong> Birds</span>
@@ -138,30 +144,30 @@ export const MortalityReportSection: React.FC<MortalityReportSectionProps> = ({
           <div className="w-full h-5 rounded-full overflow-hidden flex bg-slate-200 border border-slate-300">
             {naturalMortality > 0 && (
               <div 
-                style={{ width: `${(naturalMortality / grandTotalDepletions) * 100}%` }} 
+                style={{ width: `${grandTotalDepletions > 0 ? (naturalMortality / grandTotalDepletions) * 100 : 0}%` }} 
                 className="bg-rose-600 hover:opacity-90 transition-all h-full"
-                title={`Natural Mortality: ${naturalMortality} (${((naturalMortality / grandTotalDepletions) * 100).toFixed(1)}%)`}
+                title={`Natural Mortality: ${naturalMortality} (${safePct(naturalMortality, grandTotalDepletions)}%)`}
               />
             )}
             {spotCulls > 0 && (
               <div 
-                style={{ width: `${(spotCulls / grandTotalDepletions) * 100}%` }} 
+                style={{ width: `${grandTotalDepletions > 0 ? (spotCulls / grandTotalDepletions) * 100 : 0}%` }} 
                 className="bg-amber-500 hover:opacity-90 transition-all h-full"
-                title={`Spot Culls: ${spotCulls} (${((spotCulls / grandTotalDepletions) * 100).toFixed(1)}%)`}
+                title={`Spot Culls: ${spotCulls} (${safePct(spotCulls, grandTotalDepletions)}%)`}
               />
             )}
             {missex > 0 && (
               <div 
-                style={{ width: `${(missex / grandTotalDepletions) * 100}%` }} 
+                style={{ width: `${grandTotalDepletions > 0 ? (missex / grandTotalDepletions) * 100 : 0}%` }} 
                 className="bg-indigo-500 hover:opacity-90 transition-all h-full"
-                title={`Missex: ${missex} (${((missex / grandTotalDepletions) * 100).toFixed(1)}%)`}
+                title={`Missex: ${missex} (${safePct(missex, grandTotalDepletions)}%)`}
               />
             )}
             {spentCull > 0 && (
               <div 
-                style={{ width: `${(spentCull / grandTotalDepletions) * 100}%` }} 
+                style={{ width: `${grandTotalDepletions > 0 ? (spentCull / grandTotalDepletions) * 100 : 0}%` }} 
                 className="bg-slate-700 hover:opacity-90 transition-all h-full"
-                title={`Spent Culls: ${spentCull} (${((spentCull / grandTotalDepletions) * 100).toFixed(1)}%)`}
+                title={`Spent Culls: ${spentCull} (${safePct(spentCull, grandTotalDepletions)}%)`}
               />
             )}
           </div>
@@ -170,20 +176,20 @@ export const MortalityReportSection: React.FC<MortalityReportSectionProps> = ({
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-slate-700 font-medium">
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-600 shrink-0" />
-              Natural Mortality: <strong>{naturalMortality} ({((naturalMortality / grandTotalDepletions) * 100).toFixed(1)}%)</strong>
+              Natural Mortality: <strong>{naturalMortality} ({safePct(naturalMortality, grandTotalDepletions)}%)</strong>
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
-              Spot Culls: <strong>{spotCulls} ({((spotCulls / grandTotalDepletions) * 100).toFixed(1)}%)</strong>
+              Spot Culls: <strong>{spotCulls} ({safePct(spotCulls, grandTotalDepletions)}%)</strong>
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 shrink-0" />
-              Missex Birds: <strong>{missex} ({((missex / grandTotalDepletions) * 100).toFixed(1)}%)</strong>
+              Missex Birds: <strong>{missex} ({safePct(missex, grandTotalDepletions)}%)</strong>
             </span>
             {spentCull > 0 && (
               <span className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-slate-700 shrink-0" />
-                Spent Flock Culls: <strong>{spentCull} ({((spentCull / grandTotalDepletions) * 100).toFixed(1)}%)</strong>
+                Spent Flock Culls: <strong>{spentCull} ({safePct(spentCull, grandTotalDepletions)}%)</strong>
               </span>
             )}
           </div>

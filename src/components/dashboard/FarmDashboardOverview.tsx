@@ -63,17 +63,19 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
   });
 
   const totalFarmPopulation = totalFarmMales + totalFarmFemales;
-  const overallLivability = totalFarmPopulation + totalFarmDepletions > 0
+  const rawLivability = totalFarmPopulation + totalFarmDepletions > 0
     ? (totalFarmPopulation / (totalFarmPopulation + totalFarmDepletions)) * 100
     : 100;
+  const overallLivability = isNaN(rawLivability) ? 100 : rawLivability;
 
   // Latest egg production record
   const latestEggRecords = eggProductionRecords.slice(0, 6);
-  const totalEggsToday = latestEggRecords.reduce((s, r) => s + r.totalEggs, 0);
-  const totalHEToday = latestEggRecords.reduce((s, r) => s + r.totalHatchingEggs, 0);
-  const avgHendayToday = latestEggRecords.length > 0
-    ? (latestEggRecords.reduce((s, r) => s + r.hendayPct, 0) / latestEggRecords.length)
+  const totalEggsToday = latestEggRecords.reduce((s, r) => s + (Number(r.tep) || Number(r.totalEggs) || 0), 0);
+  const totalHEToday = latestEggRecords.reduce((s, r) => s + (Number(r.totalHE) || Number(r.totalHatchingEggs) || 0), 0);
+  const rawAvgHenday = latestEggRecords.length > 0
+    ? (latestEggRecords.reduce((s, r) => s + (Number(r.hendayPct) || 0), 0) / latestEggRecords.length)
     : 0;
+  const avgHendayToday = isNaN(rawAvgHenday) ? 0 : rawAvgHenday;
 
   return (
     <div className="space-y-6 animate-fadeIn pb-8">
@@ -216,11 +218,11 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
             </div>
           </div>
           <p className="text-2xl sm:text-3xl font-black text-forest-800 mt-2 tracking-tight">
-            {overallLivability.toFixed(2)}%
+            {typeof overallLivability === 'number' && !isNaN(overallLivability) ? overallLivability.toFixed(2) : '100.00'}%
           </p>
           <div className="mt-3 pt-2.5 border-t border-graphite-100 text-xs text-graphite-500 flex justify-between">
             <span>Total Depletions:</span>
-            <strong className="text-rose-700 font-bold">-{totalFarmDepletions} birds</strong>
+            <strong className="text-rose-700 font-bold">-{(totalFarmDepletions || 0).toLocaleString()} birds</strong>
           </div>
         </div>
 
@@ -236,11 +238,11 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
             </div>
           </div>
           <p className="text-2xl sm:text-3xl font-black text-white mt-2 tracking-tight">
-            {totalEggsToday.toLocaleString()} <span className="text-xs font-semibold text-mint-300 font-sans">eggs</span>
+            {(totalEggsToday || 0).toLocaleString()} <span className="text-xs font-semibold text-mint-300 font-sans">eggs</span>
           </p>
           <div className="mt-3 pt-2.5 border-t border-forest-800/80 flex items-center justify-between text-xs">
-            <span className="text-mint-400 font-bold">{totalHEToday.toLocaleString()} HE</span>
-            <span className="text-graphite-300 font-semibold">{avgHendayToday.toFixed(1)}% Henday</span>
+            <span className="text-mint-400 font-bold">{(totalHEToday || 0).toLocaleString()} HE</span>
+            <span className="text-graphite-300 font-semibold">{typeof avgHendayToday === 'number' && !isNaN(avgHendayToday) ? avgHendayToday.toFixed(1) : '0.0'}% Henday</span>
           </div>
         </div>
 
@@ -319,7 +321,9 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
                   </div>
                   <div className="bg-white p-2 rounded-xl border border-graphite-200/80 shadow-2xs">
                     <span className="text-[10px] text-forest-700 font-semibold block">Livability</span>
-                    <span className="font-extrabold text-forest-800">{stats.livabilityPct.toFixed(1)}%</span>
+                    <span className="font-extrabold text-forest-800">
+                      {typeof stats.livabilityPct === 'number' && !isNaN(stats.livabilityPct) ? stats.livabilityPct.toFixed(1) : '100.0'}%
+                    </span>
                   </div>
                 </div>
 

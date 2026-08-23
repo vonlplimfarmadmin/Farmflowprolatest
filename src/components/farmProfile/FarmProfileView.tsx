@@ -1450,8 +1450,12 @@ export const FarmProfileView: React.FC = () => {
                   <tr key={item.id} className="hover:bg-slate-50/80 transition">
                     <td className="py-2.5 px-3 font-bold text-slate-800">Week {item.ageWeek}</td>
                     <td className="py-2.5 px-3 font-medium text-slate-600">Week {item.ageInProduction} in Lay</td>
-                    <td className="py-2.5 px-3 font-bold text-teal-700">{item.standardHendayPct.toFixed(1)}%</td>
-                    <td className="py-2.5 px-3 font-bold text-teal-900">{item.standardHatchingPct.toFixed(1)}%</td>
+                    <td className="py-2.5 px-3 font-bold text-teal-700">
+                      {typeof item.standardHendayPct === 'number' && !isNaN(item.standardHendayPct) ? item.standardHendayPct.toFixed(1) : '0.0'}%
+                    </td>
+                    <td className="py-2.5 px-3 font-bold text-teal-900">
+                      {typeof item.standardHatchingPct === 'number' && !isNaN(item.standardHatchingPct) ? item.standardHatchingPct.toFixed(1) : '0.0'}%
+                    </td>
                     {permissions.canDeleteRecord && (
                       <td className="py-2.5 px-3 text-right">
                         <button
@@ -1554,10 +1558,16 @@ export const FarmProfileView: React.FC = () => {
                 {farmProfile.standardBodyWeights.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50/80 transition">
                     <td className="py-2.5 px-3 font-bold text-slate-800">Week {item.ageWeek}</td>
-                    <td className="py-2.5 px-3 font-semibold text-teal-950">{item.maleStandardGrams.toLocaleString()} g</td>
-                    <td className="py-2.5 px-3 font-semibold text-teal-700">{item.femaleStandardGrams.toLocaleString()} g</td>
+                    <td className="py-2.5 px-3 font-semibold text-teal-950">{(item.maleStandardGrams || 0).toLocaleString()} g</td>
+                    <td className="py-2.5 px-3 font-semibold text-teal-700">{(item.femaleStandardGrams || 0).toLocaleString()} g</td>
                     <td className="py-2.5 px-3 text-slate-500 font-medium">
-                      +{(item.maleStandardGrams - item.femaleStandardGrams)} g ({(item.maleStandardGrams / item.femaleStandardGrams).toFixed(2)}x)
+                      {(() => {
+                        const m = item.maleStandardGrams || 0;
+                        const f = item.femaleStandardGrams || 0;
+                        const diff = m - f;
+                        const ratio = f > 0 ? (m / f).toFixed(2) : '1.00';
+                        return `+${isNaN(diff) ? 0 : diff} g (${ratio}x)`;
+                      })()}
                     </td>
                     {permissions.canDeleteRecord && (
                       <td className="py-2.5 px-3 text-right">
@@ -1662,7 +1672,9 @@ export const FarmProfileView: React.FC = () => {
                   <tr key={item.id} className="hover:bg-slate-50/80 transition">
                     <td className="py-2.5 px-3 font-bold text-slate-800">Week {item.ageWeek}</td>
                     <td className="py-2.5 px-3 font-medium text-slate-600">Week {item.ageInProduction} of Lay</td>
-                    <td className="py-2.5 px-3 font-bold text-teal-700">{item.standardWeightGrams.toFixed(1)} g</td>
+                    <td className="py-2.5 px-3 font-bold text-teal-700">
+                      {typeof item.standardWeightGrams === 'number' && !isNaN(item.standardWeightGrams) ? item.standardWeightGrams.toFixed(1) : '0.0'} g
+                    </td>
                     {permissions.canDeleteRecord && (
                       <td className="py-2.5 px-3 text-right">
                         <button

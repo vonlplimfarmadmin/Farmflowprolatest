@@ -171,7 +171,7 @@ export const FlockListView: React.FC = () => {
                   <div className="p-2.5 bg-emerald-50/70 rounded-xl border border-emerald-100">
                     <p className="text-[10px] font-bold text-emerald-700 uppercase">Livability</p>
                     <p className="text-base font-extrabold text-emerald-950 mt-0.5">
-                      {stats.livabilityPct.toFixed(1)}%
+                      {typeof stats.livabilityPct === 'number' && !isNaN(stats.livabilityPct) ? stats.livabilityPct.toFixed(1) : '100.0'}%
                     </p>
                     <p className="text-[10px] text-emerald-600 font-medium">Total: {stats.totalCurrent}</p>
                   </div>

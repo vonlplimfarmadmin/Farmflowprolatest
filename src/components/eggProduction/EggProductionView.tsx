@@ -409,7 +409,7 @@ export const EggProductionView: React.FC = () => {
               Henday Laying Rate
             </span>
             <p className="text-2xl font-black text-teal-700 mt-1">
-              {latestProd.hendayPct.toFixed(2)}%
+              {typeof latestProd.hendayPct === 'number' && !isNaN(latestProd.hendayPct) ? latestProd.hendayPct.toFixed(2) : '0.00'}%
             </p>
             <p className="text-xs text-teal-800 mt-2 font-medium">
               Target Standard: ~87.5% (High Peak)
@@ -423,7 +423,9 @@ export const EggProductionView: React.FC = () => {
             </span>
             <p className="text-2xl font-black text-slate-900 mt-1">
               {latestProd.totalHatchingEggs.toLocaleString()}{' '}
-              <span className="text-sm font-bold text-teal-600">({latestProd.hatchingEggPct.toFixed(1)}%)</span>
+              <span className="text-sm font-bold text-teal-600">
+                ({typeof latestProd.hatchingEggPct === 'number' && !isNaN(latestProd.hatchingEggPct) ? latestProd.hatchingEggPct.toFixed(1) : '0.0'}%)
+              </span>
             </p>
             <p className="text-xs text-slate-500 mt-2">
               Clean, set-grade hatching eggs
@@ -437,7 +439,9 @@ export const EggProductionView: React.FC = () => {
             </span>
             <p className="text-2xl font-black text-rose-800 mt-1">
               {latestProd.totalNonHatchingEggs.toLocaleString()}{' '}
-              <span className="text-sm font-bold text-rose-600">({latestProd.nonHatchingEggPct.toFixed(1)}%)</span>
+              <span className="text-sm font-bold text-rose-600">
+                ({typeof latestProd.nonHatchingEggPct === 'number' && !isNaN(latestProd.nonHatchingEggPct) ? latestProd.nonHatchingEggPct.toFixed(1) : '0.0'}%)
+              </span>
             </p>
             <p className="text-xs text-slate-500 mt-2">
               Egg Weight: <strong>{latestProd.sampleEggWeightGrams || 58.4}g</strong>
@@ -587,12 +591,14 @@ export const EggProductionView: React.FC = () => {
                   <td className="py-2.5 px-3 font-bold text-slate-900">{rec.houseNumber}</td>
                   <td className="py-2.5 px-3 font-black text-slate-900">{rec.totalEggs.toLocaleString()}</td>
                   <td className="py-2.5 px-3 font-bold text-teal-800">
-                    {rec.totalHatchingEggs.toLocaleString()} ({rec.hatchingEggPct.toFixed(1)}%)
+                    {rec.totalHatchingEggs.toLocaleString()} ({typeof rec.hatchingEggPct === 'number' && !isNaN(rec.hatchingEggPct) ? rec.hatchingEggPct.toFixed(1) : '0.0'}%)
                   </td>
                   <td className="py-2.5 px-3 font-semibold text-rose-700">
-                    {rec.totalNonHatchingEggs.toLocaleString()} ({rec.nonHatchingEggPct.toFixed(1)}%)
+                    {rec.totalNonHatchingEggs.toLocaleString()} ({typeof rec.nonHatchingEggPct === 'number' && !isNaN(rec.nonHatchingEggPct) ? rec.nonHatchingEggPct.toFixed(1) : '0.0'}%)
                   </td>
-                  <td className="py-2.5 px-3 font-black text-teal-700">{rec.hendayPct.toFixed(2)}%</td>
+                  <td className="py-2.5 px-3 font-black text-teal-700">
+                    {typeof rec.hendayPct === 'number' && !isNaN(rec.hendayPct) ? rec.hendayPct.toFixed(2) : '0.00'}%
+                  </td>
                   <td className="py-2.5 px-3 font-medium text-slate-700">{rec.sampleEggWeightGrams || 58.4}g</td>
                   <td className="py-2.5 px-3 text-slate-500">{rec.loggedBy}</td>
                   {permissions.canDeleteRecord && (

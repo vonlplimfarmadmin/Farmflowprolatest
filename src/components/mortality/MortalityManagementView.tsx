@@ -79,20 +79,20 @@ export const MortalityManagementView: React.FC = () => {
   });
 
   // Calculate Farm-wide & Category-specific Depletions
-  const totalMortalityM = depletions.filter(d => d.category === 'Mortality').reduce((s, d) => s + d.maleCount, 0);
-  const totalMortalityF = depletions.filter(d => d.category === 'Mortality').reduce((s, d) => s + d.femaleCount, 0);
+  const totalMortalityM = depletions.filter(d => d.category === 'Mortality').reduce((s, d) => s + (Number(d.maleCount) || 0), 0);
+  const totalMortalityF = depletions.filter(d => d.category === 'Mortality').reduce((s, d) => s + (Number(d.femaleCount) || 0), 0);
 
-  const totalSpotCullM = depletions.filter(d => d.category === 'Spot Cull').reduce((s, d) => s + d.maleCount, 0);
-  const totalSpotCullF = depletions.filter(d => d.category === 'Spot Cull').reduce((s, d) => s + d.femaleCount, 0);
+  const totalSpotCullM = depletions.filter(d => d.category === 'Spot Cull').reduce((s, d) => s + (Number(d.maleCount) || 0), 0);
+  const totalSpotCullF = depletions.filter(d => d.category === 'Spot Cull').reduce((s, d) => s + (Number(d.femaleCount) || 0), 0);
 
-  const totalMissexM = depletions.filter(d => d.category === 'Missex').reduce((s, d) => s + d.maleCount, 0);
-  const totalMissexF = depletions.filter(d => d.category === 'Missex').reduce((s, d) => s + d.femaleCount, 0);
+  const totalMissexM = depletions.filter(d => d.category === 'Missex').reduce((s, d) => s + (Number(d.maleCount) || 0), 0);
+  const totalMissexF = depletions.filter(d => d.category === 'Missex').reduce((s, d) => s + (Number(d.femaleCount) || 0), 0);
 
-  const totalSpentCullM = depletions.filter(d => d.category === 'Spent Cull').reduce((s, d) => s + d.maleCount, 0);
-  const totalSpentCullF = depletions.filter(d => d.category === 'Spent Cull').reduce((s, d) => s + d.femaleCount, 0);
+  const totalSpentCullM = depletions.filter(d => d.category === 'Spent Cull').reduce((s, d) => s + (Number(d.maleCount) || 0), 0);
+  const totalSpentCullF = depletions.filter(d => d.category === 'Spent Cull').reduce((s, d) => s + (Number(d.femaleCount) || 0), 0);
 
-  const grandTotalDepletionM = totalMortalityM + totalSpotCullM + totalMissexM + totalSpentCullM;
-  const grandTotalDepletionF = totalMortalityF + totalSpotCullF + totalMissexF + totalSpentCullF;
+  const grandTotalDepletionM = (totalMortalityM || 0) + (totalSpotCullM || 0) + (totalMissexM || 0) + (totalSpentCullM || 0);
+  const grandTotalDepletionF = (totalMortalityF || 0) + (totalSpotCullF || 0) + (totalMissexF || 0) + (totalSpentCullF || 0);
   const grandTotalDepletion = grandTotalDepletionM + grandTotalDepletionF;
 
   const handleExportMortalityExcel = () => {

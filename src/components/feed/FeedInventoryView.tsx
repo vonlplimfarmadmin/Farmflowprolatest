@@ -265,8 +265,8 @@ export const FeedInventoryView: React.FC = () => {
               </div>
 
               <div className="mt-3 pt-2 border-t border-dashed border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                <span>Received: {item.totalReceivedBags} bags</span>
-                <span>Consumed: {(item.totalConsumedKg / 50).toFixed(1)} bags</span>
+                <span>Received: {item.totalReceivedBags || 0} bags</span>
+                <span>Consumed: {((item.totalConsumedKg || 0) / 50).toFixed(1)} bags</span>
               </div>
             </div>
           ))}
@@ -393,9 +393,9 @@ export const FeedInventoryView: React.FC = () => {
                         )}
                       </td>
                       <td className="py-2 px-2.5 font-black text-slate-900 whitespace-nowrap">
-                        {record.quantityKg.toLocaleString()} kg
+                        {(record.quantityKg || 0).toLocaleString()} kg
                         <span className="text-[10px] font-normal text-slate-400 block">
-                          ~{(record.quantityKg / 50).toFixed(1)} bags
+                          ~{((record.quantityKg || 0) / 50).toFixed(1)} bags
                         </span>
                       </td>
                       <td className="py-2 px-2.5 text-slate-500 truncate max-w-28" title={record.notes}>
@@ -485,7 +485,7 @@ export const FeedInventoryView: React.FC = () => {
               <div className="p-3 bg-teal-50/70 border border-teal-200/80 rounded-2xl flex items-center justify-between">
                 <span className="text-xs font-medium text-teal-900">Total Quantity in Kg:</span>
                 <span className="text-base font-black text-teal-950">
-                  {(bags * kgPerBag).toLocaleString()} kg
+                  {((bags || 0) * (kgPerBag || 0)).toLocaleString()} kg
                 </span>
               </div>
 
@@ -676,10 +676,10 @@ export const FeedInventoryView: React.FC = () => {
                 <div className="flex items-center justify-between text-[11px] text-rose-900 bg-rose-100/60 px-2.5 py-1.5 rounded-lg">
                   <span>Calculated Female Feed:</span>
                   <strong>
-                    {consFemaleKg.toLocaleString()} kg (~{(consFemaleKg / 50).toFixed(1)} bags)
+                    {(consFemaleKg || 0).toLocaleString()} kg (~{((consFemaleKg || 0) / 50).toFixed(1)} bags)
                     {feedGuideItem && (
                       <span className="text-[10px] text-rose-700 font-normal ml-1.5">
-                        (Target: {feedGuideItem.femaleGramsPerBird}g)
+                        (Target: {feedGuideItem.femaleGramsPerBird || 0}g)
                       </span>
                     )}
                   </strong>
@@ -728,7 +728,7 @@ export const FeedInventoryView: React.FC = () => {
                 <div className="flex items-center justify-between text-[11px] text-teal-900 bg-teal-100/60 px-2.5 py-1.5 rounded-lg">
                   <span>Calculated Male Feed:</span>
                   <strong>
-                    {consMaleKg.toLocaleString()} kg (~{(consMaleKg / 50).toFixed(1)} bags)
+                    {(consMaleKg || 0).toLocaleString()} kg (~{((consMaleKg || 0) / 50).toFixed(1)} bags)
                     {feedGuideItem && (
                       <span className="text-[10px] text-teal-700 font-normal ml-1.5">
                         (Target: {feedGuideItem.maleGramsPerBird || 125}g)
@@ -743,11 +743,11 @@ export const FeedInventoryView: React.FC = () => {
                 <div>
                   <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Total House Intake</span>
                   <span className="font-bold text-sm text-teal-300">
-                    {consTotalKg.toLocaleString()} kg
+                    {(consTotalKg || 0).toLocaleString()} kg
                   </span>
                 </div>
                 <div className="text-right text-[11px] text-slate-300">
-                  <span>~{(consTotalKg / 50).toFixed(1)} Bags (50kg)</span>
+                  <span>~{((consTotalKg || 0) / 50).toFixed(1)} Bags (50kg)</span>
                 </div>
               </div>
 

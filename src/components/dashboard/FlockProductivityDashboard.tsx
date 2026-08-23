@@ -206,8 +206,8 @@ export const FlockProductivityDashboard: React.FC<{
         nonHatchingEggs: finalNHE,
         floorEggs: finalFloor,
         nestEggs,
-        actualHendayPct: parseFloat(actualHendayPct.toFixed(1)),
-        heRatioPct: parseFloat(heRatioPct.toFixed(1)),
+        actualHendayPct: isNaN(actualHendayPct) ? 0 : parseFloat(actualHendayPct.toFixed(1)),
+        heRatioPct: isNaN(heRatioPct) ? 0 : parseFloat(heRatioPct.toFixed(1)),
         standardHenday,
         standardHEPercent
       };
@@ -276,8 +276,8 @@ export const FlockProductivityDashboard: React.FC<{
         malesDead,
         femalesDead,
         totalDailyDepletion,
-        dailyDepletionRatePct: parseFloat(dailyDepletionRatePct.toFixed(3)),
-        cumulativeLivabilityPct: parseFloat(cumulativeLivabilityPct.toFixed(2)),
+        dailyDepletionRatePct: isNaN(dailyDepletionRatePct) ? 0 : parseFloat(dailyDepletionRatePct.toFixed(3)),
+        cumulativeLivabilityPct: isNaN(cumulativeLivabilityPct) ? 100 : parseFloat(cumulativeLivabilityPct.toFixed(2)),
         toleranceBenchmarkDaily: selectedHouse === 'All' ? 22 : 4 // benchmark max allowed
       };
     });
@@ -323,8 +323,8 @@ export const FlockProductivityDashboard: React.FC<{
         date: dateStr,
         displayLabel,
         totalFeedKg,
-        femaleGrams: parseFloat(femaleGrams.toFixed(1)),
-        maleGrams: parseFloat(maleGrams.toFixed(1)),
+        femaleGrams: isNaN(femaleGrams) ? 0 : parseFloat(femaleGrams.toFixed(1)),
+        maleGrams: isNaN(maleGrams) ? 0 : parseFloat(maleGrams.toFixed(1)),
         standardFemaleGrams: 158,
         standardMaleGrams: 128,
         gramsFeedPerHE
@@ -350,9 +350,13 @@ export const FlockProductivityDashboard: React.FC<{
       let uniformity: number | null = null;
 
       if (matchingBw.length > 0) {
-        actualMaleWeight = Math.round(matchingBw.reduce((s, b) => s + b.maleAvgWeightGrams, 0) / matchingBw.length);
-        actualFemaleWeight = Math.round(matchingBw.reduce((s, b) => s + b.femaleAvgWeightGrams, 0) / matchingBw.length);
-        uniformity = parseFloat((matchingBw.reduce((s, b) => s + (b.uniformityPct || 86), 0) / matchingBw.length).toFixed(1));
+        const maleSum = matchingBw.reduce((s, b) => s + (Number(b.maleAvgWeightGrams) || 0), 0);
+        const femaleSum = matchingBw.reduce((s, b) => s + (Number(b.femaleAvgWeightGrams) || 0), 0);
+        const unifSum = matchingBw.reduce((s, b) => s + (Number(b.uniformityPct) || 86), 0);
+        actualMaleWeight = Math.round(maleSum / matchingBw.length);
+        actualFemaleWeight = Math.round(femaleSum / matchingBw.length);
+        const unifVal = unifSum / matchingBw.length;
+        uniformity = isNaN(unifVal) ? 86 : parseFloat(unifVal.toFixed(1));
       } else if (week <= 34) {
         // Historical curve interpolation for active flock
         const baseFemale = 2280 + (week - 20) * 88;
@@ -421,19 +425,25 @@ export const FlockProductivityDashboard: React.FC<{
       others = 60;
     }
 
-    const totalGraded = hatchingEggsTotal + thinShell + misshapen + doubleYolk + broken + small + spoiled + others;
+      const totalGraded = hatchingEggsTotal + thinShell + misshapen + doubleYolk + broken + small + spoiled + others;
 
-    return [
-      { name: 'Hatching Eggs (HE)', value: hatchingEggsTotal, color: '#10b981', pct: ((hatchingEggsTotal / totalGraded) * 100).toFixed(1) },
-      { name: 'Thin Shell', value: thinShell, color: '#f59e0b', pct: ((thinShell / totalGraded) * 100).toFixed(1) },
-      { name: 'Misshapen', value: misshapen, color: '#6366f1', pct: ((misshapen / totalGraded) * 100).toFixed(1) },
-      { name: 'Broken / Cracked', value: broken, color: '#ef4444', pct: ((broken / totalGraded) * 100).toFixed(1) },
-      { name: 'Double Yolk', value: doubleYolk, color: '#38bdf8', pct: ((doubleYolk / totalGraded) * 100).toFixed(1) },
-      { name: 'Small / Under-grade', value: small, color: '#a855f7', pct: ((small / totalGraded) * 100).toFixed(1) },
-      { name: 'Spoiled / Dirty', value: spoiled, color: '#f97316', pct: ((spoiled / totalGraded) * 100).toFixed(1) },
-      { name: 'Others', value: others, color: '#94a3b8', pct: ((others / totalGraded) * 100).toFixed(1) }
-    ];
-  }, [eggProductionRecords, selectedHouse]);
+      const calcPct = (val: number) => {
+        if (!totalGraded || totalGraded <= 0) return '0.0';
+        const pct = (val / totalGraded) * 100;
+        return isNaN(pct) ? '0.0' : pct.toFixed(1);
+      };
+
+      return [
+        { name: 'Hatching Eggs (HE)', value: hatchingEggsTotal, color: '#10b981', pct: calcPct(hatchingEggsTotal) },
+        { name: 'Thin Shell', value: thinShell, color: '#f59e0b', pct: calcPct(thinShell) },
+        { name: 'Misshapen', value: misshapen, color: '#6366f1', pct: calcPct(misshapen) },
+        { name: 'Broken / Cracked', value: broken, color: '#ef4444', pct: calcPct(broken) },
+        { name: 'Double Yolk', value: doubleYolk, color: '#38bdf8', pct: calcPct(doubleYolk) },
+        { name: 'Small / Under-grade', value: small, color: '#a855f7', pct: calcPct(small) },
+        { name: 'Spoiled / Dirty', value: spoiled, color: '#f97316', pct: calcPct(spoiled) },
+        { name: 'Others', value: others, color: '#94a3b8', pct: calcPct(others) }
+      ];
+    }, [eggProductionRecords, selectedHouse]);
 
   // Overall Top Summary KPIs
   const latestEggData = eggTrendData[eggTrendData.length - 1] || {
@@ -443,15 +453,17 @@ export const FlockProductivityDashboard: React.FC<{
   };
 
   const avgHenday = useMemo(() => {
-    if (eggTrendData.length === 0) return 0;
-    const sum = eggTrendData.reduce((s, e) => s + e.actualHendayPct, 0);
-    return (sum / eggTrendData.length).toFixed(1);
+    if (eggTrendData.length === 0) return '0.0';
+    const sum = eggTrendData.reduce((s, e) => s + (e.actualHendayPct || 0), 0);
+    const avg = sum / eggTrendData.length;
+    return isNaN(avg) ? '0.0' : avg.toFixed(1);
   }, [eggTrendData]);
 
   const avgHETrend = useMemo(() => {
-    if (eggTrendData.length === 0) return 0;
-    const sum = eggTrendData.reduce((s, e) => s + e.heRatioPct, 0);
-    return (sum / eggTrendData.length).toFixed(1);
+    if (eggTrendData.length === 0) return '0.0';
+    const sum = eggTrendData.reduce((s, e) => s + (e.heRatioPct || 0), 0);
+    const avg = sum / eggTrendData.length;
+    return isNaN(avg) ? '0.0' : avg.toFixed(1);
   }, [eggTrendData]);
 
   const totalDepletionsCount = useMemo(() => {

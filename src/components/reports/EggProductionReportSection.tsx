@@ -33,6 +33,12 @@ export const EggProductionReportSection: React.FC<EggProductionReportSectionProp
   const overallNHEPct = totalTEP > 0 ? (totalNHE / totalTEP) * 100 : 0;
   const settableHEFloorRatio = totalHE > 0 ? (totalHEFloor / totalHE) * 100 : 0;
 
+  const safePct = (part: number, total: number) => {
+    if (!total || total <= 0) return '0.0';
+    const val = (part / total) * 100;
+    return isNaN(val) ? '0.0' : val.toFixed(1);
+  };
+
   // Average Hen-day
   const recordsWithHD = records.filter(r => (r.hendayPct || 0) > 0);
   const avgHD = recordsWithHD.length > 0 
@@ -137,51 +143,51 @@ export const EggProductionReportSection: React.FC<EggProductionReportSectionProp
           <div className="w-full h-5 rounded-full overflow-hidden flex bg-slate-200 border border-slate-300">
             {totalHENest > 0 && (
               <div 
-                style={{ width: `${(totalHENest / totalTEP) * 100}%` }} 
+                style={{ width: `${totalTEP > 0 ? (totalHENest / totalTEP) * 100 : 0}%` }} 
                 className="bg-emerald-600 hover:opacity-90 transition-all h-full"
-                title={`HE Nest: ${totalHENest.toLocaleString()} (${((totalHENest / totalTEP) * 100).toFixed(1)}%)`}
+                title={`HE Nest: ${totalHENest.toLocaleString()} (${safePct(totalHENest, totalTEP)}%)`}
               />
             )}
             {totalHEFloor > 0 && (
               <div 
-                style={{ width: `${(totalHEFloor / totalTEP) * 100}%` }} 
+                style={{ width: `${totalTEP > 0 ? (totalHEFloor / totalTEP) * 100 : 0}%` }} 
                 className="bg-teal-500 hover:opacity-90 transition-all h-full"
-                title={`HE Floor: ${totalHEFloor.toLocaleString()} (${((totalHEFloor / totalTEP) * 100).toFixed(1)}%)`}
+                title={`HE Floor: ${totalHEFloor.toLocaleString()} (${safePct(totalHEFloor, totalTEP)}%)`}
               />
             )}
             {totalSmall > 0 && (
               <div 
-                style={{ width: `${(totalSmall / totalTEP) * 100}%` }} 
+                style={{ width: `${totalTEP > 0 ? (totalSmall / totalTEP) * 100 : 0}%` }} 
                 className="bg-sky-400 hover:opacity-90 transition-all h-full"
-                title={`Small: ${totalSmall} (${((totalSmall / totalTEP) * 100).toFixed(1)}%)`}
+                title={`Small: ${totalSmall} (${safePct(totalSmall, totalTEP)}%)`}
               />
             )}
             {totalThin > 0 && (
               <div 
-                style={{ width: `${(totalThin / totalTEP) * 100}%` }} 
+                style={{ width: `${totalTEP > 0 ? (totalThin / totalTEP) * 100 : 0}%` }} 
                 className="bg-amber-400 hover:opacity-90 transition-all h-full"
-                title={`Thin Shell: ${totalThin} (${((totalThin / totalTEP) * 100).toFixed(1)}%)`}
+                title={`Thin Shell: ${totalThin} (${safePct(totalThin, totalTEP)}%)`}
               />
             )}
             {totalDY > 0 && (
               <div 
-                style={{ width: `${(totalDY / totalTEP) * 100}%` }} 
+                style={{ width: `${totalTEP > 0 ? (totalDY / totalTEP) * 100 : 0}%` }} 
                 className="bg-orange-400 hover:opacity-90 transition-all h-full"
-                title={`Double Yolk: ${totalDY} (${((totalDY / totalTEP) * 100).toFixed(1)}%)`}
+                title={`Double Yolk: ${totalDY} (${safePct(totalDY, totalTEP)}%)`}
               />
             )}
             {totalBroken > 0 && (
               <div 
-                style={{ width: `${(totalBroken / totalTEP) * 100}%` }} 
+                style={{ width: `${totalTEP > 0 ? (totalBroken / totalTEP) * 100 : 0}%` }} 
                 className="bg-rose-500 hover:opacity-90 transition-all h-full"
-                title={`Broken: ${totalBroken} (${((totalBroken / totalTEP) * 100).toFixed(1)}%)`}
+                title={`Broken: ${totalBroken} (${safePct(totalBroken, totalTEP)}%)`}
               />
             )}
             {totalSpoiled > 0 && (
               <div 
-                style={{ width: `${(totalSpoiled / totalTEP) * 100}%` }} 
+                style={{ width: `${totalTEP > 0 ? (totalSpoiled / totalTEP) * 100 : 0}%` }} 
                 className="bg-slate-700 hover:opacity-90 transition-all h-full"
-                title={`Spoiled: ${totalSpoiled} (${((totalSpoiled / totalTEP) * 100).toFixed(1)}%)`}
+                title={`Spoiled: ${totalSpoiled} (${safePct(totalSpoiled, totalTEP)}%)`}
               />
             )}
           </div>
@@ -190,31 +196,31 @@ export const EggProductionReportSection: React.FC<EggProductionReportSectionProp
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-700 font-medium">
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0" />
-              HE Nest: <strong>{((totalHENest / totalTEP) * 100).toFixed(1)}%</strong>
+              HE Nest: <strong>{safePct(totalHENest, totalTEP)}%</strong>
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-teal-500 shrink-0" />
-              HE Floor: <strong>{((totalHEFloor / totalTEP) * 100).toFixed(1)}%</strong>
+              HE Floor: <strong>{safePct(totalHEFloor, totalTEP)}%</strong>
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-sky-400 shrink-0" />
-              Small: <strong>{((totalSmall / totalTEP) * 100).toFixed(1)}%</strong>
+              Small: <strong>{safePct(totalSmall, totalTEP)}%</strong>
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
-              Thin Shell: <strong>{((totalThin / totalTEP) * 100).toFixed(1)}%</strong>
+              Thin Shell: <strong>{safePct(totalThin, totalTEP)}%</strong>
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" />
-              Double Yolk: <strong>{((totalDY / totalTEP) * 100).toFixed(1)}%</strong>
+              Double Yolk: <strong>{safePct(totalDY, totalTEP)}%</strong>
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
-              Broken: <strong>{((totalBroken / totalTEP) * 100).toFixed(1)}%</strong>
+              Broken: <strong>{safePct(totalBroken, totalTEP)}%</strong>
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-slate-700 shrink-0" />
-              Spoiled: <strong>{((totalSpoiled / totalTEP) * 100).toFixed(1)}%</strong>
+              Spoiled: <strong>{safePct(totalSpoiled, totalTEP)}%</strong>
             </span>
           </div>
         </div>
@@ -314,7 +320,7 @@ export const EggProductionReportSection: React.FC<EggProductionReportSectionProp
                         {(r.totalHE || 0).toLocaleString()}
                       </td>
                       <td className="py-2 px-2.5 text-right font-mono font-bold text-emerald-900 bg-emerald-50/20 border-r border-slate-200 print:border-black">
-                        {hePct.toFixed(1)}%
+                        {typeof hePct === 'number' && !isNaN(hePct) ? hePct.toFixed(1) : '0.0'}%
                       </td>
 
                       {/* NHE Discards */}
@@ -333,10 +339,10 @@ export const EggProductionReportSection: React.FC<EggProductionReportSectionProp
                         {(r.tep || 0).toLocaleString()}
                       </td>
                       <td className="py-2 px-2.5 text-right font-mono font-black text-forest-950 bg-forest-100/50">
-                        {r.hendayPct ? `${r.hendayPct.toFixed(1)}%` : '-'}
+                        {typeof r.hendayPct === 'number' && !isNaN(r.hendayPct) ? `${r.hendayPct.toFixed(1)}%` : '-'}
                       </td>
                       <td className="py-2 px-2.5 text-right font-mono text-slate-700">
-                        {r.sampleEggWeightGrams ? `${r.sampleEggWeightGrams.toFixed(1)}g` : '-'}
+                        {typeof r.sampleEggWeightGrams === 'number' && !isNaN(r.sampleEggWeightGrams) ? `${r.sampleEggWeightGrams.toFixed(1)}g` : '-'}
                       </td>
                       <td className="py-2 px-3 text-slate-700 truncate max-w-[120px] font-medium" title={r.loggedBy}>
                         {r.loggedBy || 'Flock Technician'}
@@ -367,7 +373,7 @@ export const EggProductionReportSection: React.FC<EggProductionReportSectionProp
                     {totalHE.toLocaleString()}
                   </td>
                   <td className="py-3 px-2.5 text-right font-mono text-emerald-300 border-r border-slate-700">
-                    {overallHEPct.toFixed(1)}%
+                    {typeof overallHEPct === 'number' && !isNaN(overallHEPct) ? overallHEPct.toFixed(1) : '0.0'}%
                   </td>
                   <td className="py-3 px-2 text-right font-mono text-slate-300">{totalSmall}</td>
                   <td className="py-3 px-2 text-right font-mono text-slate-300">{totalThin}</td>
@@ -382,7 +388,7 @@ export const EggProductionReportSection: React.FC<EggProductionReportSectionProp
                     {totalTEP.toLocaleString()}
                   </td>
                   <td className="py-3 px-2.5 text-right font-mono text-mint-300 font-black">
-                    {avgHD.toFixed(1)}%
+                    {typeof avgHD === 'number' && !isNaN(avgHD) ? avgHD.toFixed(1) : '0.0'}%
                   </td>
                   <td className="py-3 px-2.5 text-right font-mono text-slate-300">-</td>
                   <td className="py-3 px-3 text-slate-400">All Operations Staff</td>

@@ -104,10 +104,10 @@ export const FlockmanModuleView: React.FC = () => {
   // Filter pens by side
   const sidePens = (activeFlock?.pens || []).filter(p => p.side === activeSide);
   const sideMales = sidePens.length > 0 
-    ? sidePens.reduce((sum, p) => sum + p.males, 0) 
+    ? sidePens.reduce((sum, p) => sum + (Number(p.males) || 0), 0) 
     : Math.floor((stats?.currentMales || 0) / 2);
   const sideFemales = sidePens.length > 0 
-    ? sidePens.reduce((sum, p) => sum + p.females, 0) 
+    ? sidePens.reduce((sum, p) => sum + (Number(p.females) || 0), 0) 
     : Math.floor((stats?.currentFemales || 0) / 2);
 
   // Recommended feed from Standard Feed Guide
@@ -116,10 +116,10 @@ export const FlockmanModuleView: React.FC = () => {
   // Beginning inventory for selected feed types
   const beginningFemaleStock = feedStockEntries
     .filter(e => e.feedType === femaleFeedType)
-    .reduce((sum, e) => sum + e.totalKg, 0);
+    .reduce((sum, e) => sum + (Number(e.totalKg) || 0), 0);
   const beginningMaleStock = feedStockEntries
     .filter(e => e.feedType === maleFeedType)
-    .reduce((sum, e) => sum + e.totalKg, 0);
+    .reduce((sum, e) => sum + (Number(e.totalKg) || 0), 0);
 
   // Transfer Calculation Helpers
   const sourceFlockObj = flocks.find(f => f.houseNumber === transferSourceHouse) || activeFlock;
@@ -201,8 +201,8 @@ export const FlockmanModuleView: React.FC = () => {
       return p;
     });
 
-    const totalPenMales = updatedPens.reduce((acc, p) => acc + p.males, 0);
-    const totalPenFemales = updatedPens.reduce((acc, p) => acc + p.females, 0);
+    const totalPenMales = updatedPens.reduce((acc, p) => acc + (Number(p.males) || 0), 0);
+    const totalPenFemales = updatedPens.reduce((acc, p) => acc + (Number(p.females) || 0), 0);
 
     const flockUpdates: Partial<Flock> = {
       pens: updatedPens,
@@ -731,10 +731,10 @@ export const FlockmanModuleView: React.FC = () => {
                   <div className="flex items-center justify-between text-[11px] text-rose-900 bg-rose-100/60 px-2.5 py-1.5 rounded-lg">
                     <span>Calculated Female Feed:</span>
                     <strong>
-                      {femaleFeedKg.toLocaleString()} kg (~{(femaleFeedKg / 50).toFixed(1)} bags)
+                      {(femaleFeedKg || 0).toLocaleString()} kg (~{((femaleFeedKg || 0) / 50).toFixed(1)} bags)
                       {feedGuideItem && (
                         <span className="text-[10px] text-rose-700 font-normal ml-1.5">
-                          (Target: {feedGuideItem.femaleGramsPerBird}g)
+                          (Target: {feedGuideItem.femaleGramsPerBird || 0}g)
                         </span>
                       )}
                     </strong>
@@ -746,10 +746,10 @@ export const FlockmanModuleView: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-teal-950 flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-teal-500"></span>
-                      Male Feeding ({sideMales.toLocaleString()} Birds)
+                      Male Feeding ({(sideMales || 0).toLocaleString()} Birds)
                     </span>
                     <span className="text-[10px] font-semibold text-teal-800">
-                      Stock: {beginningMaleStock.toLocaleString()} kg
+                      Stock: {(beginningMaleStock || 0).toLocaleString()} kg
                     </span>
                   </div>
 
@@ -789,7 +789,7 @@ export const FlockmanModuleView: React.FC = () => {
                   <div className="flex items-center justify-between text-[11px] text-teal-900 bg-teal-100/60 px-2.5 py-1.5 rounded-lg">
                     <span>Calculated Male Feed:</span>
                     <strong>
-                      {maleFeedKg.toLocaleString()} kg (~{(maleFeedKg / 50).toFixed(1)} bags)
+                      {(maleFeedKg || 0).toLocaleString()} kg (~{((maleFeedKg || 0) / 50).toFixed(1)} bags)
                       {feedGuideItem && (
                         <span className="text-[10px] text-teal-700 font-normal ml-1.5">
                           (Target: {feedGuideItem.maleGramsPerBird || 125}g)
@@ -804,11 +804,11 @@ export const FlockmanModuleView: React.FC = () => {
                   <div>
                     <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Total Feed Logged</span>
                     <span className="font-bold text-sm text-teal-300">
-                      {totalFeedKg.toLocaleString()} kg
+                      {(totalFeedKg || 0).toLocaleString()} kg
                     </span>
                   </div>
                   <div className="text-right text-[11px] text-slate-300">
-                    <span>~{(totalFeedKg / 50).toFixed(1)} Bags (50kg)</span>
+                    <span>~{((totalFeedKg || 0) / 50).toFixed(1)} Bags (50kg)</span>
                   </div>
                 </div>
 
@@ -1186,7 +1186,7 @@ export const FlockmanModuleView: React.FC = () => {
                     <span>Projected Flock Statistics After Transfer</span>
                   </span>
                   <span className="text-[11px] text-teal-200">
-                    Total Moving: <strong>{(transferMales + transferFemales).toLocaleString()} birds</strong>
+                    Total Moving: <strong>{((Number(transferMales) || 0) + (Number(transferFemales) || 0)).toLocaleString()} birds</strong>
                   </span>
                 </div>
 
@@ -1196,7 +1196,7 @@ export const FlockmanModuleView: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <strong className="text-rose-300 font-bold">{transferSourceHouse} (Source)</strong>
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-900/60 text-rose-200 font-bold">
-                        -{(transferMales + transferFemales)} Birds
+                        -{((Number(transferMales) || 0) + (Number(transferFemales) || 0))} Birds
                       </span>
                     </div>
                     <div className="text-[11px] text-slate-300 space-y-0.5">
@@ -1211,7 +1211,7 @@ export const FlockmanModuleView: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <strong className="text-emerald-300 font-bold">{transferDestHouse} (Destination)</strong>
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/60 text-emerald-200 font-bold">
-                        +{(transferMales + transferFemales)} Birds
+                        +{((Number(transferMales) || 0) + (Number(transferFemales) || 0))} Birds
                       </span>
                     </div>
                     <div className="text-[11px] text-slate-300 space-y-0.5">
@@ -1306,7 +1306,7 @@ export const FlockmanModuleView: React.FC = () => {
                         {tr.femaleCount > 0 ? `+${tr.femaleCount} F` : '-'}
                       </td>
                       <td className="py-3 px-4 font-black text-slate-900">
-                        {tr.maleCount + tr.femaleCount}
+                        {(Number(tr.maleCount) || 0) + (Number(tr.femaleCount) || 0)}
                       </td>
                       <td className="py-3 px-4 text-slate-600 max-w-xs truncate" title={tr.reason}>
                         {tr.reason || 'Inter-house adjustment'}
@@ -1866,11 +1866,11 @@ export const FlockmanModuleView: React.FC = () => {
                 <div className="font-bold flex items-center justify-between">
                   <span>{deletingPen.name} ({deletingPen.side} Side)</span>
                   <span className="px-2 py-0.5 bg-rose-200 text-rose-900 rounded-md text-[10px] font-black">
-                    {(deletingPen.males + deletingPen.females).toLocaleString()} Birds
+                    {((deletingPen.males || 0) + (deletingPen.females || 0)).toLocaleString()} Birds
                   </span>
                 </div>
                 <p className="text-[11px] text-rose-800">
-                  Males: <strong>{deletingPen.males.toLocaleString()}</strong> &bull; Females: <strong>{deletingPen.females.toLocaleString()}</strong>
+                  Males: <strong>{(deletingPen.males || 0).toLocaleString()}</strong> &bull; Females: <strong>{(deletingPen.females || 0).toLocaleString()}</strong>
                 </p>
               </div>
 

@@ -144,17 +144,21 @@ export const BodyWeightView: React.FC = () => {
               </span>
             </div>
             <p className="text-2xl font-black text-slate-900 mt-1">
-              {latestRecord.maleAvgWeightGrams.toLocaleString()} <span className="text-sm font-semibold text-slate-500">g</span>
+              {(latestRecord.maleAvgWeightGrams || 0).toLocaleString()} <span className="text-sm font-semibold text-slate-500">g</span>
             </p>
             {latestStd && (
               <div className="mt-2 text-xs flex items-center gap-1.5">
-                <span className="text-slate-500">Standard: {latestStd.maleStandardGrams}g</span>
-                <span className={`font-bold ${
-                  latestRecord.maleAvgWeightGrams >= latestStd.maleStandardGrams ? 'text-teal-600' : 'text-amber-600'
-                }`}>
-                  ({latestRecord.maleAvgWeightGrams >= latestStd.maleStandardGrams ? '+' : ''}
-                  {latestRecord.maleAvgWeightGrams - latestStd.maleStandardGrams}g)
-                </span>
+                <span className="text-slate-500">Standard: {latestStd.maleStandardGrams || 0}g</span>
+                {(() => {
+                  const actual = latestRecord.maleAvgWeightGrams || 0;
+                  const std = latestStd.maleStandardGrams || 0;
+                  const diff = actual - std;
+                  return (
+                    <span className={`font-bold ${actual >= std ? 'text-teal-600' : 'text-amber-600'}`}>
+                      ({actual >= std ? '+' : ''}{isNaN(diff) ? 0 : diff}g)
+                    </span>
+                  );
+                })()}
               </div>
             )}
           </div>
@@ -163,24 +167,28 @@ export const BodyWeightView: React.FC = () => {
           <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
             <div className="flex items-center justify-between">
               <span className="text-[10px] uppercase font-bold text-rose-600 tracking-wider">
-                Female Body Weight (Wk {latestRecord.week})
+                Female Body Weight (Wk {latestRecord.week || 1})
               </span>
               <span className="text-xs font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-100">
                 Sample: {latestRecord.sampleSize || 100}
               </span>
             </div>
             <p className="text-2xl font-black text-slate-900 mt-1">
-              {latestRecord.femaleAvgWeightGrams.toLocaleString()} <span className="text-sm font-semibold text-slate-500">g</span>
+              {(latestRecord.femaleAvgWeightGrams || 0).toLocaleString()} <span className="text-sm font-semibold text-slate-500">g</span>
             </p>
             {latestStd && (
               <div className="mt-2 text-xs flex items-center gap-1.5">
-                <span className="text-slate-500">Standard: {latestStd.femaleStandardGrams}g</span>
-                <span className={`font-bold ${
-                  latestRecord.femaleAvgWeightGrams >= latestStd.femaleStandardGrams ? 'text-emerald-600' : 'text-amber-600'
-                }`}>
-                  ({latestRecord.femaleAvgWeightGrams >= latestStd.femaleStandardGrams ? '+' : ''}
-                  {latestRecord.femaleAvgWeightGrams - latestStd.femaleStandardGrams}g)
-                </span>
+                <span className="text-slate-500">Standard: {latestStd.femaleStandardGrams || 0}g</span>
+                {(() => {
+                  const actual = latestRecord.femaleAvgWeightGrams || 0;
+                  const std = latestStd.femaleStandardGrams || 0;
+                  const diff = actual - std;
+                  return (
+                    <span className={`font-bold ${actual >= std ? 'text-emerald-600' : 'text-amber-600'}`}>
+                      ({actual >= std ? '+' : ''}{isNaN(diff) ? 0 : diff}g)
+                    </span>
+                  );
+                })()}
               </div>
             )}
           </div>

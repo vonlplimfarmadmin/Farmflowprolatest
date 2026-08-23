@@ -97,7 +97,7 @@ export const HouseQuickBar: React.FC<HouseQuickBarProps> = ({
               </span>
               <span className="text-slate-300">&bull;</span>
               <span className="text-rose-700">
-                {fStats?.livabilityPct ? `${fStats.livabilityPct.toFixed(1)}% livability` : '98.5%'}
+                {typeof fStats?.livabilityPct === 'number' && !isNaN(fStats.livabilityPct) ? `${fStats.livabilityPct.toFixed(1)}% livability` : '100.0% livability'}
               </span>
             </div>
           );
