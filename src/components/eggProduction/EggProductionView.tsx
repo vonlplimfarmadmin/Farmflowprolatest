@@ -26,10 +26,10 @@ import { HouseQuickBar } from '../common/HouseQuickBar';
 
 export const EggProductionView: React.FC = () => {
   const { 
-    eggProductionRecords, 
+    eggProductionRecords = [], 
     addEggProductionRecord, 
     deleteEggProductionRecord, 
-    flocks, 
+    flocks = [], 
     getFlockStats, 
     farmProfile,
     currentUser, 
@@ -42,19 +42,19 @@ export const EggProductionView: React.FC = () => {
     if (currentUser?.designatedHouses && currentUser.designatedHouses.length > 0) {
       return currentUser.designatedHouses[0];
     }
-    return 'House 1';
+    return (flocks && flocks[0]?.houseNumber) || 'House 1';
   });
 
   const [showLogModal, setShowLogModal] = useState(false);
   const [showMessengerReportModal, setShowMessengerReportModal] = useState(false);
-  const [reportDate, setReportDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [reportDate, setReportDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [copied, setCopied] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
   const [displayLimit, setDisplayLimit] = useState(30);
 
   // Form State for Recording Egg Production
-  const [houseNumber, setHouseNumber] = useState(selectedHouse);
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [houseNumber, setHouseNumber] = useState(selectedHouse === 'All' ? ((flocks && flocks[0]?.houseNumber) || 'House 1') : selectedHouse);
+  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [sampleEggWeight, setSampleEggWeight] = useState(58.4);
   const [notes, setNotes] = useState('');
 
@@ -79,35 +79,46 @@ export const EggProductionView: React.FC = () => {
   const [nheOthers, setNheOthers] = useState(10);
   const [nheSpoiled, setNheSpoiled] = useState(60);
 
-  const totalCalculatedHE = useMemo(() => Number(heNest) + Number(heFloor), [heNest, heFloor]);
+  const totalCalculatedHE = useMemo(() => (Number(heNest) || 0) + (Number(heFloor) || 0), [heNest, heFloor]);
   const totalCalculatedNHE = useMemo(() => 
-    Number(nheSmall) + Number(nheBroken) + Number(nheThinShell) + Number(nheDoubleYolk) + Number(nheMisshape) + Number(nheOthers) + Number(nheSpoiled),
+    (Number(nheSmall) || 0) + 
+    (Number(nheBroken) || 0) + 
+    (Number(nheThinShell) || 0) + 
+    (Number(nheDoubleYolk) || 0) + 
+    (Number(nheMisshape) || 0) + 
+    (Number(nheOthers) || 0) + 
+    (Number(nheSpoiled) || 0),
     [nheSmall, nheBroken, nheThinShell, nheDoubleYolk, nheMisshape, nheOthers, nheSpoiled]
   );
   const grandTotalLoggedEggs = useMemo(() => totalCalculatedHE + totalCalculatedNHE, [totalCalculatedHE, totalCalculatedNHE]);
 
   const activeFlock = useMemo(() => {
+    if (!flocks || flocks.length === 0) return null;
     return flocks.find(f => f.houseNumber === selectedHouse) || flocks[0];
   }, [flocks, selectedHouse]);
 
   const activeHouseRecords = useMemo(() => {
-    if (selectedHouse === 'All') return eggProductionRecords;
-    return eggProductionRecords.filter(r => r.houseNumber === selectedHouse);
+    const records = eggProductionRecords || [];
+    if (selectedHouse === 'All') return records;
+    return records.filter(r => r.houseNumber === selectedHouse);
   }, [eggProductionRecords, selectedHouse]);
 
   const filteredHistoryRecords = useMemo(() => {
-    if (!searchFilter.trim()) return activeHouseRecords;
+    const records = activeHouseRecords || [];
+    if (!searchFilter.trim()) return records;
     const q = searchFilter.toLowerCase().trim();
-    return activeHouseRecords.filter(r => 
-      r.date.includes(q) || 
-      r.houseNumber.toLowerCase().includes(q) || 
+    return records.filter(r => 
+      (r.date && r.date.includes(q)) || 
+      (r.houseNumber && r.houseNumber.toLowerCase().includes(q)) || 
       (r.loggedBy && r.loggedBy.toLowerCase().includes(q))
     );
   }, [activeHouseRecords, searchFilter]);
 
   // Latest production metrics
   const latestProd = useMemo(() => {
-    return activeHouseRecords[0] || eggProductionRecords[0];
+    if (activeHouseRecords && activeHouseRecords.length > 0) return activeHouseRecords[0];
+    if (eggProductionRecords && eggProductionRecords.length > 0) return eggProductionRecords[0];
+    return null;
   }, [activeHouseRecords, eggProductionRecords]);
 
   const handleSaveEggRecord = (e: React.FormEvent) => {
@@ -173,14 +184,21 @@ export const EggProductionView: React.FC = () => {
 
   // Generate the exact "Messenger Report" formatted text
   const generateMessengerReport = useCallback((targetDate: string) => {
-    const recordsOnDate = eggProductionRecords.filter(r => r.date === targetDate);
-    const dateFormatted = new Date(targetDate + 'T00:00:00').toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric'
-    }).toUpperCase();
+    const records = eggProductionRecords || [];
+    const houseFlocks = flocks || [];
+    const recordsOnDate = records.filter(r => r.date === targetDate);
+    let dateFormatted = targetDate;
+    try {
+      dateFormatted = new Date(targetDate + 'T00:00:00').toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric'
+      }).toUpperCase();
+    } catch {
+      dateFormatted = targetDate;
+    }
 
-    const companyName = (farmProfile.name || 'L.P. LIM CITY FAMILY FARM INC').toUpperCase();
+    const companyName = ((farmProfile?.name) || 'L.P. LIM CITY FAMILY FARM INC').toUpperCase();
 
     let report = `${companyName}\nDAILY EGG REPORT\n\nDATE:\t${dateFormatted}\n\n`;
 
@@ -195,7 +213,7 @@ export const EggProductionView: React.FC = () => {
     // Houses with records on this date
     const activeRecords = recordsOnDate.length > 0 
       ? recordsOnDate 
-      : flocks.map(f => ({
+      : houseFlocks.map(f => ({
           houseNumber: f.houseNumber,
           tep: 0,
           heNest: 0,
@@ -234,7 +252,7 @@ export const EggProductionView: React.FC = () => {
       totalSpoil += spoiled;
       totalDY += dy;
 
-      report += `${rec.houseNumber.toUpperCase()}\n\n`;
+      report += `${(rec.houseNumber || 'HOUSE').toUpperCase()}\n\n`;
       report += `TEP;\t${tep}\n`;
       report += `HE NEST;\t${heNestVal}\n`;
       report += `HE FLOOR;\t${heFloorVal}\n\n`;
@@ -260,7 +278,7 @@ export const EggProductionView: React.FC = () => {
     report += `GRAND TEP;\t${grandTEP}`;
 
     return report;
-  }, [flocks, eggProductionRecords, reportDate]);
+  }, [flocks, eggProductionRecords, reportDate, farmProfile]);
 
   const currentMessengerReportText = useMemo(() => {
     return generateMessengerReport(reportDate);
@@ -274,13 +292,13 @@ export const EggProductionView: React.FC = () => {
   };
 
   const handleExportEggExcel = () => {
-    const recordsToExport = selectedHouse === 'All' ? eggProductionRecords : activeHouseRecords;
+    const recordsToExport = selectedHouse === 'All' ? (eggProductionRecords || []) : (activeHouseRecords || []);
     const eggData = recordsToExport.map(r => {
       const hePct = r.tep && r.tep > 0 ? ((r.totalHE || 0) / r.tep) * 100 : 0;
       const nhePct = r.tep && r.tep > 0 ? ((r.totalNHE || 0) / r.tep) * 100 : 0;
       return {
-        date: r.date,
-        houseNumber: r.houseNumber,
+        date: r.date || '',
+        houseNumber: r.houseNumber || '',
         femalePop: r.femalePopulationAtDate || '',
         heNest: r.heNest || 0,
         heFloor: r.heFloor || 0,
@@ -302,11 +320,11 @@ export const EggProductionView: React.FC = () => {
     });
 
     const meta: ReportMetadata = {
-      companyName: farmProfile.name || 'L.P. LIM CITY FAMILY FARM INC',
-      logoUrl: farmProfile.logoUrl,
-      address: farmProfile.address,
-      contactNumber: farmProfile.contactNumber,
-      email: farmProfile.email,
+      companyName: farmProfile?.name || 'L.P. LIM CITY FAMILY FARM INC',
+      logoUrl: farmProfile?.logoUrl,
+      address: farmProfile?.address,
+      contactNumber: farmProfile?.contactNumber,
+      email: farmProfile?.email,
       reportTitle: `Egg Production & Hatching Performance Report (${selectedHouse})`,
       dateRange: `All Recorded Cycles`,
       houseFilter: selectedHouse,
@@ -341,7 +359,7 @@ export const EggProductionView: React.FC = () => {
       data: eggData
     };
 
-    exportReportToExcel(meta, [sheet], `${farmProfile.name ? farmProfile.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Farm'}_Egg_Production_${selectedHouse}.xlsx`);
+    exportReportToExcel(meta, [sheet], `${farmProfile?.name ? farmProfile.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Farm'}_Egg_Production_${selectedHouse}.xlsx`);
     toast.success('Excel Generated', `Downloaded official workbook for ${selectedHouse}`);
   };
 
@@ -413,179 +431,216 @@ export const EggProductionView: React.FC = () => {
       />
 
       {/* 4 Performance Metric Cards */}
-      {latestProd && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Total Eggs */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
-            <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">
-              Total Eggs Collected
-            </span>
-            <p className="text-2xl font-black text-slate-900 mt-1">
-              {latestProd.totalEggs.toLocaleString()} <span className="text-xs font-semibold text-slate-500">eggs</span>
-            </p>
-            <p className="text-xs text-slate-500 mt-2">
-              From {latestProd.femalePopulationAtDate.toLocaleString()} active hens
-            </p>
-          </div>
+      {latestProd && (() => {
+        const totalEggsCount = latestProd.totalEggs ?? latestProd.tep ?? 0;
+        const femalePopCount = latestProd.femalePopulationAtDate ?? 0;
+        const totalHECount = latestProd.totalHatchingEggs ?? latestProd.totalHE ?? ((latestProd.heNest || 0) + (latestProd.heFloor || 0));
+        const totalNHECount = latestProd.totalNonHatchingEggs ?? latestProd.totalNHE ?? 0;
+        const hePctVal = typeof latestProd.hatchingEggPct === 'number' && !isNaN(latestProd.hatchingEggPct)
+          ? latestProd.hatchingEggPct
+          : (totalEggsCount > 0 ? (totalHECount / totalEggsCount) * 100 : 0);
+        const nhePctVal = typeof latestProd.nonHatchingEggPct === 'number' && !isNaN(latestProd.nonHatchingEggPct)
+          ? latestProd.nonHatchingEggPct
+          : (totalEggsCount > 0 ? (totalNHECount / totalEggsCount) * 100 : 0);
 
-          {/* Henday % */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
-            <span className="text-[10px] uppercase font-bold text-teal-600 tracking-wider block">
-              Henday Laying Rate
-            </span>
-            <p className="text-2xl font-black text-teal-700 mt-1">
-              {typeof latestProd.hendayPct === 'number' && !isNaN(latestProd.hendayPct) ? latestProd.hendayPct.toFixed(2) : '0.00'}%
-            </p>
-            <p className="text-xs text-teal-800 mt-2 font-medium">
-              Target Standard: ~87.5% (High Peak)
-            </p>
-          </div>
-
-          {/* Hatching Egg (HE) % */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
-            <span className="text-[10px] uppercase font-bold text-teal-700 tracking-wider block">
-              Hatching Eggs (HE)
-            </span>
-            <p className="text-2xl font-black text-slate-900 mt-1">
-              {latestProd.totalHatchingEggs.toLocaleString()}{' '}
-              <span className="text-sm font-bold text-teal-600">
-                ({typeof latestProd.hatchingEggPct === 'number' && !isNaN(latestProd.hatchingEggPct) ? latestProd.hatchingEggPct.toFixed(1) : '0.0'}%)
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Total Eggs */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
+              <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">
+                Total Eggs Collected
               </span>
-            </p>
-            <p className="text-xs text-slate-500 mt-2">
-              Clean, set-grade hatching eggs
-            </p>
-          </div>
+              <p className="text-2xl font-black text-slate-900 mt-1">
+                {totalEggsCount.toLocaleString()} <span className="text-xs font-semibold text-slate-500">eggs</span>
+              </p>
+              <p className="text-xs text-slate-500 mt-2">
+                From {femalePopCount.toLocaleString()} active hens
+              </p>
+            </div>
 
-          {/* Non-Hatching Egg (NHE) % */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
-            <span className="text-[10px] uppercase font-bold text-rose-600 tracking-wider block">
-              Non-Hatching Eggs (NHE)
-            </span>
-            <p className="text-2xl font-black text-rose-800 mt-1">
-              {latestProd.totalNonHatchingEggs.toLocaleString()}{' '}
-              <span className="text-sm font-bold text-rose-600">
-                ({typeof latestProd.nonHatchingEggPct === 'number' && !isNaN(latestProd.nonHatchingEggPct) ? latestProd.nonHatchingEggPct.toFixed(1) : '0.0'}%)
+            {/* Henday % */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
+              <span className="text-[10px] uppercase font-bold text-teal-600 tracking-wider block">
+                Henday Laying Rate
               </span>
-            </p>
-            <p className="text-xs text-slate-500 mt-2">
-              Egg Weight: <strong>{latestProd.sampleEggWeightGrams || 58.4}g</strong>
-            </p>
+              <p className="text-2xl font-black text-teal-700 mt-1">
+                {typeof latestProd.hendayPct === 'number' && !isNaN(latestProd.hendayPct) ? latestProd.hendayPct.toFixed(2) : '0.00'}%
+              </p>
+              <p className="text-xs text-teal-800 mt-2 font-medium">
+                Target Standard: ~87.5% (High Peak)
+              </p>
+            </div>
+
+            {/* Hatching Egg (HE) % */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
+              <span className="text-[10px] uppercase font-bold text-teal-700 tracking-wider block">
+                Hatching Eggs (HE)
+              </span>
+              <p className="text-2xl font-black text-slate-900 mt-1">
+                {totalHECount.toLocaleString()}{' '}
+                <span className="text-sm font-bold text-teal-600">
+                  ({hePctVal.toFixed(1)}%)
+                </span>
+              </p>
+              <p className="text-xs text-slate-500 mt-2">
+                Clean, set-grade hatching eggs
+              </p>
+            </div>
+
+            {/* Non-Hatching Egg (NHE) % */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
+              <span className="text-[10px] uppercase font-bold text-rose-600 tracking-wider block">
+                Non-Hatching Eggs (NHE)
+              </span>
+              <p className="text-2xl font-black text-rose-800 mt-1">
+                {totalNHECount.toLocaleString()}{' '}
+                <span className="text-sm font-bold text-rose-600">
+                  ({nhePctVal.toFixed(1)}%)
+                </span>
+              </p>
+              <p className="text-xs text-slate-500 mt-2">
+                Egg Weight: <strong>{latestProd.sampleEggWeightGrams || 58.4}g</strong>
+              </p>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Two Detailed Breakdown Tables: Collection Passes vs Sorting Quality */}
-      {latestProd && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Collection Times (Left & Right Sides) */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-3">
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-teal-600" />
-              <span>Collection Passes & Side Counts ({latestProd.houseNumber})</span>
-            </h3>
+      {latestProd && (() => {
+        const collectionsList = latestProd.collections || [];
+        const totalHECount = latestProd.totalHatchingEggs ?? latestProd.totalHE ?? ((latestProd.heNest || 0) + (latestProd.heFloor || 0));
+        const totalNHECount = latestProd.totalNonHatchingEggs ?? latestProd.totalNHE ?? 0;
+        const heNestCount = latestProd.heNest ?? latestProd.sorting?.hatchingEggs?.heNest ?? totalHECount;
+        const heFloorCount = latestProd.heFloor ?? latestProd.sorting?.hatchingEggs?.heFloor ?? 0;
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                    <th className="py-2 px-2.5">Pass #</th>
-                    <th className="py-2 px-2.5">Time</th>
-                    <th className="py-2 px-2.5">Left Side</th>
-                    <th className="py-2 px-2.5">Right Side</th>
-                    <th className="py-2 px-2.5 text-right font-bold">Total Pass</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {latestProd.collections.map(c => (
-                    <tr key={c.id} className="hover:bg-slate-50">
-                      <td className="py-2 px-2.5 font-bold text-slate-800">{c.collectionNumber}st / {c.collectionNumber}nd Pass</td>
-                      <td className="py-2 px-2.5 text-slate-600">{c.collectionTime}</td>
-                      <td className="py-2 px-2.5 font-semibold text-slate-700">{c.leftSideCount.toLocaleString()}</td>
-                      <td className="py-2 px-2.5 font-semibold text-slate-700">{c.rightSideCount.toLocaleString()}</td>
-                      <td className="py-2 px-2.5 text-right font-bold text-teal-700">{c.totalCount.toLocaleString()}</td>
+        const smallCount = latestProd.small ?? latestProd.sorting?.nonHatchingEggs?.small ?? 0;
+        const brokenCount = latestProd.broken ?? latestProd.sorting?.nonHatchingEggs?.broken ?? 0;
+        const thinShellCount = latestProd.thinShell ?? latestProd.sorting?.nonHatchingEggs?.cracked ?? 0;
+        const doubleYolkCount = latestProd.doubleYolk ?? latestProd.sorting?.nonHatchingEggs?.doubleYolk ?? 0;
+        const misshapeCount = latestProd.misshape ?? latestProd.sorting?.nonHatchingEggs?.abnormal ?? 0;
+        const othersCount = latestProd.others ?? latestProd.sorting?.nonHatchingEggs?.softShelled ?? 0;
+        const spoiledCount = latestProd.spoiled ?? latestProd.sorting?.nonHatchingEggs?.dirty ?? 0;
+
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Collection Times (Left & Right Sides) */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-3">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-teal-600" />
+                <span>Collection Passes & Side Counts ({latestProd.houseNumber})</span>
+              </h3>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                      <th className="py-2 px-2.5">Pass #</th>
+                      <th className="py-2 px-2.5">Time</th>
+                      <th className="py-2 px-2.5">Left Side</th>
+                      <th className="py-2 px-2.5">Right Side</th>
+                      <th className="py-2 px-2.5 text-right font-bold">Total Pass</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {collectionsList.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-4 text-center text-slate-400">
+                          Standard single collection logged ({totalHECount + totalNHECount} eggs)
+                        </td>
+                      </tr>
+                    ) : (
+                      collectionsList.map(c => (
+                        <tr key={c.id || `${c.collectionNumber}`} className="hover:bg-slate-50">
+                          <td className="py-2 px-2.5 font-bold text-slate-800">{c.collectionNumber}st / {c.collectionNumber}nd Pass</td>
+                          <td className="py-2 px-2.5 text-slate-600">{c.collectionTime || '-'}</td>
+                          <td className="py-2 px-2.5 font-semibold text-slate-700">{(c.leftSideCount || 0).toLocaleString()}</td>
+                          <td className="py-2 px-2.5 font-semibold text-slate-700">{(c.rightSideCount || 0).toLocaleString()}</td>
+                          <td className="py-2 px-2.5 text-right font-bold text-teal-700">{(c.totalCount || 0).toLocaleString()}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
 
-          {/* Detailed Sorting Breakdown (HE vs NHE) */}
-          <div className="bg-white rounded-2xl border border-graphite-200 p-5 shadow-xs space-y-3">
-            <h3 className="text-sm font-bold text-graphite-900 flex items-center gap-2">
-              <Layers className="w-4 h-4 text-forest-800" />
-              <span>Egg Grading Quality Breakdown</span>
-            </h3>
+            {/* Detailed Sorting Breakdown (HE vs NHE) */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-3">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Layers className="w-4 h-4 text-teal-700" />
+                <span>Egg Grading Quality Breakdown</span>
+              </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              {/* Hatching Eggs Breakdown: HE Nest Egg vs HE Floor Egg */}
-              <div className="p-3.5 bg-forest-50/70 border border-forest-200/80 rounded-xl space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <p className="font-bold text-forest-950 text-xs">Hatching Eggs (HE)</p>
-                  <span className="font-black text-forest-900 text-xs">{latestProd.totalHatchingEggs.toLocaleString()}</span>
-                </div>
-                
-                <div className="space-y-2 text-graphite-700 text-[11px] pt-0.5">
-                  <div className="p-2.5 bg-white rounded-xl border border-forest-100 flex items-center justify-between shadow-2xs">
-                    <div>
-                      <p className="font-bold text-forest-950 text-xs">HE Nest Egg</p>
-                      <p className="text-[10px] text-graphite-500">Clean nest-box laid eggs</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                {/* Hatching Eggs Breakdown: HE Nest Egg vs HE Floor Egg */}
+                <div className="p-3.5 bg-teal-50/70 border border-teal-200/80 rounded-xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-teal-950 text-xs">Hatching Eggs (HE)</p>
+                    <span className="font-black text-teal-900 text-xs">{totalHECount.toLocaleString()}</span>
+                  </div>
+                  
+                  <div className="space-y-2 text-slate-700 text-[11px] pt-0.5">
+                    <div className="p-2.5 bg-white rounded-xl border border-teal-100 flex items-center justify-between shadow-2xs">
+                      <div>
+                        <p className="font-bold text-teal-950 text-xs">HE Nest Egg</p>
+                        <p className="text-[10px] text-slate-500">Clean nest-box laid eggs</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-black text-slate-900 text-xs">
+                          {heNestCount.toLocaleString()}
+                        </p>
+                        <p className="text-[10px] text-teal-700 font-bold">
+                          {totalHECount > 0 
+                            ? ((heNestCount / totalHECount) * 100).toFixed(1) + '%'
+                            : '100%'}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-black text-graphite-900 text-xs">
-                        {(latestProd.heNest ?? latestProd.sorting?.hatchingEggs?.heNest ?? latestProd.totalHatchingEggs).toLocaleString()}
-                      </p>
-                      <p className="text-[10px] text-forest-700 font-bold">
-                        {latestProd.totalHatchingEggs > 0 
-                          ? (((latestProd.heNest ?? latestProd.sorting?.hatchingEggs?.heNest ?? latestProd.totalHatchingEggs) / latestProd.totalHatchingEggs) * 100).toFixed(1) + '%'
-                          : '100%'}
-                      </p>
+
+                    <div className="p-2.5 bg-white rounded-xl border border-teal-100 flex items-center justify-between shadow-2xs">
+                      <div>
+                        <p className="font-bold text-teal-950 text-xs">HE Floor Egg</p>
+                        <p className="text-[10px] text-slate-500">Sanitized slat / floor laid eggs</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-black text-slate-900 text-xs">
+                          {heFloorCount.toLocaleString()}
+                        </p>
+                        <p className="text-[10px] text-teal-700 font-bold">
+                          {totalHECount > 0 
+                            ? ((heFloorCount / totalHECount) * 100).toFixed(1) + '%'
+                            : '0.0%'}
+                        </p>
+                      </div>
                     </div>
                   </div>
+                </div>
 
-                  <div className="p-2.5 bg-white rounded-xl border border-forest-100 flex items-center justify-between shadow-2xs">
-                    <div>
-                      <p className="font-bold text-forest-950 text-xs">HE Floor Egg</p>
-                      <p className="text-[10px] text-graphite-500">Sanitized slat / floor laid eggs</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-black text-graphite-900 text-xs">
-                        {(latestProd.heFloor ?? latestProd.sorting?.hatchingEggs?.heFloor ?? 0).toLocaleString()}
-                      </p>
-                      <p className="text-[10px] text-forest-700 font-bold">
-                        {latestProd.totalHatchingEggs > 0 
-                          ? (((latestProd.heFloor ?? latestProd.sorting?.hatchingEggs?.heFloor ?? 0) / latestProd.totalHatchingEggs) * 100).toFixed(1) + '%'
-                          : '0.0%'}
-                      </p>
+                {/* NHE rejects */}
+                <div className="p-3.5 bg-rose-50/70 border border-rose-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-rose-950 text-xs">Commercial / Reject (NHE)</p>
+                    <span className="font-black text-rose-800 text-xs">{totalNHECount.toLocaleString()}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-slate-700 text-[11px] pt-0.5">
+                    <div className="flex justify-between"><span>SMALL:</span> <strong>{smallCount.toLocaleString()}</strong></div>
+                    <div className="flex justify-between"><span>BROKEN:</span> <strong>{brokenCount.toLocaleString()}</strong></div>
+                    <div className="flex justify-between"><span>TS (Thin):</span> <strong>{thinShellCount.toLocaleString()}</strong></div>
+                    <div className="flex justify-between"><span>DY (Double):</span> <strong>{doubleYolkCount.toLocaleString()}</strong></div>
+                    <div className="flex justify-between"><span>MS (Misshape):</span> <strong>{misshapeCount.toLocaleString()}</strong></div>
+                    <div className="flex justify-between"><span>OTH (Others):</span> <strong>{othersCount.toLocaleString()}</strong></div>
+                    <div className="flex justify-between col-span-2 pt-1 border-t border-rose-200/60 font-semibold text-rose-950">
+                      <span>SPOILED / DIRTY:</span> 
+                      <strong>{spoiledCount.toLocaleString()}</strong>
                     </div>
                   </div>
                 </div>
               </div>
-
-              {/* NHE rejects */}
-              <div className="p-3.5 bg-rose-50/70 border border-rose-200 rounded-xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="font-bold text-rose-950 text-xs">Commercial / Reject (NHE)</p>
-                  <span className="font-black text-rose-800 text-xs">{latestProd.totalNonHatchingEggs.toLocaleString()}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-graphite-700 text-[11px] pt-0.5">
-                  <div className="flex justify-between"><span>SMALL:</span> <strong>{(latestProd.small ?? latestProd.sorting?.nonHatchingEggs?.small ?? 0).toLocaleString()}</strong></div>
-                  <div className="flex justify-between"><span>BROKEN:</span> <strong>{(latestProd.broken ?? latestProd.sorting?.nonHatchingEggs?.broken ?? 0).toLocaleString()}</strong></div>
-                  <div className="flex justify-between"><span>TS (Thin):</span> <strong>{(latestProd.thinShell ?? latestProd.sorting?.nonHatchingEggs?.cracked ?? 0).toLocaleString()}</strong></div>
-                  <div className="flex justify-between"><span>DY (Double):</span> <strong>{(latestProd.doubleYolk ?? latestProd.sorting?.nonHatchingEggs?.doubleYolk ?? 0).toLocaleString()}</strong></div>
-                  <div className="flex justify-between"><span>MS (Misshape):</span> <strong>{(latestProd.misshape ?? latestProd.sorting?.nonHatchingEggs?.abnormal ?? 0).toLocaleString()}</strong></div>
-                  <div className="flex justify-between"><span>OTH (Others):</span> <strong>{(latestProd.others ?? latestProd.sorting?.nonHatchingEggs?.softShelled ?? 0).toLocaleString()}</strong></div>
-                  <div className="flex justify-between col-span-2 pt-1 border-t border-rose-200/60 font-semibold text-rose-950">
-                    <span>SPOILED / DIRTY:</span> 
-                    <strong>{(latestProd.spoiled ?? latestProd.sorting?.nonHatchingEggs?.dirty ?? 0).toLocaleString()}</strong>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Production Log History Table */}
       <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-4">
@@ -621,45 +676,57 @@ export const EggProductionView: React.FC = () => {
                 <th className="py-2.5 px-3">Henday %</th>
                 <th className="py-2.5 px-3">Sample Wt</th>
                 <th className="py-2.5 px-3">Logged By</th>
-                {permissions.canDeleteRecord && <th className="py-2.5 px-3 text-right">Del</th>}
+                {permissions?.canDeleteRecord && <th className="py-2.5 px-3 text-right">Del</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredHistoryRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={permissions.canDeleteRecord ? 9 : 8} className="py-8 text-center text-slate-400">
+                  <td colSpan={permissions?.canDeleteRecord ? 9 : 8} className="py-8 text-center text-slate-400">
                     No egg production records found.
                   </td>
                 </tr>
               ) : (
-                filteredHistoryRecords.slice(0, displayLimit).map(rec => (
-                  <tr key={rec.id} className="hover:bg-slate-50 transition">
-                    <td className="py-2.5 px-3 font-medium text-slate-700">{rec.date}</td>
-                    <td className="py-2.5 px-3 font-bold text-slate-900">{rec.houseNumber}</td>
-                    <td className="py-2.5 px-3 font-black text-slate-900">{rec.totalEggs.toLocaleString()}</td>
-                    <td className="py-2.5 px-3 font-bold text-teal-800">
-                      {rec.totalHatchingEggs.toLocaleString()} ({typeof rec.hatchingEggPct === 'number' && !isNaN(rec.hatchingEggPct) ? rec.hatchingEggPct.toFixed(1) : '0.0'}%)
-                    </td>
-                    <td className="py-2.5 px-3 font-semibold text-rose-700">
-                      {rec.totalNonHatchingEggs.toLocaleString()} ({typeof rec.nonHatchingEggPct === 'number' && !isNaN(rec.nonHatchingEggPct) ? rec.nonHatchingEggPct.toFixed(1) : '0.0'}%)
-                    </td>
-                    <td className="py-2.5 px-3 font-black text-teal-700">
-                      {typeof rec.hendayPct === 'number' && !isNaN(rec.hendayPct) ? rec.hendayPct.toFixed(2) : '0.00'}%
-                    </td>
-                    <td className="py-2.5 px-3 font-medium text-slate-700">{rec.sampleEggWeightGrams || 58.4}g</td>
-                    <td className="py-2.5 px-3 text-slate-500">{rec.loggedBy}</td>
-                    {permissions.canDeleteRecord && (
-                      <td className="py-2.5 px-3 text-right">
-                        <button
-                          onClick={() => deleteEggProductionRecord(rec.id)}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded transition"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                filteredHistoryRecords.slice(0, displayLimit).map(rec => {
+                  const recTotal = rec.totalEggs ?? rec.tep ?? 0;
+                  const recHE = rec.totalHatchingEggs ?? rec.totalHE ?? ((rec.heNest || 0) + (rec.heFloor || 0));
+                  const recNHE = rec.totalNonHatchingEggs ?? rec.totalNHE ?? 0;
+                  const recHEPct = typeof rec.hatchingEggPct === 'number' && !isNaN(rec.hatchingEggPct)
+                    ? rec.hatchingEggPct
+                    : (recTotal > 0 ? (recHE / recTotal) * 100 : 0);
+                  const recNHEPct = typeof rec.nonHatchingEggPct === 'number' && !isNaN(rec.nonHatchingEggPct)
+                    ? rec.nonHatchingEggPct
+                    : (recTotal > 0 ? (recNHE / recTotal) * 100 : 0);
+
+                  return (
+                    <tr key={rec.id} className="hover:bg-slate-50 transition">
+                      <td className="py-2.5 px-3 font-medium text-slate-700">{rec.date}</td>
+                      <td className="py-2.5 px-3 font-bold text-slate-900">{rec.houseNumber}</td>
+                      <td className="py-2.5 px-3 font-black text-slate-900">{recTotal.toLocaleString()}</td>
+                      <td className="py-2.5 px-3 font-bold text-teal-800">
+                        {recHE.toLocaleString()} ({recHEPct.toFixed(1)}%)
                       </td>
-                    )}
-                  </tr>
-                ))
+                      <td className="py-2.5 px-3 font-semibold text-rose-700">
+                        {recNHE.toLocaleString()} ({recNHEPct.toFixed(1)}%)
+                      </td>
+                      <td className="py-2.5 px-3 font-black text-teal-700">
+                        {typeof rec.hendayPct === 'number' && !isNaN(rec.hendayPct) ? rec.hendayPct.toFixed(2) : '0.00'}%
+                      </td>
+                      <td className="py-2.5 px-3 font-medium text-slate-700">{rec.sampleEggWeightGrams || 58.4}g</td>
+                      <td className="py-2.5 px-3 text-slate-500">{rec.loggedBy || 'Staff'}</td>
+                      {permissions?.canDeleteRecord && (
+                        <td className="py-2.5 px-3 text-right">
+                          <button
+                            onClick={() => deleteEggProductionRecord(rec.id)}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded transition"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -700,8 +767,8 @@ export const EggProductionView: React.FC = () => {
                     onChange={e => setHouseNumber(e.target.value)}
                     className="w-full px-3 py-2 text-xs font-bold border border-slate-200 rounded-xl bg-white outline-hidden focus:outline-teal-500"
                   >
-                    {flocks.map(f => (
-                      <option key={f.id} value={f.houseNumber}>{f.houseNumber}</option>
+                    {(flocks || []).map(f => (
+                      <option key={f.id || f.houseNumber} value={f.houseNumber}>{f.houseNumber}</option>
                     ))}
                   </select>
                 </div>

@@ -10,8 +10,8 @@ interface MessengerReportQuickModalProps {
 export type MessengerFormatStyle = 'standard' | 'executive' | 'compact';
 
 export const MessengerReportQuickModal: React.FC<MessengerReportQuickModalProps> = ({ isOpen, onClose }) => {
-  const { eggProductionRecords, flocks, farmProfile } = useFarm();
-  const [reportDate, setReportDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const { eggProductionRecords = [], flocks = [], farmProfile } = useFarm();
+  const [reportDate, setReportDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [formatStyle, setFormatStyle] = useState<MessengerFormatStyle>('standard');
   const [copied, setCopied] = useState(false);
 
@@ -27,15 +27,22 @@ export const MessengerReportQuickModal: React.FC<MessengerReportQuickModalProps>
     setReportDate(y.toISOString().split('T')[0]);
   };
 
-  const recordsOnDate = eggProductionRecords.filter(r => r.date === reportDate);
-  const dateFormatted = new Date(reportDate + 'T00:00:00').toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric'
-  }).toUpperCase();
+  const records = eggProductionRecords || [];
+  const houseFlocks = flocks || [];
+  const recordsOnDate = records.filter(r => r.date === reportDate);
+  let dateFormatted = reportDate;
+  try {
+    dateFormatted = new Date(reportDate + 'T00:00:00').toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
+    }).toUpperCase();
+  } catch {
+    dateFormatted = reportDate;
+  }
 
-  const companyName = (farmProfile.name || 'L.P. LIM CITY FAMILY FARM INC').toUpperCase();
+  const companyName = ((farmProfile?.name) || 'L.P. LIM CITY FAMILY FARM INC').toUpperCase();
 
   // Aggregate metrics
   let totalTEP = 0;
@@ -53,7 +60,7 @@ export const MessengerReportQuickModal: React.FC<MessengerReportQuickModalProps>
 
   const activeRecords = recordsOnDate.length > 0 
     ? recordsOnDate 
-    : flocks.map(f => ({
+    : houseFlocks.map(f => ({
         houseNumber: f.houseNumber,
         tep: 0,
         heNest: 0,

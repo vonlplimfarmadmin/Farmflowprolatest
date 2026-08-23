@@ -13,12 +13,13 @@ export const HouseQuickBar: React.FC<HouseQuickBarProps> = ({
   onSelectHouse,
   showAllOption = true
 }) => {
-  const { flocks, getFlockStats } = useFarm();
+  const { flocks = [], getFlockStats } = useFarm();
 
-  const houseOptions = flocks.map(f => f.houseNumber);
+  const houseOptions = (flocks || []).map(f => f.houseNumber);
   const currentIndex = houseOptions.indexOf(selectedHouse);
 
   const handlePrev = () => {
+    if (houseOptions.length === 0) return;
     if (currentIndex <= 0) {
       onSelectHouse(houseOptions[houseOptions.length - 1]);
     } else {
@@ -27,6 +28,7 @@ export const HouseQuickBar: React.FC<HouseQuickBarProps> = ({
   };
 
   const handleNext = () => {
+    if (houseOptions.length === 0) return;
     if (currentIndex >= houseOptions.length - 1 || currentIndex === -1) {
       onSelectHouse(houseOptions[0]);
     } else {
@@ -56,10 +58,10 @@ export const HouseQuickBar: React.FC<HouseQuickBarProps> = ({
           </button>
         )}
 
-        {flocks.map((flock) => {
+        {(flocks || []).map((flock) => {
           const isSelected = selectedHouse === flock.houseNumber;
-          const stats = getFlockStats(flock.houseNumber);
-          const totalBirds = stats ? stats.totalCurrent : (flock.currentFemales + flock.currentMales);
+          const stats = getFlockStats ? getFlockStats(flock.houseNumber) : null;
+          const totalBirds = stats ? stats.totalCurrent : ((Number(flock.currentFemales) || 0) + (Number(flock.currentMales) || 0));
           const ageWeeks = stats ? stats.ageWeeks : 38;
 
           return (
@@ -88,7 +90,7 @@ export const HouseQuickBar: React.FC<HouseQuickBarProps> = ({
       {/* Quick Prev / Next House Buttons & Live Micro-Stats */}
       <div className="flex items-center justify-between md:justify-end gap-2 shrink-0 border-t md:border-t-0 pt-2 md:pt-0 border-slate-100">
         {selectedHouse !== 'All' && (() => {
-          const fStats = getFlockStats(selectedHouse);
+          const fStats = getFlockStats ? getFlockStats(selectedHouse) : null;
           return (
             <div className="flex items-center gap-3 text-[11px] font-semibold text-slate-600 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200/60">
               <span className="flex items-center gap-1 text-teal-700">
