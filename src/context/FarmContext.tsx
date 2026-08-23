@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
 import { 
   UserAccount, 
   UserRole, 
@@ -1145,7 +1145,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Flock Methods & Depletion Calculations
-  const getFlockStats = (houseNumber: string, referenceDate?: string): FlockStats | null => {
+  const getFlockStats = useCallback((houseNumber: string, referenceDate?: string): FlockStats | null => {
     const flock = flocks.find(f => f.houseNumber === houseNumber);
     if (!flock) return null;
 
@@ -1199,7 +1199,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       totalFemaleDepleted,
       totalDepleted
     };
-  };
+  }, [flocks, depletions]);
 
   const addFlock = (flockData: Omit<Flock, 'id' | 'currentMales' | 'currentFemales'>) => {
     const newFlock: Flock = {
@@ -1685,74 +1685,82 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Egg Production normalized records
-  const eggProductionRecords: NormalizedEggProductionRecord[] = rawEggRecords.map(rec => {
-    const fStat = getFlockStats(rec.houseNumber);
-    const femalePop = rec.femalePopulationAtDate || fStat?.currentFemales || 9500;
+  const eggProductionRecords: NormalizedEggProductionRecord[] = useMemo(() => {
+    // Pre-index female populations by houseNumber to avoid repeated function lookups
+    const femalePopMap = new Map<string, number>();
+    flocks.forEach(f => {
+      const fStat = getFlockStats(f.houseNumber);
+      femalePopMap.set(f.houseNumber, fStat?.currentFemales || f.currentFemales || 9500);
+    });
 
-    let totalHE = rec.totalHE;
-    if (totalHE === undefined) {
-      if (rec.sorting?.hatchingEggs?.total !== undefined) {
-        totalHE = rec.sorting.hatchingEggs.total;
-      } else {
-        totalHE = (rec.heNest || 0) + (rec.heFloor || 0);
-      }
-    }
+    return rawEggRecords.map(rec => {
+      const femalePop = rec.femalePopulationAtDate || femalePopMap.get(rec.houseNumber) || 9500;
 
-    let totalNHE = rec.totalNHE;
-    if (totalNHE === undefined) {
-      if (rec.sorting?.nonHatchingEggs?.total !== undefined) {
-        totalNHE = rec.sorting.nonHatchingEggs.total;
-      } else {
-        totalNHE = (rec.small || 0) + 
-          (rec.thinShell || 0) + 
-          (rec.misshape || 0) + 
-          (rec.doubleYolk || 0) + 
-          (rec.broken || 0) + 
-          (rec.spoiled || 0) + 
-          (rec.others || 0);
-      }
-    }
-
-    const totalEggs = rec.tep || rec.totalEggs || (totalHE + totalNHE);
-    const hatchingEggPct = totalEggs > 0 ? (totalHE / totalEggs) * 100 : 0;
-    const nonHatchingEggPct = totalEggs > 0 ? (totalNHE / totalEggs) * 100 : 0;
-    const hendayPct = femalePop > 0 ? (totalEggs / femalePop) * 100 : 0;
-
-    return {
-      ...rec,
-      totalEggs,
-      totalHatchingEggs: totalHE,
-      totalNonHatchingEggs: totalNHE,
-      hatchingEggPct,
-      nonHatchingEggPct,
-      hendayPct,
-      femalePopulationAtDate: femalePop,
-      sampleEggWeightGrams: rec.sampleEggWeightGrams || 58.4,
-      sorting: rec.sorting || {
-        hatchingEggs: {
-          total: totalHE,
-          heNest: rec.heNest ?? totalHE,
-          heFloor: rec.heFloor ?? 0
-        },
-        nonHatchingEggs: {
-          total: totalNHE,
-          dirty: rec.spoiled || Math.round(totalNHE * 0.35),
-          cracked: rec.thinShell || Math.round(totalNHE * 0.25),
-          broken: rec.broken || Math.round(totalNHE * 0.15),
-          abnormal: rec.misshape || Math.round(totalNHE * 0.10),
-          doubleYolk: rec.doubleYolk || Math.round(totalNHE * 0.10),
-          softShelled: Math.round(totalNHE * 0.05),
-          misshapen: rec.misshape || 0,
-          leakers: 0
+      let totalHE = rec.totalHE;
+      if (totalHE === undefined) {
+        if (rec.sorting?.hatchingEggs?.total !== undefined) {
+          totalHE = rec.sorting.hatchingEggs.total;
+        } else {
+          totalHE = (rec.heNest || 0) + (rec.heFloor || 0);
         }
-      },
-      collections: rec.collections || [
-        { id: 'c1', collectionNumber: 1, collectionTime: '08:00 AM', leftSideCount: Math.round(totalEggs * 0.2), rightSideCount: Math.round(totalEggs * 0.2), totalCount: Math.round(totalEggs * 0.4) },
-        { id: 'c2', collectionNumber: 2, collectionTime: '11:30 AM', leftSideCount: Math.round(totalEggs * 0.2), rightSideCount: Math.round(totalEggs * 0.2), totalCount: Math.round(totalEggs * 0.4) },
-        { id: 'c3', collectionNumber: 3, collectionTime: '03:30 PM', leftSideCount: Math.round(totalEggs * 0.1), rightSideCount: Math.round(totalEggs * 0.1), totalCount: Math.round(totalEggs * 0.2) }
-      ]
-    };
-  });
+      }
+
+      let totalNHE = rec.totalNHE;
+      if (totalNHE === undefined) {
+        if (rec.sorting?.nonHatchingEggs?.total !== undefined) {
+          totalNHE = rec.sorting.nonHatchingEggs.total;
+        } else {
+          totalNHE = (rec.small || 0) + 
+            (rec.thinShell || 0) + 
+            (rec.misshape || 0) + 
+            (rec.doubleYolk || 0) + 
+            (rec.broken || 0) + 
+            (rec.spoiled || 0) + 
+            (rec.others || 0);
+        }
+      }
+
+      const totalEggs = rec.tep || rec.totalEggs || (totalHE + totalNHE);
+      const hatchingEggPct = totalEggs > 0 ? (totalHE / totalEggs) * 100 : 0;
+      const nonHatchingEggPct = totalEggs > 0 ? (totalNHE / totalEggs) * 100 : 0;
+      const hendayPct = femalePop > 0 ? (totalEggs / femalePop) * 100 : 0;
+
+      return {
+        ...rec,
+        totalEggs,
+        totalHatchingEggs: totalHE,
+        totalNonHatchingEggs: totalNHE,
+        hatchingEggPct,
+        nonHatchingEggPct,
+        hendayPct,
+        femalePopulationAtDate: femalePop,
+        sampleEggWeightGrams: rec.sampleEggWeightGrams || 58.4,
+        sorting: rec.sorting || {
+          hatchingEggs: {
+            total: totalHE,
+            heNest: rec.heNest ?? totalHE,
+            heFloor: rec.heFloor ?? 0
+          },
+          nonHatchingEggs: {
+            total: totalNHE,
+            dirty: rec.spoiled || Math.round(totalNHE * 0.35),
+            cracked: rec.thinShell || Math.round(totalNHE * 0.25),
+            broken: rec.broken || Math.round(totalNHE * 0.15),
+            abnormal: rec.misshape || Math.round(totalNHE * 0.10),
+            doubleYolk: rec.doubleYolk || Math.round(totalNHE * 0.10),
+            softShelled: Math.round(totalNHE * 0.05),
+            misshapen: rec.misshape || 0,
+            leakers: 0
+          }
+        },
+        collections: rec.collections || [
+          { id: 'c1', collectionNumber: 1, collectionTime: '08:00 AM', leftSideCount: Math.round(totalEggs * 0.2), rightSideCount: Math.round(totalEggs * 0.2), totalCount: Math.round(totalEggs * 0.4) },
+          { id: 'c2', collectionNumber: 2, collectionTime: '11:30 AM', leftSideCount: Math.round(totalEggs * 0.2), rightSideCount: Math.round(totalEggs * 0.2), totalCount: Math.round(totalEggs * 0.4) },
+          { id: 'c3', collectionNumber: 3, collectionTime: '03:30 PM', leftSideCount: Math.round(totalEggs * 0.1), rightSideCount: Math.round(totalEggs * 0.1), totalCount: Math.round(totalEggs * 0.2) }
+        ]
+      };
+    });
+  }, [rawEggRecords, flocks, getFlockStats]);
 
   const addEggProductionRecord = (record: Partial<EggProductionRecord> & { houseNumber: string; date: string }) => {
     const fStat = getFlockStats(record.houseNumber);

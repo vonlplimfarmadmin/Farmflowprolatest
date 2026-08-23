@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useFarm } from '../../context/FarmContext';
 import { EggCollectionEntry, EggSortingBreakdown } from '../../types';
 import { 
@@ -17,7 +17,8 @@ import {
   Clock,
   Sparkles,
   Scale,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Search
 } from 'lucide-react';
 import { exportReportToExcel, ReportMetadata, SheetData } from '../../utils/reportExportUtils';
 import { useToast } from '../common/ToastContainer';
@@ -48,6 +49,8 @@ export const EggProductionView: React.FC = () => {
   const [showMessengerReportModal, setShowMessengerReportModal] = useState(false);
   const [reportDate, setReportDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [copied, setCopied] = useState(false);
+  const [searchFilter, setSearchFilter] = useState('');
+  const [displayLimit, setDisplayLimit] = useState(30);
 
   // Form State for Recording Egg Production
   const [houseNumber, setHouseNumber] = useState(selectedHouse);
@@ -76,16 +79,36 @@ export const EggProductionView: React.FC = () => {
   const [nheOthers, setNheOthers] = useState(10);
   const [nheSpoiled, setNheSpoiled] = useState(60);
 
-  const totalCalculatedHE = Number(heNest) + Number(heFloor);
-  const totalCalculatedNHE = Number(nheSmall) + Number(nheBroken) + Number(nheThinShell) + Number(nheDoubleYolk) + Number(nheMisshape) + Number(nheOthers) + Number(nheSpoiled);
-  const grandTotalLoggedEggs = totalCalculatedHE + totalCalculatedNHE;
+  const totalCalculatedHE = useMemo(() => Number(heNest) + Number(heFloor), [heNest, heFloor]);
+  const totalCalculatedNHE = useMemo(() => 
+    Number(nheSmall) + Number(nheBroken) + Number(nheThinShell) + Number(nheDoubleYolk) + Number(nheMisshape) + Number(nheOthers) + Number(nheSpoiled),
+    [nheSmall, nheBroken, nheThinShell, nheDoubleYolk, nheMisshape, nheOthers, nheSpoiled]
+  );
+  const grandTotalLoggedEggs = useMemo(() => totalCalculatedHE + totalCalculatedNHE, [totalCalculatedHE, totalCalculatedNHE]);
 
-  const activeFlock = flocks.find(f => f.houseNumber === selectedHouse) || flocks[0];
-  const stats = activeFlock ? getFlockStats(activeFlock.houseNumber) : null;
-  const activeHouseRecords = eggProductionRecords.filter(r => r.houseNumber === selectedHouse);
+  const activeFlock = useMemo(() => {
+    return flocks.find(f => f.houseNumber === selectedHouse) || flocks[0];
+  }, [flocks, selectedHouse]);
+
+  const activeHouseRecords = useMemo(() => {
+    if (selectedHouse === 'All') return eggProductionRecords;
+    return eggProductionRecords.filter(r => r.houseNumber === selectedHouse);
+  }, [eggProductionRecords, selectedHouse]);
+
+  const filteredHistoryRecords = useMemo(() => {
+    if (!searchFilter.trim()) return activeHouseRecords;
+    const q = searchFilter.toLowerCase().trim();
+    return activeHouseRecords.filter(r => 
+      r.date.includes(q) || 
+      r.houseNumber.toLowerCase().includes(q) || 
+      (r.loggedBy && r.loggedBy.toLowerCase().includes(q))
+    );
+  }, [activeHouseRecords, searchFilter]);
 
   // Latest production metrics
-  const latestProd = activeHouseRecords[0] || eggProductionRecords[0];
+  const latestProd = useMemo(() => {
+    return activeHouseRecords[0] || eggProductionRecords[0];
+  }, [activeHouseRecords, eggProductionRecords]);
 
   const handleSaveEggRecord = (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,7 +172,7 @@ export const EggProductionView: React.FC = () => {
   };
 
   // Generate the exact "Messenger Report" formatted text
-  const generateMessengerReport = (targetDate: string) => {
+  const generateMessengerReport = useCallback((targetDate: string) => {
     const recordsOnDate = eggProductionRecords.filter(r => r.date === targetDate);
     const dateFormatted = new Date(targetDate + 'T00:00:00').toLocaleDateString('en-US', {
       month: 'long',
@@ -237,9 +260,11 @@ export const EggProductionView: React.FC = () => {
     report += `GRAND TEP;\t${grandTEP}`;
 
     return report;
-  };
+  }, [flocks, eggProductionRecords, reportDate]);
 
-  const currentMessengerReportText = generateMessengerReport(reportDate);
+  const currentMessengerReportText = useMemo(() => {
+    return generateMessengerReport(reportDate);
+  }, [generateMessengerReport, reportDate]);
 
   const handleCopyReport = () => {
     navigator.clipboard.writeText(currentMessengerReportText);
@@ -564,9 +589,24 @@ export const EggProductionView: React.FC = () => {
 
       {/* Production Log History Table */}
       <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-900">Historical Egg Production Log</h3>
-          <span className="text-xs text-slate-500 font-medium">{eggProductionRecords.length} records</span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">Historical Egg Production Log</h3>
+            <p className="text-xs text-slate-500 font-medium">
+              Showing {Math.min(displayLimit, filteredHistoryRecords.length)} of {filteredHistoryRecords.length} records
+              {selectedHouse !== 'All' ? ` for ${selectedHouse}` : ''}
+            </p>
+          </div>
+          <div className="relative w-full sm:w-64">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search date, house, staff..."
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-teal-700/20 focus:border-teal-700 transition"
+            />
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -585,37 +625,56 @@ export const EggProductionView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {eggProductionRecords.map(rec => (
-                <tr key={rec.id} className="hover:bg-slate-50 transition">
-                  <td className="py-2.5 px-3 font-medium text-slate-700">{rec.date}</td>
-                  <td className="py-2.5 px-3 font-bold text-slate-900">{rec.houseNumber}</td>
-                  <td className="py-2.5 px-3 font-black text-slate-900">{rec.totalEggs.toLocaleString()}</td>
-                  <td className="py-2.5 px-3 font-bold text-teal-800">
-                    {rec.totalHatchingEggs.toLocaleString()} ({typeof rec.hatchingEggPct === 'number' && !isNaN(rec.hatchingEggPct) ? rec.hatchingEggPct.toFixed(1) : '0.0'}%)
+              {filteredHistoryRecords.length === 0 ? (
+                <tr>
+                  <td colSpan={permissions.canDeleteRecord ? 9 : 8} className="py-8 text-center text-slate-400">
+                    No egg production records found.
                   </td>
-                  <td className="py-2.5 px-3 font-semibold text-rose-700">
-                    {rec.totalNonHatchingEggs.toLocaleString()} ({typeof rec.nonHatchingEggPct === 'number' && !isNaN(rec.nonHatchingEggPct) ? rec.nonHatchingEggPct.toFixed(1) : '0.0'}%)
-                  </td>
-                  <td className="py-2.5 px-3 font-black text-teal-700">
-                    {typeof rec.hendayPct === 'number' && !isNaN(rec.hendayPct) ? rec.hendayPct.toFixed(2) : '0.00'}%
-                  </td>
-                  <td className="py-2.5 px-3 font-medium text-slate-700">{rec.sampleEggWeightGrams || 58.4}g</td>
-                  <td className="py-2.5 px-3 text-slate-500">{rec.loggedBy}</td>
-                  {permissions.canDeleteRecord && (
-                    <td className="py-2.5 px-3 text-right">
-                      <button
-                        onClick={() => deleteEggProductionRecord(rec.id)}
-                        className="p-1 text-slate-400 hover:text-rose-600 rounded transition"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  )}
                 </tr>
-              ))}
+              ) : (
+                filteredHistoryRecords.slice(0, displayLimit).map(rec => (
+                  <tr key={rec.id} className="hover:bg-slate-50 transition">
+                    <td className="py-2.5 px-3 font-medium text-slate-700">{rec.date}</td>
+                    <td className="py-2.5 px-3 font-bold text-slate-900">{rec.houseNumber}</td>
+                    <td className="py-2.5 px-3 font-black text-slate-900">{rec.totalEggs.toLocaleString()}</td>
+                    <td className="py-2.5 px-3 font-bold text-teal-800">
+                      {rec.totalHatchingEggs.toLocaleString()} ({typeof rec.hatchingEggPct === 'number' && !isNaN(rec.hatchingEggPct) ? rec.hatchingEggPct.toFixed(1) : '0.0'}%)
+                    </td>
+                    <td className="py-2.5 px-3 font-semibold text-rose-700">
+                      {rec.totalNonHatchingEggs.toLocaleString()} ({typeof rec.nonHatchingEggPct === 'number' && !isNaN(rec.nonHatchingEggPct) ? rec.nonHatchingEggPct.toFixed(1) : '0.0'}%)
+                    </td>
+                    <td className="py-2.5 px-3 font-black text-teal-700">
+                      {typeof rec.hendayPct === 'number' && !isNaN(rec.hendayPct) ? rec.hendayPct.toFixed(2) : '0.00'}%
+                    </td>
+                    <td className="py-2.5 px-3 font-medium text-slate-700">{rec.sampleEggWeightGrams || 58.4}g</td>
+                    <td className="py-2.5 px-3 text-slate-500">{rec.loggedBy}</td>
+                    {permissions.canDeleteRecord && (
+                      <td className="py-2.5 px-3 text-right">
+                        <button
+                          onClick={() => deleteEggProductionRecord(rec.id)}
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded transition"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
+
+        {filteredHistoryRecords.length > displayLimit && (
+          <div className="pt-2 flex justify-center">
+            <button
+              onClick={() => setDisplayLimit(prev => prev + 30)}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
+            >
+              Load More Records (+30)
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Modal 1: Log Daily Egg Production */}
