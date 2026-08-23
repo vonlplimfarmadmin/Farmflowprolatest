@@ -43,7 +43,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   onRegisterClick,
   onForgotPasswordClick 
 }) => {
-  const { login, registerUser, farmProfile, users, switchUserRole, dbStatus } = useFarm();
+  const { login, registerUser, farmProfile, users, switchUserRole, dbStatus, pullAllFromMongoDB } = useFarm();
   
   // Tab Mode: 'login' | 'register' | 'qr'
   const [activeTab, setActiveTab] = useState<'login' | 'register' | 'qr'>('login');
@@ -91,11 +91,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const qrContainerRef = useRef<HTMLDivElement>(null);
   const currentAppUrl = typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://ais-pre-cupjad67n6ntomphx2p2z3-116744961637.asia-east1.run.app';
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
     setIsLoading(true);
+
+    try {
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        await pullAllFromMongoDB();
+      }
+    } catch {
+      // Offline fallback
+    }
 
     setTimeout(() => {
       const res = login(username.trim(), password);
@@ -105,7 +113,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       } else {
         setSuccessMessage(`Authenticated successfully. Loading ${res.user?.fullName || 'dashboard'}...`);
       }
-    }, 300);
+    }, 150);
   };
 
   const handleRegister = (e: React.FormEvent) => {

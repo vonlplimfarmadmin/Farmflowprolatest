@@ -17,7 +17,7 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, 
   const upcomingVaccines = getUpcomingVaccines();
   const pendingUsers = users.filter(u => u.status === 'pending');
 
-  const totalAlerts = lowFeeds.length + upcomingVaccines.length + (currentUser?.role === 'admin' ? pendingUsers.length : 0);
+  const totalAlerts = lowFeeds.length + upcomingVaccines.length + (permissions.canApproveUsers ? pendingUsers.length : 0);
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
@@ -166,8 +166,8 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, 
               )}
             </div>
 
-            {/* Pending User Registrations (Admin only) */}
-            {currentUser?.role === 'admin' && (
+            {/* Pending User Registrations */}
+            {permissions.canApproveUsers && (
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2 text-teal-800 font-bold text-xs uppercase tracking-wider">

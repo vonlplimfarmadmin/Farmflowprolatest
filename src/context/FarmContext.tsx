@@ -637,14 +637,27 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
     initDatabase();
 
-    // Set up a background sync interval every 45 seconds when online
-    const interval = setInterval(() => {
+    // Set up a background sync interval every 30 seconds when online
+    const interval = setInterval(async () => {
       if (typeof navigator !== 'undefined' && navigator.onLine) {
-        checkDBStatus();
+        await checkDBStatus();
+        await pullAllFromMongoDB();
       }
-    }, 45000);
+    }, 30000);
 
-    return () => clearInterval(interval);
+    // Auto-sync whenever user returns to tab/app
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && typeof navigator !== 'undefined' && navigator.onLine) {
+        await checkDBStatus();
+        await pullAllFromMongoDB();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [isMobileDevice]);
 
   // Synchronize Offline Queue
@@ -978,53 +991,107 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   };
 
+  const syncUserToBackend = (userToSync: UserAccount) => {
+    if (typeof fetch !== 'undefined' && typeof navigator !== 'undefined' && navigator.onLine) {
+      fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userToSync)
+      }).catch(e => console.warn('MongoDB user sync error:', e));
+    }
+  };
+
   const approveUser = (userId: string, designatedHouses?: string[]) => {
+    let updatedUser: UserAccount | null = null;
     setUsers(prev => prev.map(u => {
       if (u.id === userId) {
-        return { 
+        updatedUser = { 
           ...u, 
           status: 'active',
           designatedHouses: designatedHouses || u.designatedHouses 
         };
+        return updatedUser;
       }
       return u;
     }));
-    const target = users.find(u => u.id === userId);
-    logAction('APPROVE_USER', 'admin', `Administrator approved account for ${target?.fullName || userId}.`);
+    if (updatedUser) {
+      syncUserToBackend(updatedUser);
+      logAction('APPROVE_USER', 'admin', `Administrator approved account for ${(updatedUser as UserAccount).fullName || userId}.`);
+    }
   };
 
   const rejectUser = (userId: string) => {
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: 'rejected' } : u));
-    logAction('REJECT_USER', 'admin', `Administrator rejected account for user ID ${userId}.`);
+    let updatedUser: UserAccount | null = null;
+    setUsers(prev => prev.map(u => {
+      if (u.id === userId) {
+        updatedUser = { ...u, status: 'rejected' };
+        return updatedUser;
+      }
+      return u;
+    }));
+    if (updatedUser) {
+      syncUserToBackend(updatedUser);
+      logAction('REJECT_USER', 'admin', `Administrator rejected account for user ID ${userId}.`);
+    }
   };
 
   const updateUserRole = (userId: string, newRole: UserRole, designatedHouses?: string[]) => {
+    let updatedUser: UserAccount | null = null;
     setUsers(prev => prev.map(u => {
       if (u.id === userId) {
-        return { 
+        updatedUser = { 
           ...u, 
           role: newRole, 
           designatedHouses: designatedHouses || u.designatedHouses 
         };
+        return updatedUser;
       }
       return u;
     }));
-    logAction('UPDATE_USER_ROLE', 'admin', `Updated role to ${newRole} for user ID ${userId}.`);
+    if (updatedUser) {
+      syncUserToBackend(updatedUser);
+      logAction('UPDATE_USER_ROLE', 'admin', `Updated role to ${newRole} for user ID ${userId}.`);
+    }
   };
 
   const updateUserStatus = (userId: string, newStatus: UserStatus) => {
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: newStatus } : u));
-    logAction('UPDATE_USER_STATUS', 'admin', `Updated status to ${newStatus} for user ID ${userId}.`);
+    let updatedUser: UserAccount | null = null;
+    setUsers(prev => prev.map(u => {
+      if (u.id === userId) {
+        updatedUser = { ...u, status: newStatus };
+        return updatedUser;
+      }
+      return u;
+    }));
+    if (updatedUser) {
+      syncUserToBackend(updatedUser);
+      logAction('UPDATE_USER_STATUS', 'admin', `Updated status to ${newStatus} for user ID ${userId}.`);
+    }
   };
 
   const assignUserHouses = (userId: string, houses: string[]) => {
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, designatedHouses: houses } : u));
-    logAction('ASSIGN_HOUSES', 'admin', `Updated house assignments to [${houses.join(', ')}] for user ID ${userId}.`);
+    let updatedUser: UserAccount | null = null;
+    setUsers(prev => prev.map(u => {
+      if (u.id === userId) {
+        updatedUser = { ...u, designatedHouses: houses };
+        return updatedUser;
+      }
+      return u;
+    }));
+    if (updatedUser) {
+      syncUserToBackend(updatedUser);
+      logAction('ASSIGN_HOUSES', 'admin', `Updated house assignments to [${houses.join(', ')}] for user ID ${userId}.`);
+    }
   };
 
   const deleteUser = (userId: string) => {
     setUsers(prev => prev.filter(u => u.id !== userId));
     logAction('DELETE_USER', 'admin', `Deleted user ID ${userId}.`);
+    if (typeof fetch !== 'undefined' && typeof navigator !== 'undefined' && navigator.onLine) {
+      fetch(`/api/users/${userId}`, {
+        method: 'DELETE'
+      }).catch(e => console.warn('MongoDB user delete error:', e));
+    }
   };
 
   const switchUser = (userId: string) => {

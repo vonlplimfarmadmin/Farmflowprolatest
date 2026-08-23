@@ -245,6 +245,142 @@ async function startServer() {
     }
   });
 
+  app.delete('/api/feed-records/:id', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({ connected: false });
+      }
+
+      await FeedRecordModel.deleteOne({ id: req.params.id });
+      res.json({ connected: true, deleted: true });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to delete feed record', details: err.message });
+    }
+  });
+
+  // 4.1 Depletions & Mortalities
+  app.post('/api/depletions', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({ connected: false });
+      }
+
+      const depletion = await DepletionModel.findOneAndUpdate(
+        { id: req.body.id },
+        req.body,
+        { upsert: true, new: true }
+      );
+
+      res.json({ connected: true, depletion });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to save depletion', details: err.message });
+    }
+  });
+
+  app.delete('/api/depletions/:id', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({ connected: false });
+      }
+
+      await DepletionModel.deleteOne({ id: req.params.id });
+      res.json({ connected: true, deleted: true });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to delete depletion', details: err.message });
+    }
+  });
+
+  // 4.2 Medication & Vaccine Administrations
+  app.post('/api/med-admins', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({ connected: false });
+      }
+
+      const medAdmin = await MedAdminModel.findOneAndUpdate(
+        { id: req.body.id },
+        req.body,
+        { upsert: true, new: true }
+      );
+
+      res.json({ connected: true, medAdmin });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to save medication administration', details: err.message });
+    }
+  });
+
+  app.delete('/api/med-admins/:id', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({ connected: false });
+      }
+
+      await MedAdminModel.deleteOne({ id: req.params.id });
+      res.json({ connected: true, deleted: true });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to delete medication administration', details: err.message });
+    }
+  });
+
+  // 4.3 Body Weights
+  app.post('/api/body-weights', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({ connected: false });
+      }
+
+      const bodyWeight = await BodyWeightModel.findOneAndUpdate(
+        { id: req.body.id },
+        req.body,
+        { upsert: true, new: true }
+      );
+
+      res.json({ connected: true, bodyWeight });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to save body weight record', details: err.message });
+    }
+  });
+
+  app.delete('/api/body-weights/:id', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({ connected: false });
+      }
+
+      await BodyWeightModel.deleteOne({ id: req.params.id });
+      res.json({ connected: true, deleted: true });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to delete body weight record', details: err.message });
+    }
+  });
+
+  // 4.4 Biosecurity Logs
+  app.post('/api/biosecurity-logs', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({ connected: false });
+      }
+
+      const log = await BiosecurityLogModel.findOneAndUpdate(
+        { id: req.body.id },
+        req.body,
+        { upsert: true, new: true }
+      );
+
+      res.json({ connected: true, log });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to save biosecurity log', details: err.message });
+    }
+  });
+
   // 5. Farm Profile
   app.get('/api/farm-profile', async (req, res) => {
     try {
@@ -461,6 +597,21 @@ async function startServer() {
       res.json({ connected: true, user });
     } catch (err: any) {
       res.status(500).json({ error: 'Failed to save user', details: err.message });
+    }
+  });
+
+  app.delete('/api/users/:id', async (req, res) => {
+    try {
+      const status = getDBStatus();
+      if (!status.connected) {
+        return res.json({ connected: false });
+      }
+
+      const { id } = req.params;
+      await UserAccountModel.deleteOne({ $or: [{ id }, { username: id }] });
+      res.json({ connected: true, deleted: true });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to delete user', details: err.message });
     }
   });
 
