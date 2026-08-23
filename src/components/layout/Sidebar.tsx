@@ -17,7 +17,8 @@ import {
   LayoutDashboard,
   LogOut,
   QrCode,
-  Smartphone
+  Smartphone,
+  X
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -204,48 +205,60 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Mobile backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-graphite-950/70 z-30 lg:hidden backdrop-blur-xs transition-opacity"
+          className="fixed inset-0 bg-graphite-950/75 z-50 lg:hidden backdrop-blur-xs transition-opacity"
           onClick={onClose}
+          aria-hidden="true"
         />
       )}
 
       <aside
-        className={`fixed lg:static top-0 bottom-0 left-0 z-30 w-64 bg-forest-950 text-white flex flex-col shrink-0 transition-transform duration-300 ease-in-out ${
+        className={`fixed lg:static top-0 bottom-0 left-0 z-50 w-72 sm:w-80 lg:w-64 max-w-[85vw] bg-forest-950 text-white flex flex-col shrink-0 transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         } border-r border-forest-900/80 shadow-2xl lg:shadow-none select-none print:hidden`}
       >
         {/* Farm Brand Header */}
-        <div className="p-5 flex items-center gap-3 border-b border-forest-900/70 bg-forest-950/80">
-          {farmProfile.logoUrl ? (
-            <div className="w-10 h-10 rounded-2xl overflow-hidden bg-white/95 p-0.5 shadow-md shadow-black/20 shrink-0 border border-forest-800 flex items-center justify-center">
-              <img
-                src={farmProfile.logoUrl}
-                alt={farmProfile.name}
-                referrerPolicy="no-referrer"
-                className="w-full h-full object-contain rounded-xl"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
+        <div className="p-4 sm:p-5 flex items-center justify-between border-b border-forest-900/70 bg-forest-950/90 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            {farmProfile.logoUrl ? (
+              <div className="w-10 h-10 rounded-2xl overflow-hidden bg-white/95 p-0.5 shadow-md shadow-black/20 shrink-0 border border-forest-800 flex items-center justify-center">
+                <img
+                  src={farmProfile.logoUrl}
+                  alt={farmProfile.name}
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-contain rounded-xl"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="w-10 h-10 bg-gradient-to-br from-mint-400 to-emerald-500 text-forest-950 rounded-2xl flex items-center justify-center font-black text-lg italic shadow-md shadow-emerald-500/20 shrink-0">
+                FF
+              </div>
+            )}
+            <div className="leading-tight min-w-0">
+              <h1 className="font-bold text-sm text-white tracking-tight truncate font-display">
+                FarmFlow Pro
+              </h1>
+              <p className="text-[10px] text-mint-400 uppercase tracking-wider font-bold truncate">
+                {farmProfile.name.split(' ')[0] || 'L.P. LIM'} Operations
+              </p>
             </div>
-          ) : (
-            <div className="w-10 h-10 bg-gradient-to-br from-mint-400 to-emerald-500 text-forest-950 rounded-2xl flex items-center justify-center font-black text-lg italic shadow-md shadow-emerald-500/20 shrink-0">
-              FF
-            </div>
-          )}
-          <div className="leading-tight min-w-0">
-            <h1 className="font-bold text-sm text-white tracking-tight truncate font-display">
-              FarmFlow Pro
-            </h1>
-            <p className="text-[10px] text-mint-400 uppercase tracking-wider font-bold truncate">
-              {farmProfile.name.split(' ')[0] || 'L.P. LIM'} Operations
-            </p>
           </div>
+
+          {/* Close drawer button (Mobile only) */}
+          <button
+            onClick={onClose}
+            className="lg:hidden p-2 rounded-xl text-mint-400 hover:text-white hover:bg-forest-900/80 transition-colors cursor-pointer"
+            aria-label="Close menu drawer"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Assigned Houses Indicator */}
         {currentUser && (
-          <div className="px-5 py-2 bg-forest-900/30 border-b border-forest-900/60 text-[11px] flex items-center justify-between">
+          <div className="px-4 sm:px-5 py-2 bg-forest-900/30 border-b border-forest-900/60 text-[11px] flex items-center justify-between shrink-0">
             <span className="text-mint-400/80 font-medium">Assigned Scope:</span>
             <span className="font-bold text-mint-100 truncate ml-2">
               {currentUser.role === 'admin' || currentUser.role === 'farm_manager' || currentUser.role === 'System Administrator' || currentUser.role === 'Farm Manager'
@@ -256,14 +269,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
 
         {/* Navigation Groups */}
-        <nav className="flex-1 py-3 overflow-y-auto scrollbar-thin scrollbar-thumb-forest-900">
+        <nav className="flex-1 py-3 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-thumb-forest-900">
           {renderNavGroup('Management', managementItems)}
           {renderNavGroup('Production', productionItems)}
           {renderNavGroup('Reports & Analytics', reportingItems)}
           {renderNavGroup('System & Compliance', systemItems)}
 
           {/* Quick Action: Messenger Report */}
-          <div className="px-5 pt-2 pb-4">
+          <div className="px-4 sm:px-5 pt-2 pb-4">
             <button
               onClick={() => {
                 onOpenReport();
@@ -277,8 +290,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </nav>
 
-        {/* User Card in Footer */}
-        <div className="p-3 border-t border-forest-900/60 space-y-2 bg-forest-950/60">
+        {/* User Card & Action Controls in Drawer Footer */}
+        <div className="p-3 pb-6 lg:pb-3 space-y-2 bg-forest-950/95 border-t border-forest-900/60 shrink-0 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))]">
           <div className="flex items-center gap-2.5 p-2.5 bg-forest-900/40 rounded-xl border border-forest-900/80">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-mint-400 to-emerald-500 text-forest-950 flex items-center justify-center text-xs font-black uppercase shrink-0 shadow-xs">
               {currentUser?.username ? currentUser.username.substring(0, 2).toUpperCase() : 'SA'}
@@ -297,7 +310,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={() => {
                 setShowCrossPlatformModal(true);
               }}
-              className="py-1.5 px-2 bg-forest-900/80 hover:bg-forest-800 text-mint-300 border border-forest-800/80 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer"
+              className="py-2 px-2 bg-forest-900/80 hover:bg-forest-800 text-mint-300 border border-forest-800/80 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer"
               title="Add FarmFlow to Phone Home Screen"
             >
               <Smartphone className="w-3.5 h-3.5 text-mint-400" />
@@ -305,7 +318,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
             <button
               onClick={() => setShowQRModal(true)}
-              className="py-1.5 px-2 bg-forest-900/60 hover:bg-forest-800 text-mint-300 border border-forest-800/80 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer"
+              className="py-2 px-2 bg-forest-900/60 hover:bg-forest-800 text-mint-300 border border-forest-800/80 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer"
               title="Scan QR Code for Mobile Access"
             >
               <QrCode className="w-3.5 h-3.5 text-mint-400" />
@@ -317,11 +330,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               logout();
               onClose();
             }}
-            className="w-full py-1.5 px-3 bg-forest-900/40 hover:bg-rose-900/30 text-rose-300 hover:text-rose-200 border border-forest-800/80 hover:border-rose-700/50 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer"
-            title="Sign Out"
+            className="w-full py-2.5 px-3 bg-rose-950/30 hover:bg-rose-900/40 text-rose-300 hover:text-rose-200 border border-rose-900/50 hover:border-rose-700/60 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-98"
+            title="Log Out"
           >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Sign Out</span>
+            <LogOut className="w-4 h-4 text-rose-400" />
+            <span>Log Out</span>
           </button>
         </div>
       </aside>
