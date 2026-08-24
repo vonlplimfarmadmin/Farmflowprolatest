@@ -283,6 +283,28 @@ const FarmContext = createContext<FarmContextType | undefined>(undefined);
 
 const LOCAL_STORAGE_KEY = 'broiler_breeder_farm_data_v2';
 
+function safeParseArray<T>(key: string, fallback: T[]): T[] {
+  try {
+    const saved = localStorage.getItem(key);
+    if (!saved) return fallback;
+    const parsed = JSON.parse(saved);
+    return Array.isArray(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function safeParseObject<T>(key: string, fallback: T): T {
+  try {
+    const saved = localStorage.getItem(key);
+    if (!saved) return fallback;
+    const parsed = JSON.parse(saved);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Load initial states from LocalStorage or defaults (new users see login/register screen first)
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
@@ -298,90 +320,82 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return null; // Require login or registration first
   });
 
-  const [users, setUsers] = useState<UserAccount[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_users`);
-    return saved ? JSON.parse(saved) : INITIAL_USERS;
-  });
+  const [users, setUsers] = useState<UserAccount[]>(() => 
+    safeParseArray<UserAccount>(`${LOCAL_STORAGE_KEY}_users`, INITIAL_USERS)
+  );
 
   const [farmProfile, setFarmProfile] = useState<FarmProfile>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_profile`);
-    return saved ? JSON.parse(saved) : INITIAL_FARM_PROFILE;
+    const parsed = safeParseObject<FarmProfile>(`${LOCAL_STORAGE_KEY}_profile`, INITIAL_FARM_PROFILE);
+    return {
+      ...INITIAL_FARM_PROFILE,
+      ...parsed,
+      standardFeedGuide: Array.isArray(parsed?.standardFeedGuide) ? parsed.standardFeedGuide : INITIAL_FARM_PROFILE.standardFeedGuide,
+      standardHenday: Array.isArray(parsed?.standardHenday) ? parsed.standardHenday : INITIAL_FARM_PROFILE.standardHenday,
+      standardBodyWeights: Array.isArray(parsed?.standardBodyWeights) ? parsed.standardBodyWeights : INITIAL_FARM_PROFILE.standardBodyWeights,
+      standardEggWeights: Array.isArray(parsed?.standardEggWeights) ? parsed.standardEggWeights : INITIAL_FARM_PROFILE.standardEggWeights,
+      standardVaccinationProgram: Array.isArray(parsed?.standardVaccinationProgram) ? parsed.standardVaccinationProgram : INITIAL_FARM_PROFILE.standardVaccinationProgram
+    };
   });
 
-  const [flocks, setFlocks] = useState<Flock[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_flocks`);
-    return saved ? JSON.parse(saved) : INITIAL_FLOCKS;
-  });
+  const [flocks, setFlocks] = useState<Flock[]>(() => 
+    safeParseArray<Flock>(`${LOCAL_STORAGE_KEY}_flocks`, INITIAL_FLOCKS)
+  );
 
-  const [feedStockEntries, setFeedStockEntries] = useState<FeedStockEntry[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_feed_stock`);
-    return saved ? JSON.parse(saved) : INITIAL_FEED_STOCK;
-  });
+  const [feedStockEntries, setFeedStockEntries] = useState<FeedStockEntry[]>(() => 
+    safeParseArray<FeedStockEntry>(`${LOCAL_STORAGE_KEY}_feed_stock`, INITIAL_FEED_STOCK)
+  );
 
-  const [feedConsumptionRecords, setFeedConsumptionRecords] = useState<FeedConsumptionRecord[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_feed_cons`);
-    return saved ? JSON.parse(saved) : INITIAL_FEED_CONSUMPTION;
-  });
+  const [feedConsumptionRecords, setFeedConsumptionRecords] = useState<FeedConsumptionRecord[]>(() => 
+    safeParseArray<FeedConsumptionRecord>(`${LOCAL_STORAGE_KEY}_feed_cons`, INITIAL_FEED_CONSUMPTION)
+  );
 
-  const [depletions, setDepletions] = useState<DepletionRecord[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_depletions`);
-    return saved ? JSON.parse(saved) : INITIAL_DEPLETIONS;
-  });
+  const [depletions, setDepletions] = useState<DepletionRecord[]>(() => 
+    safeParseArray<DepletionRecord>(`${LOCAL_STORAGE_KEY}_depletions`, INITIAL_DEPLETIONS)
+  );
 
-  const [transfers, setTransfers] = useState<BirdTransferRecord[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_transfers`);
-    return saved ? JSON.parse(saved) : INITIAL_BIRD_TRANSFERS;
-  });
+  const [transfers, setTransfers] = useState<BirdTransferRecord[]>(() => 
+    safeParseArray<BirdTransferRecord>(`${LOCAL_STORAGE_KEY}_transfers`, INITIAL_BIRD_TRANSFERS)
+  );
 
-  const [medProducts, setMedProducts] = useState<MedProduct[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_med_products`);
-    return saved ? JSON.parse(saved) : INITIAL_MED_PRODUCTS;
-  });
+  const [medProducts, setMedProducts] = useState<MedProduct[]>(() => 
+    safeParseArray<MedProduct>(`${LOCAL_STORAGE_KEY}_med_products`, INITIAL_MED_PRODUCTS)
+  );
 
-  const [medStockLogs, setMedStockLogs] = useState<MedStockLog[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_med_stock`);
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [medStockLogs, setMedStockLogs] = useState<MedStockLog[]>(() => 
+    safeParseArray<MedStockLog>(`${LOCAL_STORAGE_KEY}_med_stock`, [])
+  );
 
-  const [medAdministrations, setMedAdministrations] = useState<MedAdministrationRecord[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_med_admin`);
-    return saved ? JSON.parse(saved) : INITIAL_MED_ADMIN;
-  });
+  const [medAdministrations, setMedAdministrations] = useState<MedAdministrationRecord[]>(() => 
+    safeParseArray<MedAdministrationRecord>(`${LOCAL_STORAGE_KEY}_med_admin`, INITIAL_MED_ADMIN)
+  );
 
-  const [bodyWeights, setBodyWeights] = useState<BodyWeightRecord[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_body_weights`);
-    return saved ? JSON.parse(saved) : INITIAL_BODY_WEIGHTS;
-  });
+  const [bodyWeights, setBodyWeights] = useState<BodyWeightRecord[]>(() => 
+    safeParseArray<BodyWeightRecord>(`${LOCAL_STORAGE_KEY}_body_weights`, INITIAL_BODY_WEIGHTS)
+  );
 
-  const [rawEggRecords, setRawEggRecords] = useState<EggProductionRecord[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_egg_prod`);
-    return saved ? JSON.parse(saved) : INITIAL_EGG_PRODUCTION;
-  });
+  const [rawEggRecords, setRawEggRecords] = useState<EggProductionRecord[]>(() => 
+    safeParseArray<EggProductionRecord>(`${LOCAL_STORAGE_KEY}_egg_prod`, INITIAL_EGG_PRODUCTION)
+  );
 
-  const [weeklyEggWeights, setWeeklyEggWeights] = useState<WeeklyEggWeightRecord[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_weekly_egg_weights`);
-    return saved ? JSON.parse(saved) : INITIAL_WEEKLY_EGG_WEIGHTS;
-  });
+  const [weeklyEggWeights, setWeeklyEggWeights] = useState<WeeklyEggWeightRecord[]>(() => 
+    safeParseArray<WeeklyEggWeightRecord>(`${LOCAL_STORAGE_KEY}_weekly_egg_weights`, INITIAL_WEEKLY_EGG_WEIGHTS)
+  );
 
-  const [systemLogs, setSystemLogs] = useState<SystemLog[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_logs`);
-    return saved ? JSON.parse(saved) : INITIAL_SYSTEM_LOGS;
-  });
+  const [systemLogs, setSystemLogs] = useState<SystemLog[]>(() => 
+    safeParseArray<SystemLog>(`${LOCAL_STORAGE_KEY}_logs`, INITIAL_SYSTEM_LOGS)
+  );
 
-  const [biosecurityRequirements, setBiosecurityRequirements] = useState<BiosecurityRequirement[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_biosecurity_reqs`);
-    return saved ? JSON.parse(saved) : INITIAL_BIOSECURITY_REQUIREMENTS;
-  });
+  const [biosecurityRequirements, setBiosecurityRequirements] = useState<BiosecurityRequirement[]>(() => 
+    safeParseArray<BiosecurityRequirement>(`${LOCAL_STORAGE_KEY}_biosecurity_reqs`, INITIAL_BIOSECURITY_REQUIREMENTS)
+  );
 
-  const [biosecurityLogs, setBiosecurityLogs] = useState<BiosecurityVerificationLog[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_biosecurity_logs`);
-    return saved ? JSON.parse(saved) : INITIAL_BIOSECURITY_LOGS;
-  });
+  const [biosecurityLogs, setBiosecurityLogs] = useState<BiosecurityVerificationLog[]>(() => 
+    safeParseArray<BiosecurityVerificationLog>(`${LOCAL_STORAGE_KEY}_biosecurity_logs`, INITIAL_BIOSECURITY_LOGS)
+  );
 
-  const [biosecuritySummaries, setBiosecuritySummaries] = useState<Record<string, BiosecurityDailySummary>>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_biosecurity_summaries`);
-    return saved ? JSON.parse(saved) : INITIAL_BIOSECURITY_SUMMARIES;
-  });
+  const [biosecuritySummaries, setBiosecuritySummaries] = useState<Record<string, BiosecurityDailySummary>>(() => 
+    safeParseObject<Record<string, BiosecurityDailySummary>>(`${LOCAL_STORAGE_KEY}_biosecurity_summaries`, INITIAL_BIOSECURITY_SUMMARIES)
+  );
 
   // Platform & Mobile Auto-Routing Engine
   const platformInfo = useMemo(() => {
@@ -550,14 +564,16 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         if (Array.isArray(eggRecords) && eggRecords.length > 0) {
           setRawEggRecords(prev => {
-            const existingIds = new Set(prev.map(r => r.id));
+            const prevArr = Array.isArray(prev) ? prev : [];
+            const existingIds = new Set(prevArr.map(r => r.id));
             const newFromRemote = eggRecords.filter((r: any) => !existingIds.has(r.id));
-            return [...newFromRemote, ...prev];
+            return [...newFromRemote, ...prevArr];
           });
         }
         if (Array.isArray(remoteFlocks) && remoteFlocks.length > 0) {
           setFlocks(prev => {
-            const map = new Map<string, Flock>(prev.map(f => [f.houseNumber, f]));
+            const prevArr = Array.isArray(prev) ? prev : [];
+            const map = new Map<string, Flock>(prevArr.map(f => [f.houseNumber, f]));
             remoteFlocks.forEach((rf: any) => {
               const existing = map.get(rf.houseNumber);
               map.set(rf.houseNumber, existing ? { ...existing, ...rf } : rf);
@@ -567,37 +583,42 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
         if (Array.isArray(feedRecords) && feedRecords.length > 0) {
           setFeedConsumptionRecords(prev => {
-            const existingIds = new Set(prev.map(r => r.id));
+            const prevArr = Array.isArray(prev) ? prev : [];
+            const existingIds = new Set(prevArr.map(r => r.id));
             const newFromRemote = feedRecords.filter((r: any) => !existingIds.has(r.id));
-            return [...newFromRemote, ...prev];
+            return [...newFromRemote, ...prevArr];
           });
         }
         if (Array.isArray(remoteDepletions) && remoteDepletions.length > 0) {
           setDepletions(prev => {
-            const existingIds = new Set(prev.map(r => r.id));
+            const prevArr = Array.isArray(prev) ? prev : [];
+            const existingIds = new Set(prevArr.map(r => r.id));
             const newFromRemote = remoteDepletions.filter((r: any) => !existingIds.has(r.id));
-            return [...newFromRemote, ...prev];
+            return [...newFromRemote, ...prevArr];
           });
         }
         if (Array.isArray(medAdmins) && medAdmins.length > 0) {
           setMedAdministrations(prev => {
-            const existingIds = new Set(prev.map(r => r.id));
+            const prevArr = Array.isArray(prev) ? prev : [];
+            const existingIds = new Set(prevArr.map(r => r.id));
             const newFromRemote = medAdmins.filter((r: any) => !existingIds.has(r.id));
-            return [...newFromRemote, ...prev];
+            return [...newFromRemote, ...prevArr];
           });
         }
         if (Array.isArray(remoteWeights) && remoteWeights.length > 0) {
           setBodyWeights(prev => {
-            const existingIds = new Set(prev.map(r => r.id));
+            const prevArr = Array.isArray(prev) ? prev : [];
+            const existingIds = new Set(prevArr.map(r => r.id));
             const newFromRemote = remoteWeights.filter((r: any) => !existingIds.has(r.id));
-            return [...newFromRemote, ...prev];
+            return [...newFromRemote, ...prevArr];
           });
         }
         if (Array.isArray(remoteBio) && remoteBio.length > 0) {
           setBiosecurityLogs(prev => {
-            const existingIds = new Set(prev.map(r => `${r.requirementId}_${r.date}`));
+            const prevArr = Array.isArray(prev) ? prev : [];
+            const existingIds = new Set(prevArr.map(r => `${r.requirementId}_${r.date}`));
             const newFromRemote = remoteBio.filter((r: any) => !existingIds.has(`${r.requirementId}_${r.date}`));
-            return [...newFromRemote, ...prev];
+            return [...newFromRemote, ...prevArr];
           });
         }
         if (remoteProfile && typeof remoteProfile === 'object' && 'name' in remoteProfile) {
@@ -605,7 +626,8 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
         if (Array.isArray(json.data.users) && json.data.users.length > 0) {
           setUsers(prev => {
-            const map = new Map<string, UserAccount>(prev.map(u => [u.username.toLowerCase(), u]));
+            const prevArr = Array.isArray(prev) ? prev : [];
+            const map = new Map<string, UserAccount>(prevArr.map(u => [u.username.toLowerCase(), u]));
             json.data.users.forEach((ru: any) => {
               if (ru && ru.username) {
                 const key = ru.username.toLowerCase();
@@ -1686,14 +1708,20 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Egg Production normalized records
   const eggProductionRecords: NormalizedEggProductionRecord[] = useMemo(() => {
+    const safeRaw = Array.isArray(rawEggRecords) ? rawEggRecords : [];
+    const safeFlocks = Array.isArray(flocks) ? flocks : [];
+
     // Pre-index female populations by houseNumber to avoid repeated function lookups
     const femalePopMap = new Map<string, number>();
-    flocks.forEach(f => {
-      const fStat = getFlockStats(f.houseNumber);
-      femalePopMap.set(f.houseNumber, fStat?.currentFemales || f.currentFemales || 9500);
+    safeFlocks.forEach(f => {
+      if (f && f.houseNumber) {
+        const fStat = getFlockStats ? getFlockStats(f.houseNumber) : null;
+        femalePopMap.set(f.houseNumber, fStat?.currentFemales || f.currentFemales || 9500);
+      }
     });
 
-    return rawEggRecords.map(rec => {
+    return safeRaw.map(rec => {
+      if (!rec) return null as any;
       const femalePop = rec.femalePopulationAtDate || femalePopMap.get(rec.houseNumber) || 9500;
 
       let totalHE = rec.totalHE;
@@ -1759,7 +1787,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           { id: 'c3', collectionNumber: 3, collectionTime: '03:30 PM', leftSideCount: Math.round(totalEggs * 0.1), rightSideCount: Math.round(totalEggs * 0.1), totalCount: Math.round(totalEggs * 0.2) }
         ]
       };
-    });
+    }).filter(Boolean);
   }, [rawEggRecords, flocks, getFlockStats]);
 
   const addEggProductionRecord = (record: Partial<EggProductionRecord> & { houseNumber: string; date: string }) => {

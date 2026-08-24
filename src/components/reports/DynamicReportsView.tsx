@@ -94,44 +94,50 @@ export const DynamicReportsView: React.FC = () => {
 
   // 1. Filter Egg Production Records
   const filteredEggRecords = useMemo(() => {
-    return eggProductionRecords.filter(r => {
+    const safeRecords = Array.isArray(eggProductionRecords) ? eggProductionRecords : [];
+    return safeRecords.filter(r => {
+      if (!r) return false;
       const inDate = (!startDate || r.date >= startDate) && (!endDate || r.date <= endDate);
       const inHouse = selectedHouse === 'All' || r.houseNumber === selectedHouse;
       const inSearch = !searchQuery || 
-        r.houseNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (r.houseNumber && r.houseNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (r.loggedBy && r.loggedBy.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (r.notes && r.notes.toLowerCase().includes(searchQuery.toLowerCase()));
       return inDate && inHouse && inSearch;
-    }).sort((a, b) => b.date.localeCompare(a.date));
+    }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   }, [eggProductionRecords, startDate, endDate, selectedHouse, searchQuery]);
 
   // 2. Filter Mortality Records
   const filteredDepletions = useMemo(() => {
-    return depletions.filter(d => {
+    const safeDepletions = Array.isArray(depletions) ? depletions : [];
+    return safeDepletions.filter(d => {
+      if (!d) return false;
       const inDate = (!startDate || d.date >= startDate) && (!endDate || d.date <= endDate);
       const inHouse = selectedHouse === 'All' || d.houseNumber === selectedHouse;
       const inSearch = !searchQuery || 
-        d.houseNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        d.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (d.houseNumber && d.houseNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (d.category && d.category.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (d.reasonDetails && d.reasonDetails.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (d.loggedBy && d.loggedBy.toLowerCase().includes(searchQuery.toLowerCase()));
       return inDate && inHouse && inSearch;
-    }).sort((a, b) => b.date.localeCompare(a.date));
+    }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   }, [depletions, startDate, endDate, selectedHouse, searchQuery]);
 
   // 3. Filter Medicine Administrations
   const filteredAdministrations = useMemo(() => {
-    return medAdministrations.filter(a => {
+    const safeAdmins = Array.isArray(medAdministrations) ? medAdministrations : [];
+    return safeAdmins.filter(a => {
+      if (!a) return false;
       const inDate = (!startDate || a.date >= startDate) && (!endDate || a.date <= endDate);
       const inHouse = selectedHouse === 'All' || a.houseNumber === selectedHouse;
       const inSearch = !searchQuery || 
-        a.houseNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        a.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        a.productType.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (a.houseNumber && a.houseNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (a.productName && a.productName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (a.productType && a.productType.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (a.administeredBy && a.administeredBy.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (a.loggedBy && a.loggedBy.toLowerCase().includes(searchQuery.toLowerCase()));
       return inDate && inHouse && inSearch;
-    }).sort((a, b) => b.date.localeCompare(a.date));
+    }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   }, [medAdministrations, startDate, endDate, selectedHouse, searchQuery]);
 
   // Date Range Text for Report Header

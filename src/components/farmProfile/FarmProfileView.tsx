@@ -1325,7 +1325,7 @@ export const FarmProfileView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {farmProfile.standardFeedGuide.map((item) => (
+                {(farmProfile.standardFeedGuide || []).map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50/80 transition">
                     <td className="py-2.5 px-3 font-bold text-slate-800">Week {item.ageWeek}</td>
                     <td className="py-2.5 px-3 font-medium text-slate-700">{item.productionPhase}</td>
@@ -1446,7 +1446,7 @@ export const FarmProfileView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {farmProfile.standardHenday.map((item) => (
+                {(farmProfile.standardHenday || []).map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50/80 transition">
                     <td className="py-2.5 px-3 font-bold text-slate-800">Week {item.ageWeek}</td>
                     <td className="py-2.5 px-3 font-medium text-slate-600">Week {item.ageInProduction} in Lay</td>
@@ -1555,7 +1555,7 @@ export const FarmProfileView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {farmProfile.standardBodyWeights.map((item) => (
+                {(farmProfile.standardBodyWeights || []).map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50/80 transition">
                     <td className="py-2.5 px-3 font-bold text-slate-800">Week {item.ageWeek}</td>
                     <td className="py-2.5 px-3 font-semibold text-teal-950">{(item.maleStandardGrams || 0).toLocaleString()} g</td>
@@ -1668,7 +1668,7 @@ export const FarmProfileView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {farmProfile.standardEggWeights.map((item) => (
+                {(farmProfile.standardEggWeights || []).map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50/80 transition">
                     <td className="py-2.5 px-3 font-bold text-slate-800">Week {item.ageWeek}</td>
                     <td className="py-2.5 px-3 font-medium text-slate-600">Week {item.ageInProduction} of Lay</td>
