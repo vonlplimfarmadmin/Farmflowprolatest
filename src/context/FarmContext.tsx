@@ -1753,6 +1753,14 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const nonHatchingEggPct = totalEggs > 0 ? (totalNHE / totalEggs) * 100 : 0;
       const hendayPct = femalePop > 0 ? (totalEggs / femalePop) * 100 : 0;
 
+      const safeCollections = Array.isArray(rec.collections) && rec.collections.length > 0 
+        ? rec.collections 
+        : [
+            { id: 'c1', collectionNumber: 1, collectionTime: '08:00 AM', leftSideCount: Math.round(totalEggs * 0.2), rightSideCount: Math.round(totalEggs * 0.2), totalCount: Math.round(totalEggs * 0.4) },
+            { id: 'c2', collectionNumber: 2, collectionTime: '11:30 AM', leftSideCount: Math.round(totalEggs * 0.2), rightSideCount: Math.round(totalEggs * 0.2), totalCount: Math.round(totalEggs * 0.4) },
+            { id: 'c3', collectionNumber: 3, collectionTime: '03:30 PM', leftSideCount: Math.round(totalEggs * 0.1), rightSideCount: Math.round(totalEggs * 0.1), totalCount: Math.round(totalEggs * 0.2) }
+          ];
+
       return {
         ...rec,
         totalEggs,
@@ -1781,11 +1789,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             leakers: 0
           }
         },
-        collections: rec.collections || [
-          { id: 'c1', collectionNumber: 1, collectionTime: '08:00 AM', leftSideCount: Math.round(totalEggs * 0.2), rightSideCount: Math.round(totalEggs * 0.2), totalCount: Math.round(totalEggs * 0.4) },
-          { id: 'c2', collectionNumber: 2, collectionTime: '11:30 AM', leftSideCount: Math.round(totalEggs * 0.2), rightSideCount: Math.round(totalEggs * 0.2), totalCount: Math.round(totalEggs * 0.4) },
-          { id: 'c3', collectionNumber: 3, collectionTime: '03:30 PM', leftSideCount: Math.round(totalEggs * 0.1), rightSideCount: Math.round(totalEggs * 0.1), totalCount: Math.round(totalEggs * 0.2) }
-        ]
+        collections: safeCollections
       };
     }).filter(Boolean);
   }, [rawEggRecords, flocks, getFlockStats]);

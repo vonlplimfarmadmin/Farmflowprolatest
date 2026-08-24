@@ -108,6 +108,12 @@ export const FlockProductivityDashboard: React.FC<{
     farmProfile
   } = useFarm();
 
+  const safeFlocks = Array.isArray(flocks) ? flocks : [];
+  const safeEggRecords = Array.isArray(eggProductionRecords) ? eggProductionRecords : [];
+  const safeDepletions = Array.isArray(depletions) ? depletions : [];
+  const safeFeedRecords = Array.isArray(feedConsumptionRecords) ? feedConsumptionRecords : [];
+  const safeBodyWeights = Array.isArray(bodyWeights) ? bodyWeights : [];
+
   const [activeTab, setActiveTab] = useState<ProductivityMetricTab>('egg_production');
   const [selectedHouse, setSelectedHouse] = useState<string>('All');
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('30days');
@@ -116,8 +122,8 @@ export const FlockProductivityDashboard: React.FC<{
 
   // Available houses
   const houseOptions = useMemo(() => {
-    return ['All', ...flocks.map(f => f.houseNumber)];
-  }, [flocks]);
+    return ['All', ...safeFlocks.filter(Boolean).map(f => f.houseNumber).filter(Boolean)];
+  }, [safeFlocks]);
 
   // Determine date ranges
   const dateRangeDates = useMemo(() => {
@@ -136,20 +142,22 @@ export const FlockProductivityDashboard: React.FC<{
   // Aggregate active flock female population for Henday calculation
   const totalActiveFemales = useMemo(() => {
     let females = 0;
-    flocks.forEach(flock => {
+    safeFlocks.forEach(flock => {
+      if (!flock) return;
       if (selectedHouse === 'All' || flock.houseNumber === selectedHouse) {
-        const stats = getFlockStats(flock.houseNumber);
-        females += stats ? stats.currentFemales : (flock.currentFemales || flock.initialFemales);
+        const stats = getFlockStats ? getFlockStats(flock.houseNumber) : null;
+        females += stats ? stats.currentFemales : (flock.currentFemales || flock.initialFemales || 0);
       }
     });
     return females > 0 ? females : 55000;
-  }, [flocks, selectedHouse, getFlockStats]);
+  }, [safeFlocks, selectedHouse, getFlockStats]);
 
   // 1. Egg Production Trend Data (Daily & Henday vs Standards)
   const eggTrendData = useMemo(() => {
     return dateRangeDates.map(dateStr => {
       // Find matching egg records
-      const matchingRecords = eggProductionRecords.filter(r => {
+      const matchingRecords = safeEggRecords.filter(r => {
+        if (!r) return false;
         const dateMatch = r.date === dateStr;
         const houseMatch = selectedHouse === 'All' || r.houseNumber === selectedHouse;
         return dateMatch && houseMatch;
@@ -175,14 +183,14 @@ export const FlockProductivityDashboard: React.FC<{
         const variance = Math.sin(dayOffset * 0.45) * 1.5;
         const estimatedHenday = Math.max(75, Math.min(94, baseHenday + variance));
         
-        const estFemaleCount = selectedHouse === 'All' ? totalActiveFemales : (totalActiveFemales / (flocks.length || 1));
+        const estFemaleCount = selectedHouse === 'All' ? totalActiveFemales : (totalActiveFemales / (safeFlocks.length || 1));
         finalTotalEggs = Math.round((estFemaleCount * estimatedHenday) / 100);
         finalHE = Math.round(finalTotalEggs * 0.965);
         finalNHE = finalTotalEggs - finalHE;
         finalFloor = Math.round(finalHE * 0.015);
       }
 
-      const activeFemalesCount = selectedHouse === 'All' ? totalActiveFemales : (totalActiveFemales / (flocks.length || 1));
+      const activeFemalesCount = selectedHouse === 'All' ? totalActiveFemales : (totalActiveFemales / (safeFlocks.length || 1));
       const actualHendayPct = activeFemalesCount > 0 ? (finalTotalEggs / activeFemalesCount) * 100 : 88.5;
       const heRatioPct = finalTotalEggs > 0 ? (finalHE / finalTotalEggs) * 100 : 96.5;
 
@@ -212,7 +220,7 @@ export const FlockProductivityDashboard: React.FC<{
         standardHEPercent
       };
     });
-  }, [dateRangeDates, eggProductionRecords, selectedHouse, totalActiveFemales, flocks]);
+  }, [dateRangeDates, safeEggRecords, selectedHouse, totalActiveFemales, safeFlocks]);
 
   // 2. Mortality & Depletion Trend Data
   const mortalityTrendData = useMemo(() => {
@@ -220,7 +228,8 @@ export const FlockProductivityDashboard: React.FC<{
     const initialPopulation = selectedHouse === 'All' ? 60000 : 10000;
 
     return dateRangeDates.map(dateStr => {
-      const matchingDepletions = depletions.filter(d => {
+      const matchingDepletions = safeDepletions.filter(d => {
+        if (!d) return false;
         const dateMatch = d.date === dateStr;
         const houseMatch = selectedHouse === 'All' || d.houseNumber === selectedHouse;
         return dateMatch && houseMatch;
@@ -281,12 +290,13 @@ export const FlockProductivityDashboard: React.FC<{
         toleranceBenchmarkDaily: selectedHouse === 'All' ? 22 : 4 // benchmark max allowed
       };
     });
-  }, [dateRangeDates, depletions, selectedHouse]);
+  }, [dateRangeDates, safeDepletions, selectedHouse]);
 
   // 3. Feed Intake & Efficiency Trend Data
   const feedTrendData = useMemo(() => {
     return dateRangeDates.map(dateStr => {
-      const matchingFeed = feedConsumptionRecords.filter(f => {
+      const matchingFeed = safeFeedRecords.filter(f => {
+        if (!f) return false;
         const dateMatch = f.date === dateStr;
         const houseMatch = selectedHouse === 'All' || f.houseNumber === selectedHouse;
         return dateMatch && houseMatch;
@@ -302,7 +312,7 @@ export const FlockProductivityDashboard: React.FC<{
       } else {
         femaleGrams = 156;
         maleGrams = 126;
-        const count = selectedHouse === 'All' ? totalActiveFemales : (totalActiveFemales / (flocks.length || 1));
+        const count = selectedHouse === 'All' ? totalActiveFemales : (totalActiveFemales / (safeFlocks.length || 1));
         totalFeedKg = Math.round((count * femaleGrams + (count * 0.1) * maleGrams) / 1000);
       }
 
@@ -330,7 +340,7 @@ export const FlockProductivityDashboard: React.FC<{
         gramsFeedPerHE
       };
     });
-  }, [dateRangeDates, feedConsumptionRecords, selectedHouse, eggTrendData, totalActiveFemales, flocks]);
+  }, [dateRangeDates, safeFeedRecords, selectedHouse, eggTrendData, totalActiveFemales, safeFlocks]);
 
   // 4. Body Weight Progression vs Breed Standard Curve (Weeks 20-55)
   const bodyWeightCurveData = useMemo(() => {
@@ -339,7 +349,8 @@ export const FlockProductivityDashboard: React.FC<{
     
     return weeks.map(week => {
       // Find actual recorded body weights for this week
-      const matchingBw = bodyWeights.filter(bw => {
+      const matchingBw = safeBodyWeights.filter(bw => {
+        if (!bw) return false;
         const weekMatch = bw.week === week;
         const houseMatch = selectedHouse === 'All' || bw.houseNumber === selectedHouse;
         return weekMatch && houseMatch;
@@ -367,7 +378,7 @@ export const FlockProductivityDashboard: React.FC<{
       }
 
       // Standard targets from farmProfile or Cobb 500 standard
-      const stdItem = farmProfile.standardBodyWeights?.find(s => s.ageWeek === week) || {
+      const stdItem = (farmProfile?.standardBodyWeights || []).find(s => s && s.ageWeek === week) || {
         maleStandardGrams: 3000 + (week - 20) * 90,
         femaleStandardGrams: 2250 + (week - 20) * 85,
         toleranceMinGrams: (2250 + (week - 20) * 85) * 0.96,
@@ -386,7 +397,7 @@ export const FlockProductivityDashboard: React.FC<{
         uniformity
       };
     });
-  }, [bodyWeights, selectedHouse, farmProfile]);
+  }, [safeBodyWeights, selectedHouse, farmProfile]);
 
   // 5. Egg Sorting Defect Breakdown Pie/Donut Data
   const eggQualityBreakdownData = useMemo(() => {
@@ -399,12 +410,13 @@ export const FlockProductivityDashboard: React.FC<{
     let spoiled = 0;
     let others = 0;
 
-    const filteredRecords = eggProductionRecords.filter(r => 
-      selectedHouse === 'All' || r.houseNumber === selectedHouse
+    const filteredRecords = safeEggRecords.filter(r => 
+      r && (selectedHouse === 'All' || r.houseNumber === selectedHouse)
     );
 
     if (filteredRecords.length > 0) {
       filteredRecords.forEach(r => {
+        if (!r) return;
         hatchingEggsTotal += (r.totalHE || r.totalHatchingEggs || r.heNest || 0);
         thinShell += (r.thinShell || 0);
         misshapen += (r.misshape || 0);
@@ -443,7 +455,7 @@ export const FlockProductivityDashboard: React.FC<{
         { name: 'Spoiled / Dirty', value: spoiled, color: '#f97316', pct: calcPct(spoiled) },
         { name: 'Others', value: others, color: '#94a3b8', pct: calcPct(others) }
       ];
-    }, [eggProductionRecords, selectedHouse]);
+    }, [safeEggRecords, selectedHouse]);
 
   // Overall Top Summary KPIs
   const latestEggData = eggTrendData[eggTrendData.length - 1] || {

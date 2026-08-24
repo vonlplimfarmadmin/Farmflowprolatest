@@ -38,11 +38,14 @@ export const EggProductionView: React.FC = () => {
 
   const toast = useToast();
 
+  const safeFlocks = Array.isArray(flocks) ? flocks : [];
+  const safeEggProductionRecords = Array.isArray(eggProductionRecords) ? eggProductionRecords : [];
+
   const [selectedHouse, setSelectedHouse] = useState<string>(() => {
     if (currentUser?.designatedHouses && currentUser.designatedHouses.length > 0) {
       return currentUser.designatedHouses[0];
     }
-    return (flocks && flocks[0]?.houseNumber) || 'House 1';
+    return (safeFlocks && safeFlocks[0]?.houseNumber) || 'House 1';
   });
 
   const [showLogModal, setShowLogModal] = useState(false);
@@ -53,7 +56,7 @@ export const EggProductionView: React.FC = () => {
   const [displayLimit, setDisplayLimit] = useState(30);
 
   // Form State for Recording Egg Production
-  const [houseNumber, setHouseNumber] = useState(selectedHouse === 'All' ? ((flocks && flocks[0]?.houseNumber) || 'House 1') : selectedHouse);
+  const [houseNumber, setHouseNumber] = useState(selectedHouse === 'All' ? ((safeFlocks && safeFlocks[0]?.houseNumber) || 'House 1') : selectedHouse);
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [sampleEggWeight, setSampleEggWeight] = useState(58.4);
   const [notes, setNotes] = useState('');
@@ -93,33 +96,35 @@ export const EggProductionView: React.FC = () => {
   const grandTotalLoggedEggs = useMemo(() => totalCalculatedHE + totalCalculatedNHE, [totalCalculatedHE, totalCalculatedNHE]);
 
   const activeFlock = useMemo(() => {
-    if (!flocks || flocks.length === 0) return null;
-    return flocks.find(f => f.houseNumber === selectedHouse) || flocks[0];
-  }, [flocks, selectedHouse]);
+    if (!safeFlocks || safeFlocks.length === 0) return null;
+    return safeFlocks.find(f => f && f.houseNumber === selectedHouse) || safeFlocks[0];
+  }, [safeFlocks, selectedHouse]);
 
   const activeHouseRecords = useMemo(() => {
-    const records = eggProductionRecords || [];
+    const records = safeEggProductionRecords;
     if (selectedHouse === 'All') return records;
-    return records.filter(r => r.houseNumber === selectedHouse);
-  }, [eggProductionRecords, selectedHouse]);
+    return records.filter(r => r && r.houseNumber === selectedHouse);
+  }, [safeEggProductionRecords, selectedHouse]);
 
   const filteredHistoryRecords = useMemo(() => {
     const records = activeHouseRecords || [];
     if (!searchFilter.trim()) return records;
     const q = searchFilter.toLowerCase().trim();
     return records.filter(r => 
-      (r.date && r.date.includes(q)) || 
-      (r.houseNumber && r.houseNumber.toLowerCase().includes(q)) || 
-      (r.loggedBy && r.loggedBy.toLowerCase().includes(q))
+      r && (
+        (r.date && r.date.toLowerCase().includes(q)) || 
+        (r.houseNumber && r.houseNumber.toLowerCase().includes(q)) || 
+        (r.loggedBy && r.loggedBy.toLowerCase().includes(q))
+      )
     );
   }, [activeHouseRecords, searchFilter]);
 
   // Latest production metrics
   const latestProd = useMemo(() => {
     if (activeHouseRecords && activeHouseRecords.length > 0) return activeHouseRecords[0];
-    if (eggProductionRecords && eggProductionRecords.length > 0) return eggProductionRecords[0];
+    if (safeEggProductionRecords && safeEggProductionRecords.length > 0) return safeEggProductionRecords[0];
     return null;
-  }, [activeHouseRecords, eggProductionRecords]);
+  }, [activeHouseRecords, safeEggProductionRecords]);
 
   const handleSaveEggRecord = (e: React.FormEvent) => {
     e.preventDefault();
@@ -508,7 +513,7 @@ export const EggProductionView: React.FC = () => {
 
       {/* Two Detailed Breakdown Tables: Collection Passes vs Sorting Quality */}
       {latestProd && (() => {
-        const collectionsList = latestProd.collections || [];
+        const collectionsList = Array.isArray(latestProd.collections) ? latestProd.collections : [];
         const totalHECount = latestProd.totalHatchingEggs ?? latestProd.totalHE ?? ((latestProd.heNest || 0) + (latestProd.heFloor || 0));
         const totalNHECount = latestProd.totalNonHatchingEggs ?? latestProd.totalNHE ?? 0;
         const heNestCount = latestProd.heNest ?? latestProd.sorting?.hatchingEggs?.heNest ?? totalHECount;

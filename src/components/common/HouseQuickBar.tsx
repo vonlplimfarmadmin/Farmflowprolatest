@@ -15,7 +15,8 @@ export const HouseQuickBar: React.FC<HouseQuickBarProps> = ({
 }) => {
   const { flocks = [], getFlockStats } = useFarm();
 
-  const houseOptions = (flocks || []).map(f => f.houseNumber);
+  const safeFlocks = Array.isArray(flocks) ? flocks.filter(Boolean) : [];
+  const houseOptions = safeFlocks.map(f => f.houseNumber).filter(Boolean);
   const currentIndex = houseOptions.indexOf(selectedHouse);
 
   const handlePrev = () => {
@@ -58,7 +59,8 @@ export const HouseQuickBar: React.FC<HouseQuickBarProps> = ({
           </button>
         )}
 
-        {(flocks || []).map((flock) => {
+        {safeFlocks.map((flock) => {
+          if (!flock || !flock.houseNumber) return null;
           const isSelected = selectedHouse === flock.houseNumber;
           const stats = getFlockStats ? getFlockStats(flock.houseNumber) : null;
           const totalBirds = stats ? stats.totalCurrent : ((Number(flock.currentFemales) || 0) + (Number(flock.currentMales) || 0));

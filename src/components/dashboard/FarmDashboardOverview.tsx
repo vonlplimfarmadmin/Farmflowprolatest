@@ -45,20 +45,23 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
     permissions 
   } = useFarm();
 
-  const lowFeedAlerts = getLowStockAlerts();
-  const upcomingVacAlerts = getUpcomingVaccineAlerts();
+  const safeFlocks = Array.isArray(flocks) ? flocks : [];
+  const safeEggProductionRecords = Array.isArray(eggProductionRecords) ? eggProductionRecords : [];
+  const lowFeedAlerts = getLowStockAlerts ? getLowStockAlerts() : [];
+  const upcomingVacAlerts = getUpcomingVaccineAlerts ? getUpcomingVaccineAlerts() : [];
 
   // Aggregate stats across all active flocks
   let totalFarmMales = 0;
   let totalFarmFemales = 0;
   let totalFarmDepletions = 0;
 
-  flocks.forEach(flock => {
-    const stats = getFlockStats(flock.houseNumber);
+  safeFlocks.forEach(flock => {
+    if (!flock) return;
+    const stats = getFlockStats ? getFlockStats(flock.houseNumber) : null;
     if (stats) {
-      totalFarmMales += stats.currentMales;
-      totalFarmFemales += stats.currentFemales;
-      totalFarmDepletions += stats.totalDepleted;
+      totalFarmMales += stats.currentMales || 0;
+      totalFarmFemales += stats.currentFemales || 0;
+      totalFarmDepletions += stats.totalDepleted || 0;
     }
   });
 
@@ -69,11 +72,11 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
   const overallLivability = isNaN(rawLivability) ? 100 : rawLivability;
 
   // Latest egg production record
-  const latestEggRecords = eggProductionRecords.slice(0, 6);
-  const totalEggsToday = latestEggRecords.reduce((s, r) => s + (Number(r.tep) || Number(r.totalEggs) || 0), 0);
-  const totalHEToday = latestEggRecords.reduce((s, r) => s + (Number(r.totalHE) || Number(r.totalHatchingEggs) || 0), 0);
+  const latestEggRecords = safeEggProductionRecords.slice(0, 6);
+  const totalEggsToday = latestEggRecords.reduce((s, r) => s + (Number(r?.tep) || Number(r?.totalEggs) || 0), 0);
+  const totalHEToday = latestEggRecords.reduce((s, r) => s + (Number(r?.totalHE) || Number(r?.totalHatchingEggs) || 0), 0);
   const rawAvgHenday = latestEggRecords.length > 0
-    ? (latestEggRecords.reduce((s, r) => s + (Number(r.hendayPct) || 0), 0) / latestEggRecords.length)
+    ? (latestEggRecords.reduce((s, r) => s + (Number(r?.hendayPct) || 0), 0) / latestEggRecords.length)
     : 0;
   const avgHendayToday = isNaN(rawAvgHenday) ? 0 : rawAvgHenday;
 
