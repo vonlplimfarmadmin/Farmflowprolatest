@@ -655,7 +655,7 @@ export const FlockProductivityDashboard: React.FC<{
             </span>
           </div>
           <span className={`text-[10px] block mt-1 ${activeTab === 'egg_quality' ? 'text-graphite-300' : 'text-graphite-500'}`}>
-            {latestEggData.hatchingEggs?.toLocaleString()} / {latestEggData.totalEggs?.toLocaleString()} eggs
+            {(latestEggData as any).hatchingEggs?.toLocaleString() || (latestEggData as any).totalHE?.toLocaleString() || '0'} / {(latestEggData as any).totalEggs?.toLocaleString() || '0'} eggs
           </span>
         </div>
 

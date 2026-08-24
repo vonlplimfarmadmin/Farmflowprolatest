@@ -29,6 +29,7 @@ import { DynamicReportsView } from './components/reports/DynamicReportsView';
 import { SettingsView } from './components/settings/SettingsView';
 import { RoleBadge } from './components/common/RoleBadge';
 import { OfflineBanner } from './components/common/OfflineBanner';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Shield, Sparkles, UserCheck, AlertCircle } from 'lucide-react';
 
 const FarmAppContent: React.FC = () => {
@@ -195,7 +196,7 @@ const FarmAppContent: React.FC = () => {
               </p>
             </div>
           ) : (
-            <>
+            <ErrorBoundary key={activeModule} fallbackTitle="Farm Module Render Error" onReset={() => setActiveModule('dashboard')}>
               {activeModule === 'dashboard' && (
                 <FarmDashboardOverview 
                   onNavigate={setActiveModule} 
@@ -212,7 +213,7 @@ const FarmAppContent: React.FC = () => {
               {activeModule === 'egg_production' && <EggProductionView />}
               {activeModule === 'reports' && <DynamicReportsView />}
               {activeModule === 'settings' && <SettingsView />}
-            </>
+            </ErrorBoundary>
           )}
         </main>
       </div>
@@ -228,7 +229,7 @@ const FarmAppContent: React.FC = () => {
       <NotificationDrawer
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}
-        onNavigate={setActiveModule}
+        onNavigate={(mod) => setActiveModule(mod as ModuleType)}
       />
 
       <MessengerReportQuickModal
@@ -239,7 +240,7 @@ const FarmAppContent: React.FC = () => {
       <CommandPalette
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
-        onNavigate={setActiveModule}
+        onNavigate={(mod) => setActiveModule(mod as ModuleType)}
         onOpenMessengerReport={() => setIsMessengerReportOpen(true)}
       />
 

@@ -898,7 +898,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } else if (clean === 'collector' || clean === 'collector1' || clean === 'egg_collector') {
         user = users.find(u => u.username === 'collector_marlon' || u.role === 'Egg Collector');
       } else if (clean === 'leadman' || clean === 'leadman1') {
-        user = users.find(u => u.username === 'leadman_eduardo' || u.role === 'Leadman / Technician');
+        user = users.find(u => u.username === 'leadman_eduardo' || u.role === 'Leadman' || (u.role as string) === 'Leadman / Technician');
       }
     }
 

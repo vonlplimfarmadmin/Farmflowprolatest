@@ -123,9 +123,9 @@ export const EggProductionView: React.FC = () => {
 
   const handleSaveEggRecord = (e: React.FormEvent) => {
     e.preventDefault();
-    const flock = flocks.find(f => f.houseNumber === houseNumber);
-    const fStats = flock ? getFlockStats(flock.houseNumber) : null;
-    const femalePop = fStats ? fStats.currentFemales : 9500;
+    const flock = (flocks || []).find(f => f.houseNumber === houseNumber);
+    const fStats = flock && getFlockStats ? getFlockStats(flock.houseNumber) : null;
+    const femalePop = fStats ? fStats.currentFemales : ((flock && (Number(flock.currentFemales) || 0)) || 9500);
 
     const collections: EggCollectionEntry[] = [
       { id: 'c1', collectionNumber: 1, collectionTime: '08:00 AM', leftSideCount: Number(c1Left), rightSideCount: Number(c1Right), totalCount: Number(c1Left) + Number(c1Right) },
@@ -404,13 +404,13 @@ export const EggProductionView: React.FC = () => {
           </button>
 
           {/* Action 3: Record Egg Production Entry */}
-          {permissions.canRecordEggProduction(selectedHouse) && (
+          {Boolean(permissions?.canRecordEggProduction ? permissions.canRecordEggProduction(selectedHouse === 'All' ? undefined : selectedHouse) : true) && (
             <>
               <div className="hidden sm:block w-px h-6 bg-slate-200" />
               <button
                 id="record-daily-egg-btn"
                 onClick={() => {
-                  setHouseNumber(selectedHouse);
+                  setHouseNumber(selectedHouse === 'All' ? ((flocks && flocks[0]?.houseNumber) || 'House 1') : selectedHouse);
                   setShowLogModal(true);
                 }}
                 className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer active:scale-95"
