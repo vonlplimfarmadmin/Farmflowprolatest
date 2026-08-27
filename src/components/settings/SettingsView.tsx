@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   Database,
   CloudUpload,
+  Flame,
   Smartphone,
   Monitor,
   Apple,
@@ -45,21 +46,19 @@ export const SettingsView: React.FC = () => {
     currentUser, 
     flocks,
     permissions,
-    dbStatus,
-    isMobileDevice,
-    checkDBStatus,
-    syncAllToMongoDB,
-    pullAllFromMongoDB,
-    clearDatabaseForNewCycle
+    clearDatabaseForNewCycle,
+    syncAllToFirestore,
+    pullAllFromFirestore,
+    firestoreStatus
   } = useFarm();
 
   const [activeTab, setActiveTab] = useState<'users' | 'approvals' | 'biosecurity' | 'audit' | 'backup' | 'qr'>('users');
   const [selectedUserForHouses, setSelectedUserForHouses] = useState<User | null>(null);
   const [selectedHouses, setSelectedHouses] = useState<string[]>([]);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [isPulling, setIsPulling] = useState(false);
-  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+  const [isSyncingFirebase, setIsSyncingFirebase] = useState(false);
+  const [isPullingFirebase, setIsPullingFirebase] = useState(false);
+  const [firebaseFeedback, setFirebaseFeedback] = useState<string | null>(null);
   const [showClearModal, setShowClearModal] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [clearConfirmationText, setClearConfirmationText] = useState('');
@@ -88,26 +87,29 @@ export const SettingsView: React.FC = () => {
     }
   };
 
-  const handleSyncToMongo = async () => {
-    setIsSyncing(true);
-    setSyncFeedback(null);
+  const handleSyncToFirebase = async () => {
+    setIsSyncingFirebase(true);
+    setFirebaseFeedback(null);
     try {
-      const res = await syncAllToMongoDB();
-      setSyncFeedback(res.message);
+      const res = await syncAllToFirestore();
+      setFirebaseFeedback(res.message);
+    } catch (e: any) {
+      setFirebaseFeedback(e?.message || 'Error syncing to Firebase');
     } finally {
-      setIsSyncing(false);
+      setIsSyncingFirebase(false);
     }
   };
 
-  const handlePullFromMongo = async () => {
-    setIsPulling(true);
-    setSyncFeedback(null);
+  const handlePullFromFirebase = async () => {
+    setIsPullingFirebase(true);
+    setFirebaseFeedback(null);
     try {
-      const res = await pullAllFromMongoDB();
-      setSyncFeedback(res.message);
-      await checkDBStatus();
+      const res = await pullAllFromFirestore();
+      setFirebaseFeedback(res.message);
+    } catch (e: any) {
+      setFirebaseFeedback(e?.message || 'Error pulling from Firebase');
     } finally {
-      setIsPulling(false);
+      setIsPullingFirebase(false);
     }
   };
 
@@ -490,121 +492,35 @@ export const SettingsView: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* MongoDB Cloud & Mobile Auto Database */}
-            <div className={`p-5 rounded-2xl border space-y-3 md:col-span-2 ${
-              dbStatus.connected ? 'bg-mint-50/70 border-mint-200' : 'bg-graphite-50 border-graphite-200'
-            }`}>
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <div className={`p-2.5 rounded-xl mt-0.5 shrink-0 ${dbStatus.connected ? 'bg-mint-500 text-forest-950 shadow-xs' : 'bg-graphite-200 text-graphite-700'}`}>
-                    <Database className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h4 className="font-bold text-sm text-graphite-900">
-                        MongoDB Enterprise Database
-                      </h4>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
-                        dbStatus.connected ? 'bg-mint-200 text-forest-900' : 'bg-amber-100 text-amber-900'
-                      }`}>
-                        {dbStatus.connected ? 'Connected & Active' : 'Auto-Connecting'}
-                      </span>
-                      {isMobileDevice && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-forest-900 text-mint-300">
-                          📱 Mobile Auto Engine: MongoDB
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-graphite-600 mt-1">
-                      {dbStatus.connected 
-                        ? `Connected to MongoDB database "${dbStatus.dbName || 'FarmFlow'}". Mobile devices automatically route all egg collections, feed logs, and mortality directly to MongoDB.`
-                        : 'Mobile devices automatically prioritize MongoDB. When connected, all poultry houses sync seamlessly across phones, tablets, and computers.'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 shrink-0">
-                  <button
-                    onClick={checkDBStatus}
-                    className="p-2 bg-white rounded-xl border border-graphite-200 hover:bg-graphite-50 text-graphite-700 text-xs font-bold transition shadow-2xs cursor-pointer"
-                    title="Check MongoDB status"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                  </button>
-
-                  <button
-                    onClick={handlePullFromMongo}
-                    disabled={isPulling || !dbStatus.connected}
-                    className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-2xs border cursor-pointer ${
-                      dbStatus.connected
-                        ? 'bg-white hover:bg-mint-50 border-mint-200 text-forest-900'
-                        : 'bg-graphite-100 text-graphite-400 border-graphite-200 cursor-not-allowed'
-                    }`}
-                    title="Pull remote farm records from MongoDB Atlas into this device"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isPulling ? 'animate-spin' : ''}`} />
-                    <span>{isPulling ? 'Hydrating...' : 'Pull from MongoDB'}</span>
-                  </button>
-
-                  <button
-                    onClick={handleSyncToMongo}
-                    disabled={isSyncing || !dbStatus.connected}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer ${
-                      dbStatus.connected
-                        ? 'bg-forest-900 hover:bg-forest-850 text-white'
-                        : 'bg-graphite-200 text-graphite-400 cursor-not-allowed'
-                    }`}
-                  >
-                    <CloudUpload className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                    <span>{isSyncing ? 'Syncing...' : 'Push All Data to MongoDB'}</span>
-                  </button>
-                </div>
-              </div>
-
-              {dbStatus.connected && dbStatus.stats && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-3 border-t border-mint-200/60 text-center">
-                  <div className="bg-white/80 p-2.5 rounded-xl border border-mint-100">
-                    <span className="block text-[10px] text-graphite-500 font-bold uppercase">Egg Logs in DB</span>
-                    <span className="text-base font-extrabold text-forest-950">{dbStatus.stats.eggRecordsCount}</span>
-                  </div>
-                  <div className="bg-white/80 p-2.5 rounded-xl border border-mint-100">
-                    <span className="block text-[10px] text-graphite-500 font-bold uppercase">Flocks in DB</span>
-                    <span className="text-base font-extrabold text-forest-950">{dbStatus.stats.flocksCount}</span>
-                  </div>
-                  <div className="bg-white/80 p-2.5 rounded-xl border border-mint-100">
-                    <span className="block text-[10px] text-graphite-500 font-bold uppercase">Feed Logs in DB</span>
-                    <span className="text-base font-extrabold text-forest-950">{dbStatus.stats.feedRecordsCount}</span>
-                  </div>
-                  <div className="bg-white/80 p-2.5 rounded-xl border border-mint-100">
-                    <span className="block text-[10px] text-graphite-500 font-bold uppercase">Mortality / Depletions</span>
-                    <span className="text-base font-extrabold text-forest-950">{dbStatus.stats.depletionsCount ?? 0}</span>
-                  </div>
-                </div>
-              )}
-
-              {syncFeedback && (
-                <div className="p-3 bg-white rounded-xl border border-graphite-200 text-xs font-medium text-forest-900 flex items-center justify-between">
-                  <span>{syncFeedback}</span>
-                  <button onClick={() => setSyncFeedback(null)} className="text-[10px] text-graphite-500 hover:text-graphite-800 font-bold">Dismiss</button>
-                </div>
-              )}
-            </div>
-
             <div className="p-5 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3">
               <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
                 <Download className="w-4 h-4 text-teal-600" />
                 <span>Export Local Farm Archive</span>
               </h4>
               <p className="text-xs text-slate-600">
-                Downloads all flocks, daily egg collections, feed inventory, and biological logs to your computer.
+                Downloads all flocks, daily egg collections, feed inventory, and biological logs to your computer as a JSON archive.
               </p>
               <button
                 onClick={handleExportData}
-                className="px-4 py-2.5 bg-teal-950 hover:bg-teal-900 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs"
+                className="px-4 py-2.5 bg-teal-950 hover:bg-teal-900 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer"
               >
                 <Download className="w-4 h-4" />
                 <span>Download Backup File (.JSON)</span>
               </button>
+            </div>
+
+            <div className="p-5 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3">
+              <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                <Database className="w-4 h-4 text-teal-600" />
+                <span>Local IndexedDB Persistence</span>
+              </h4>
+              <p className="text-xs text-slate-600">
+                FarmFlow Pro automatically saves all farm data, offline queues, and user activity locally in your browser's persistent IndexedDB storage engine.
+              </p>
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-mint-100 text-forest-900 rounded-xl text-xs font-bold">
+                <CheckCircle2 className="w-4 h-4 text-forest-700" />
+                <span>Local Storage Active (Offline-Ready)</span>
+              </div>
             </div>
 
             {/* Cross-Platform App Installation Guide */}
@@ -650,6 +566,70 @@ export const SettingsView: React.FC = () => {
                   <p className="text-[11px] text-slate-300">
                     Click the <strong className="text-mint-300">Install icon</strong> in your browser's address bar or the "Install App" button in the top bar.
                   </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Google Firebase & Firestore Cloud Sync */}
+            <div className="p-5 bg-gradient-to-br from-amber-50 to-orange-50 border border-orange-200/80 rounded-3xl space-y-4 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                    <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
+                    <span>Google Firebase & Firestore Cloud Database</span>
+                  </h4>
+                  <p className="text-xs text-slate-600 mt-1 max-w-xl">
+                    Securely synchronize all flock performance, egg batches, feed consumption, and mortality records to your cloud Firestore database for multi-user collaboration and persistence.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleSyncToFirebase}
+                    disabled={isSyncingFirebase || isPullingFirebase}
+                    className="px-3.5 py-2 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50"
+                  >
+                    <CloudUpload className={`w-3.5 h-3.5 ${isSyncingFirebase ? 'animate-spin' : ''}`} />
+                    <span>{isSyncingFirebase ? 'Pushing...' : 'Push to Firestore'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePullFromFirebase}
+                    disabled={isSyncingFirebase || isPullingFirebase}
+                    className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isPullingFirebase ? 'animate-spin' : ''}`} />
+                    <span>{isPullingFirebase ? 'Pulling...' : 'Pull Records'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {firebaseFeedback && (
+                <div className="p-3 bg-white/90 border border-orange-200 rounded-xl text-xs font-medium text-slate-800 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{firebaseFeedback}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                <div className="p-3 bg-white/80 backdrop-blur-xs rounded-2xl border border-orange-200 space-y-1">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Cloud Engine</span>
+                  <div className="flex items-center gap-2 text-xs font-extrabold text-slate-900">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>Firestore Connected</span>
+                  </div>
+                </div>
+                <div className="p-3 bg-white/80 backdrop-blur-xs rounded-2xl border border-orange-200 space-y-1">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Project ID</span>
+                  <div className="text-xs font-extrabold text-slate-900">
+                    {firestoreStatus.projectId}
+                  </div>
+                </div>
+                <div className="p-3 bg-white/80 backdrop-blur-xs rounded-2xl border border-orange-200 space-y-1">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Last Sync</span>
+                  <div className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                    <span>{firestoreStatus.lastSyncedAt ? new Date(firestoreStatus.lastSyncedAt).toLocaleTimeString() : 'Ready to Sync'}</span>
+                  </div>
                 </div>
               </div>
             </div>

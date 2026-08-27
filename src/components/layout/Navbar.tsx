@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useFarm } from '../../context/FarmContext';
 import { RoleBadge } from '../common/RoleBadge';
-import { MongoStatusModal } from '../common/MongoStatusModal';
 import { OfflineSyncManager } from '../common/OfflineSyncManager';
+import { FirebaseStatusModal } from '../common/FirebaseStatusModal';
 import { PWAInstallPrompt } from '../common/PWAInstallPrompt';
 import { AppAccessQRModal } from '../common/AppAccessQRModal';
 import { 
@@ -15,6 +15,7 @@ import {
   Sparkles,
   ChevronDown,
   Database,
+  Flame,
   Share2,
   Egg,
   Plus,
@@ -65,8 +66,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   } = useFarm();
 
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
-  const [showMongoModal, setShowMongoModal] = useState(false);
   const [showOfflineModal, setShowOfflineModal] = useState(false);
+  const [showFirebaseModal, setShowFirebaseModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
 
   useEffect(() => {
@@ -138,6 +139,17 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Universal PWA Install Button */}
         <PWAInstallPrompt />
 
+        {/* Firebase Cloud Sync Button */}
+        <button
+          id="navbar-firebase-sync-btn"
+          onClick={() => setShowFirebaseModal(true)}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-orange-50 text-orange-900 hover:bg-orange-100 border border-orange-200 shadow-2xs transition cursor-pointer"
+          title="Google Firebase & Firestore Cloud Sync"
+        >
+          <Flame className="w-3.5 h-3.5 text-orange-500 fill-orange-500" />
+          <span className="hidden xl:inline text-[11px] font-bold">Firebase</span>
+        </button>
+
         {/* Offline & IndexedDB Caching Indicator */}
         <button
           id="navbar-offline-sync-btn"
@@ -164,24 +176,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               {pendingOfflineCount}
             </span>
           )}
-        </button>
-
-        {/* MongoDB Status Indicator (Mobile & Cloud Auto Database) */}
-        <button
-          id="navbar-mongo-status-btn"
-          onClick={() => setShowMongoModal(true)}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition border shadow-2xs cursor-pointer ${
-            dbStatus.connected
-              ? 'bg-mint-50 text-forest-950 border-mint-200 hover:bg-mint-100 ring-1 ring-mint-300'
-              : 'bg-graphite-100/80 text-graphite-700 border-graphite-200 hover:bg-graphite-200/80'
-          }`}
-          title={dbStatus.connected ? `MongoDB Auto Connected (${dbStatus.dbName || 'Atlas'})` : 'MongoDB Auto Database Engine (Click to check/sync)'}
-        >
-          <Database className={`w-3.5 h-3.5 ${dbStatus.connected ? 'text-forest-800' : 'text-graphite-500'}`} />
-          <span className="hidden lg:inline text-[11px] font-semibold">
-            {dbStatus.connected ? 'MongoDB (Auto)' : 'MongoDB Sync'}
-          </span>
-          <span className={`w-1.5 h-1.5 rounded-full ${dbStatus.connected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
         </button>
 
         {/* Action Pod 1: Dynamic Reports Hub */}
@@ -386,14 +380,14 @@ export const Navbar: React.FC<NavbarProps> = ({
         )}
       </div>
 
-      <MongoStatusModal
-        isOpen={showMongoModal}
-        onClose={() => setShowMongoModal(false)}
-      />
-
       <OfflineSyncManager
         isOpen={showOfflineModal}
         onClose={() => setShowOfflineModal(false)}
+      />
+
+      <FirebaseStatusModal
+        isOpen={showFirebaseModal}
+        onClose={() => setShowFirebaseModal(false)}
       />
 
       <AppAccessQRModal

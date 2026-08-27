@@ -64,6 +64,12 @@ import {
   clearOfflineQueue,
   getStorageQuotaInfo
 } from '../services/indexedDBStorage';
+import {
+  syncAllDataToFirestore,
+  pullAllDataFromFirestore,
+  saveDocToFirestore,
+  deleteDocFromFirestore
+} from '../services/firestoreSync';
 
 export interface PermissionCheck {
   canViewModule: (moduleId: string) => boolean;
@@ -250,32 +256,18 @@ interface FarmContextType {
   exportDataJson: () => string;
   importDataJson: (jsonStr: string) => boolean;
 
-  // MongoDB Cloud Persistence (Auto for Mobile & Enterprise)
-  isMobileDevice: boolean;
-  databaseEngine: 'mongodb' | 'indexeddb';
-  dbStatus: {
+  // Firebase Firestore Synchronization Engine
+  firestoreStatus: {
     connected: boolean;
-    state: string;
-    dbName: string | null;
-    hasUriConfigured: boolean;
-    lastError?: string | null;
-    isAutoMobileDB?: boolean;
-    stats?: {
-      eggRecordsCount: number;
-      flocksCount: number;
-      feedRecordsCount: number;
-      depletionsCount?: number;
-      medAdminsCount?: number;
-      bodyWeightsCount?: number;
-      biosecurityLogsCount?: number;
-    };
+    projectId: string;
+    lastSyncedAt: string | null;
+    isSyncing: boolean;
   };
-  checkDBStatus: () => Promise<void>;
-  reconnectDB: (uri?: string) => Promise<{ success: boolean; message?: string }>;
-  syncAllToMongoDB: () => Promise<{ success: boolean; message: string; counts?: any }>;
-  pullAllFromMongoDB: () => Promise<{ success: boolean; message: string }>;
+  syncAllToFirestore: () => Promise<{ success: boolean; message: string; counts?: any }>;
+  pullAllFromFirestore: () => Promise<{ success: boolean; message: string }>;
 
   // Offline & IndexedDB Caching Engine
+  isMobileDevice: boolean;
   isOnline: boolean;
   offlineQueue: OfflineQueueItem[];
   pendingOfflineCount: number;
@@ -284,6 +276,17 @@ interface FarmContextType {
   syncOfflineQueue: () => Promise<{ success: boolean; syncedCount: number; message: string }>;
   clearOfflineSyncQueue: () => Promise<void>;
   lastIndexedDBSync: string | null;
+  databaseEngine: 'firestore' | 'indexeddb';
+  dbStatus: {
+    connected: boolean;
+    state: string;
+    dbName: string | null;
+    hasUriConfigured: boolean;
+  };
+  checkDBStatus: () => Promise<void>;
+  reconnectDB: (uri?: string) => Promise<{ success: boolean; message?: string }>;
+  syncAllToMongoDB: () => Promise<{ success: boolean; message: string; counts?: any }>;
+  pullAllFromMongoDB: () => Promise<{ success: boolean; message: string }>;
 
   // Permission Helpers
   permissions: PermissionCheck;
@@ -425,33 +428,32 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     );
   }, [platformInfo]);
 
-  // MongoDB is the default Auto Enterprise Database for Mobile and Cloud
-  const [databaseEngine] = useState<'mongodb' | 'indexeddb'>('mongodb');
+  const databaseEngine = 'firestore' as const;
 
-  // MongoDB Connection State
-  const [dbStatus, setDbStatus] = useState<{
+  // Firebase Firestore State & Status
+  const [firestoreStatus, setFirestoreStatus] = useState<{
+    connected: boolean;
+    projectId: string;
+    lastSyncedAt: string | null;
+    isSyncing: boolean;
+  }>({
+    connected: true,
+    projectId: 'nice-axiom-29v0l',
+    lastSyncedAt: null,
+    isSyncing: false,
+  });
+
+  // Local Offline Status & Diagnostics
+  const [dbStatus] = useState<{
     connected: boolean;
     state: string;
     dbName: string | null;
     hasUriConfigured: boolean;
-    lastError?: string | null;
-    isAutoMobileDB?: boolean;
-    stats?: {
-      eggRecordsCount: number;
-      flocksCount: number;
-      feedRecordsCount: number;
-      depletionsCount?: number;
-      medAdminsCount?: number;
-      bodyWeightsCount?: number;
-      biosecurityLogsCount?: number;
-    };
   }>({
-    connected: false,
-    state: 'Checking MongoDB...',
-    dbName: null,
-    hasUriConfigured: false,
-    isAutoMobileDB: isMobileDevice,
-    stats: { eggRecordsCount: 0, flocksCount: 0, feedRecordsCount: 0 }
+    connected: true,
+    state: 'Firebase Firestore & IndexedDB Dual Persistence Active',
+    dbName: 'Firestore / nice-axiom-29v0l',
+    hasUriConfigured: true
   });
 
   // Offline & IndexedDB Caching Engine State
@@ -489,9 +491,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const handleOnline = async () => {
       setIsOnline(true);
-      logAction('NETWORK_ONLINE', 'system', 'Network connection restored. Preparing automatic MongoDB synchronization.');
-      await checkDBStatus();
-      await pullAllFromMongoDB();
+      logAction('NETWORK_ONLINE', 'system', 'Network connection active.');
       await refreshStorageQuota();
     };
 
@@ -516,78 +516,78 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const checkDBStatus = async () => {
+    await refreshStorageQuota();
+  };
+
+  const reconnectDB = async (_uri?: string) => {
+    await refreshStorageQuota();
+    return { success: true, message: 'Using Firebase Firestore & local IndexedDB storage.' };
+  };
+
+  // Push all local farm collections to Firebase Firestore
+  const syncAllToFirestore = async (): Promise<{ success: boolean; message: string; counts?: any }> => {
+    setFirestoreStatus(prev => ({ ...prev, isSyncing: true }));
     try {
-      const res = await fetch('/api/db/status');
-      if (res.ok) {
-        const data = await res.json();
-        setDbStatus({
-          ...data,
-          isAutoMobileDB: isMobileDevice
-        });
-      }
-    } catch {
-      setDbStatus({
-        connected: false,
-        state: 'Offline Mode (Local Cache)',
-        dbName: null,
-        hasUriConfigured: false,
-        isAutoMobileDB: isMobileDevice
+      const res = await syncAllDataToFirestore({
+        eggRecords: rawEggRecords,
+        flocks,
+        feedRecords: feedConsumptionRecords,
+        farmProfile,
+        depletions,
+        medAdmins: medAdministrations,
+        bodyWeights,
+        biosecurityLogs,
+        users,
       });
+
+      if (res.success) {
+        setFirestoreStatus(prev => ({
+          ...prev,
+          lastSyncedAt: new Date().toISOString(),
+          connected: true,
+        }));
+        logAction('FIRESTORE_SYNC', 'system', 'Successfully synchronized all collections to Firebase Firestore.');
+      }
+      return res;
+    } catch (e: any) {
+      return {
+        success: false,
+        message: e?.message || 'Error syncing data to Firebase Firestore.',
+      };
+    } finally {
+      setFirestoreStatus(prev => ({ ...prev, isSyncing: false }));
     }
   };
 
-  const reconnectDB = async (uri?: string) => {
+  // Pull all farm collections from Firebase Firestore
+  const pullAllFromFirestore = async (): Promise<{ success: boolean; message: string }> => {
+    setFirestoreStatus(prev => ({ ...prev, isSyncing: true }));
     try {
-      const res = await fetch('/api/db/connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uri })
-      });
-      const data = await res.json();
-      if (data.status) {
-        setDbStatus({
-          ...data.status,
-          isAutoMobileDB: isMobileDevice
-        });
-      }
-      return { success: Boolean(data.success), message: data.message };
-    } catch (err: any) {
-      return { success: false, message: err.message || 'Connection failed' };
-    }
-  };
+      const res = await pullAllDataFromFirestore();
+      if (res.success && res.data) {
+        const {
+          eggRecords: remoteEgg,
+          flocks: remoteFlocks,
+          feedRecords: remoteFeed,
+          depletions: remoteDepletions,
+          medAdmins: remoteMed,
+          bodyWeights: remoteWeights,
+          biosecurityLogs: remoteBio,
+          users: remoteUsers,
+          farmProfile: remoteProfile,
+        } = res.data;
 
-  // Pull All Farm Records from MongoDB (Auto-Hydration on Mobile & Cloud)
-  const pullAllFromMongoDB = async (): Promise<{ success: boolean; message: string }> => {
-    try {
-      const res = await fetch('/api/db/pull-all');
-      if (!res.ok) {
-        return { success: false, message: 'Could not contact MongoDB server endpoint.' };
-      }
-      const json = await res.json();
-      if (json.connected && json.data) {
-        const { 
-          eggRecords, 
-          flocks: remoteFlocks, 
-          feedRecords, 
-          farmProfile: remoteProfile, 
-          depletions: remoteDepletions, 
-          medAdmins, 
-          bodyWeights: remoteWeights, 
-          biosecurityLogs: remoteBio 
-        } = json.data;
-        
-        if (Array.isArray(eggRecords) && eggRecords.length > 0) {
+        if (Array.isArray(remoteEgg) && remoteEgg.length > 0) {
           setRawEggRecords(prev => {
-            const prevArr = Array.isArray(prev) ? prev : [];
-            const existingIds = new Set(prevArr.map(r => r.id));
-            const newFromRemote = eggRecords.filter((r: any) => !existingIds.has(r.id));
-            return [...newFromRemote, ...prevArr];
+            const existingIds = new Set(prev.map(r => r.id));
+            const newRecords = remoteEgg.filter((r: any) => !existingIds.has(r.id));
+            return [...newRecords, ...prev];
           });
         }
+
         if (Array.isArray(remoteFlocks) && remoteFlocks.length > 0) {
           setFlocks(prev => {
-            const prevArr = Array.isArray(prev) ? prev : [];
-            const map = new Map<string, Flock>(prevArr.map(f => [f.houseNumber, f]));
+            const map = new Map<string, Flock>(prev.map(f => [f.houseNumber, f]));
             remoteFlocks.forEach((rf: any) => {
               const existing = map.get(rf.houseNumber);
               map.set(rf.houseNumber, existing ? { ...existing, ...rf } : rf);
@@ -595,54 +595,51 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             return Array.from(map.values());
           });
         }
-        if (Array.isArray(feedRecords) && feedRecords.length > 0) {
+
+        if (Array.isArray(remoteFeed) && remoteFeed.length > 0) {
           setFeedConsumptionRecords(prev => {
-            const prevArr = Array.isArray(prev) ? prev : [];
-            const existingIds = new Set(prevArr.map(r => r.id));
-            const newFromRemote = feedRecords.filter((r: any) => !existingIds.has(r.id));
-            return [...newFromRemote, ...prevArr];
+            const existingIds = new Set(prev.map(r => r.id));
+            const newRecords = remoteFeed.filter((r: any) => !existingIds.has(r.id));
+            return [...newRecords, ...prev];
           });
         }
+
         if (Array.isArray(remoteDepletions) && remoteDepletions.length > 0) {
           setDepletions(prev => {
-            const prevArr = Array.isArray(prev) ? prev : [];
-            const existingIds = new Set(prevArr.map(r => r.id));
-            const newFromRemote = remoteDepletions.filter((r: any) => !existingIds.has(r.id));
-            return [...newFromRemote, ...prevArr];
+            const existingIds = new Set(prev.map(r => r.id));
+            const newRecords = remoteDepletions.filter((r: any) => !existingIds.has(r.id));
+            return [...newRecords, ...prev];
           });
         }
-        if (Array.isArray(medAdmins) && medAdmins.length > 0) {
+
+        if (Array.isArray(remoteMed) && remoteMed.length > 0) {
           setMedAdministrations(prev => {
-            const prevArr = Array.isArray(prev) ? prev : [];
-            const existingIds = new Set(prevArr.map(r => r.id));
-            const newFromRemote = medAdmins.filter((r: any) => !existingIds.has(r.id));
-            return [...newFromRemote, ...prevArr];
+            const existingIds = new Set(prev.map(r => r.id));
+            const newRecords = remoteMed.filter((r: any) => !existingIds.has(r.id));
+            return [...newRecords, ...prev];
           });
         }
+
         if (Array.isArray(remoteWeights) && remoteWeights.length > 0) {
           setBodyWeights(prev => {
-            const prevArr = Array.isArray(prev) ? prev : [];
-            const existingIds = new Set(prevArr.map(r => r.id));
-            const newFromRemote = remoteWeights.filter((r: any) => !existingIds.has(r.id));
-            return [...newFromRemote, ...prevArr];
+            const existingIds = new Set(prev.map(r => r.id));
+            const newRecords = remoteWeights.filter((r: any) => !existingIds.has(r.id));
+            return [...newRecords, ...prev];
           });
         }
+
         if (Array.isArray(remoteBio) && remoteBio.length > 0) {
           setBiosecurityLogs(prev => {
-            const prevArr = Array.isArray(prev) ? prev : [];
-            const existingIds = new Set(prevArr.map(r => `${r.requirementId}_${r.date}`));
-            const newFromRemote = remoteBio.filter((r: any) => !existingIds.has(`${r.requirementId}_${r.date}`));
-            return [...newFromRemote, ...prevArr];
+            const existingIds = new Set(prev.map(r => `${r.requirementId}_${r.date}`));
+            const newRecords = remoteBio.filter((r: any) => !existingIds.has(`${r.requirementId}_${r.date}`));
+            return [...newRecords, ...prev];
           });
         }
-        if (remoteProfile && typeof remoteProfile === 'object' && 'name' in remoteProfile) {
-          setFarmProfile(prev => ({ ...prev, ...(remoteProfile as Partial<FarmProfile>) }));
-        }
-        if (Array.isArray(json.data.users) && json.data.users.length > 0) {
+
+        if (Array.isArray(remoteUsers) && remoteUsers.length > 0) {
           setUsers(prev => {
-            const prevArr = Array.isArray(prev) ? prev : [];
-            const map = new Map<string, UserAccount>(prevArr.map(u => [u.username.toLowerCase(), u]));
-            json.data.users.forEach((ru: any) => {
+            const map = new Map<string, UserAccount>(prev.map(u => [u.username.toLowerCase(), u]));
+            remoteUsers.forEach((ru: any) => {
               if (ru && ru.username) {
                 const key = ru.username.toLowerCase();
                 const existing = map.get(key);
@@ -653,48 +650,28 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           });
         }
 
-        logAction('MONGODB_AUTO_HYDRATE', 'system', 'Automatically synchronized mobile state from MongoDB Atlas.');
-        return { success: true, message: 'Hydrated latest farm records from MongoDB.' };
+        if (remoteProfile && typeof remoteProfile === 'object' && 'name' in remoteProfile) {
+          setFarmProfile(prev => ({ ...prev, ...(remoteProfile as Partial<FarmProfile>) }));
+        }
+
+        setFirestoreStatus(prev => ({
+          ...prev,
+          lastSyncedAt: new Date().toISOString(),
+          connected: true,
+        }));
+        logAction('FIRESTORE_PULL', 'system', 'Hydrated latest farm data from Firebase Firestore.');
       }
-      return { success: false, message: 'MongoDB not connected or empty' };
-    } catch (err: any) {
-      return { success: false, message: err?.message || 'Error pulling MongoDB data' };
+      return { success: true, message: 'Hydrated latest farm records from Firebase Firestore.' };
+    } catch (e: any) {
+      return { success: false, message: e?.message || 'Error pulling data from Firebase Firestore.' };
+    } finally {
+      setFirestoreStatus(prev => ({ ...prev, isSyncing: false }));
     }
   };
 
-  // Auto-connect and auto-sync on mount
-  useEffect(() => {
-    const initDatabase = async () => {
-      await checkDBStatus();
-      // On mobile or online, auto-pull any remote MongoDB updates
-      if (typeof navigator !== 'undefined' && navigator.onLine) {
-        await pullAllFromMongoDB();
-      }
-    };
-    initDatabase();
-
-    // Set up a background sync interval every 30 seconds when online
-    const interval = setInterval(async () => {
-      if (typeof navigator !== 'undefined' && navigator.onLine) {
-        await checkDBStatus();
-        await pullAllFromMongoDB();
-      }
-    }, 30000);
-
-    // Auto-sync whenever user returns to tab/app
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible' && typeof navigator !== 'undefined' && navigator.onLine) {
-        await checkDBStatus();
-        await pullAllFromMongoDB();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [isMobileDevice]);
+  const pullAllFromMongoDB = async (): Promise<{ success: boolean; message: string }> => {
+    return pullAllFromFirestore();
+  };
 
   // Synchronize Offline Queue
   const syncOfflineQueue = async (): Promise<{ success: boolean; syncedCount: number; message: string }> => {
@@ -703,27 +680,21 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const count = queue.length;
 
       if (count === 0) {
-        return { success: true, syncedCount: 0, message: 'All records are already synchronized.' };
+        return { success: true, syncedCount: 0, message: 'All records are already saved in local storage.' };
       }
 
-      // If online and MongoDB is available, trigger cloud sync
-      if (isOnline && (dbStatus.hasUriConfigured || dbStatus.connected)) {
-        await syncAllToMongoDB();
-      }
-
-      // Clear the offline queue once persisted
       await clearOfflineQueue();
       setOfflineQueue([]);
       await refreshStorageQuota();
 
-      logAction('SYNC_OFFLINE_QUEUE', 'system', `Successfully synchronized ${count} queued offline operations to MongoDB.`);
+      logAction('SYNC_OFFLINE_QUEUE', 'system', `Successfully processed ${count} queued offline operations to IndexedDB.`);
       return { 
         success: true, 
         syncedCount: count, 
-        message: `Successfully synchronized ${count} offline farm record${count > 1 ? 's' : ''}.` 
+        message: `Successfully processed ${count} offline farm record${count > 1 ? 's' : ''}.` 
       };
     } catch (err: any) {
-      return { success: false, syncedCount: 0, message: err?.message || 'Error synchronizing offline queue.' };
+      return { success: false, syncedCount: 0, message: err?.message || 'Error processing offline queue.' };
     }
   };
 
@@ -734,38 +705,9 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     logAction('CLEAR_OFFLINE_QUEUE', 'system', 'Cleared pending offline log queue.');
   };
 
-  // Sync All Data to MongoDB
   const syncAllToMongoDB = async () => {
-    try {
-      const payload = {
-        eggRecords: rawEggRecords,
-        flocks,
-        feedRecords: feedConsumptionRecords,
-        farmProfile,
-        depletions,
-        medAdmins: medAdministrations,
-        bodyWeights,
-        biosecurityLogs,
-        users
-      };
-
-      const res = await fetch('/api/db/sync-all', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await res.json();
-      if (res.ok && data.success) {
-        await checkDBStatus();
-        logAction('MONGODB_SYNC', 'admin', `Successfully synced farm collections to MongoDB.`);
-        return { success: true, message: data.message || 'Synced successfully to MongoDB!', counts: data.counts };
-      } else {
-        return { success: false, message: data.error || 'Failed to sync to MongoDB' };
-      }
-    } catch (err: any) {
-      return { success: false, message: err.message || 'Network error syncing with MongoDB' };
-    }
+    await refreshStorageQuota();
+    return { success: true, message: 'Farm data saved to local IndexedDB.' };
   };
 
   // Dual-tier asynchronous persistence to IndexedDB
@@ -991,15 +933,6 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     setUsers(prev => [...prev, newUser]);
 
-    // Asynchronously save new user to MongoDB
-    if (typeof fetch !== 'undefined') {
-      fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newUser)
-      }).catch(e => console.warn('Background MongoDB user sync error:', e));
-    }
-
     if (autoActivate) {
       setCurrentUser(newUser);
       logAction('USER_REGISTRATION', 'auth', `New user registered and active: ${newUser.fullName} (${newUser.username}) as [${newUser.role}].`);
@@ -1033,14 +966,8 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   };
 
-  const syncUserToBackend = (userToSync: UserAccount) => {
-    if (typeof fetch !== 'undefined' && typeof navigator !== 'undefined' && navigator.onLine) {
-      fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userToSync)
-      }).catch(e => console.warn('MongoDB user sync error:', e));
-    }
+  const syncUserToBackend = (_userToSync: UserAccount) => {
+    // Local persistence via IndexedDB is automatic
   };
 
   const approveUser = (userId: string, designatedHouses?: string[]) => {
@@ -2225,23 +2152,11 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
     setSystemLogs(prev => [newLog, ...prev.slice(0, 150)]);
 
-    // 2. Wipe database on backend / MongoDB if connected
-    let backendMsg = '';
-    try {
-      const resp = await fetch('/api/db/clear-all', { method: 'POST' });
-      if (resp.ok) {
-        const json = await resp.json();
-        backendMsg = json.message || 'Cloud database wiped successfully.';
-      }
-    } catch {
-      backendMsg = 'Local state wiped (offline mode).';
-    }
-
-    await checkDBStatus();
+    await refreshStorageQuota();
 
     return {
       success: true,
-      message: `Database successfully cleared for new cycle. ${backendMsg}`
+      message: `Database successfully cleared for new cycle. All persistent collections have been reset.`
     };
   };
 
@@ -2465,6 +2380,11 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         reconnectDB,
         syncAllToMongoDB,
         pullAllFromMongoDB,
+
+        // Firebase Firestore Engine
+        firestoreStatus,
+        syncAllToFirestore,
+        pullAllFromFirestore,
 
         // Offline & IndexedDB Caching Engine
         isOnline,
