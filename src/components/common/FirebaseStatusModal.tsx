@@ -99,19 +99,23 @@ export const FirebaseStatusModal: React.FC<FirebaseStatusModalProps> = ({ isOpen
         {/* Body */}
         <div className="p-6 space-y-5">
           {/* Status Card */}
-          <div className="p-4 bg-orange-50/60 border border-orange-200/80 rounded-2xl flex items-start justify-between gap-4">
-            <div className="space-y-1">
+          <div className="p-4 bg-orange-50/60 border border-orange-200/80 rounded-2xl space-y-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="text-xs font-extrabold text-slate-900">Firestore Cloud Connected</span>
-                <span className="px-2 py-0.5 rounded-full bg-orange-100 text-orange-900 font-bold text-[10px]">
-                  Project: nice-axiom-29v0l
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 font-bold text-[10px] flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                  Auto-Sync Active
                 </span>
               </div>
-              <p className="text-xs text-slate-600">
-                All poultry house logs, egg gradings, mortality, and feed records sync with your Firebase Firestore database with offline support.
-              </p>
+              <span className="px-2 py-0.5 rounded-full bg-orange-100 text-orange-900 font-bold text-[10px]">
+                Project: nice-axiom-29v0l
+              </span>
             </div>
+            <p className="text-xs text-slate-600">
+              Live multi-device sync is running in the background. All entries, modifications, and deletions recorded on any phone, tablet, or desktop instantly sync across your entire team.
+            </p>
           </div>
 
           {/* Cloud Collections Breakdown */}

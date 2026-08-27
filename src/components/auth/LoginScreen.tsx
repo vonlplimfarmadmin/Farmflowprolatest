@@ -43,7 +43,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   onRegisterClick,
   onForgotPasswordClick 
 }) => {
-  const { login, registerUser, farmProfile, users, switchUserRole, dbStatus, pullAllFromMongoDB } = useFarm();
+  const { login, registerUser, farmProfile, users, dbStatus, pullAllFromMongoDB } = useFarm();
   
   // Tab Mode: 'login' | 'register' | 'qr'
   const [activeTab, setActiveTab] = useState<'login' | 'register' | 'qr'>('login');
@@ -62,8 +62,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   }, []);
 
   // Login Form States
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('pass123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -161,17 +161,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         }
       }
     }, 450);
-  };
-
-  const handleQuickPersonaSelect = (roleName: UserRole) => {
-    const matched = users.find(u => u.role === roleName && u.status === 'active');
-    if (matched) {
-      setUsername(matched.username);
-      setPassword('pass123');
-    } else {
-      switchUserRole(roleName);
-    }
-    setActiveTab('login');
   };
 
   const handleCopyLink = () => {

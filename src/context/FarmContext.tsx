@@ -68,7 +68,8 @@ import {
   syncAllDataToFirestore,
   pullAllDataFromFirestore,
   saveDocToFirestore,
-  deleteDocFromFirestore
+  deleteDocFromFirestore,
+  subscribeToFarmCollections
 } from '../services/firestoreSync';
 
 export interface PermissionCheck {
@@ -491,8 +492,10 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const handleOnline = async () => {
       setIsOnline(true);
-      logAction('NETWORK_ONLINE', 'system', 'Network connection active.');
+      logAction('NETWORK_ONLINE', 'system', 'Network connection active. Auto-synchronizing with Firebase Firestore.');
       await refreshStorageQuota();
+      // Auto-sync when coming back online
+      pullAllFromFirestore().catch(() => {});
     };
 
     const handleOffline = () => {
@@ -512,6 +515,175 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Real-time Automatic Cross-Platform Cloud Synchronization Listener
+  useEffect(() => {
+    const unsubscribe = subscribeToFarmCollections({
+      onEggRecordsUpdate: (remoteRecords) => {
+        if (Array.isArray(remoteRecords) && remoteRecords.length > 0) {
+          setRawEggRecords(prev => {
+            const map = new Map<string, EggProductionRecord>(prev.map(r => [r.id, r]));
+            remoteRecords.forEach((r: any) => {
+              if (r && r.id) {
+                map.set(r.id, { ...(map.get(r.id) || {}), ...r });
+              }
+            });
+            return Array.from(map.values()).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          });
+          setFirestoreStatus(prev => ({
+            ...prev,
+            lastSyncedAt: new Date().toISOString(),
+            connected: true
+          }));
+        }
+      },
+      onFlocksUpdate: (remoteFlocks) => {
+        if (Array.isArray(remoteFlocks) && remoteFlocks.length > 0) {
+          setFlocks(prev => {
+            const map = new Map<string, Flock>(prev.map(f => [f.houseNumber, f]));
+            remoteFlocks.forEach((rf: any) => {
+              if (rf && rf.houseNumber) {
+                const existing = map.get(rf.houseNumber);
+                map.set(rf.houseNumber, existing ? { ...existing, ...rf } : rf);
+              }
+            });
+            return Array.from(map.values());
+          });
+          setFirestoreStatus(prev => ({
+            ...prev,
+            lastSyncedAt: new Date().toISOString(),
+            connected: true
+          }));
+        }
+      },
+      onFeedRecordsUpdate: (remoteFeed) => {
+        if (Array.isArray(remoteFeed) && remoteFeed.length > 0) {
+          setFeedConsumptionRecords(prev => {
+            const map = new Map<string, FeedConsumptionRecord>(prev.map(r => [r.id, r]));
+            remoteFeed.forEach((r: any) => {
+              if (r && r.id) {
+                map.set(r.id, { ...(map.get(r.id) || {}), ...r });
+              }
+            });
+            return Array.from(map.values());
+          });
+          setFirestoreStatus(prev => ({
+            ...prev,
+            lastSyncedAt: new Date().toISOString(),
+            connected: true
+          }));
+        }
+      },
+      onDepletionsUpdate: (remoteDepletions) => {
+        if (Array.isArray(remoteDepletions) && remoteDepletions.length > 0) {
+          setDepletions(prev => {
+            const map = new Map<string, DepletionRecord>(prev.map(r => [r.id, r]));
+            remoteDepletions.forEach((r: any) => {
+              if (r && r.id) {
+                map.set(r.id, { ...(map.get(r.id) || {}), ...r });
+              }
+            });
+            return Array.from(map.values());
+          });
+          setFirestoreStatus(prev => ({
+            ...prev,
+            lastSyncedAt: new Date().toISOString(),
+            connected: true
+          }));
+        }
+      },
+      onMedAdminsUpdate: (remoteMed) => {
+        if (Array.isArray(remoteMed) && remoteMed.length > 0) {
+          setMedAdministrations(prev => {
+            const map = new Map<string, MedAdministrationRecord>(prev.map(r => [r.id, r]));
+            remoteMed.forEach((r: any) => {
+              if (r && r.id) {
+                map.set(r.id, { ...(map.get(r.id) || {}), ...r });
+              }
+            });
+            return Array.from(map.values());
+          });
+          setFirestoreStatus(prev => ({
+            ...prev,
+            lastSyncedAt: new Date().toISOString(),
+            connected: true
+          }));
+        }
+      },
+      onBodyWeightsUpdate: (remoteWeights) => {
+        if (Array.isArray(remoteWeights) && remoteWeights.length > 0) {
+          setBodyWeights(prev => {
+            const map = new Map<string, BodyWeightRecord>(prev.map(r => [r.id, r]));
+            remoteWeights.forEach((r: any) => {
+              if (r && r.id) {
+                map.set(r.id, { ...(map.get(r.id) || {}), ...r });
+              }
+            });
+            return Array.from(map.values());
+          });
+          setFirestoreStatus(prev => ({
+            ...prev,
+            lastSyncedAt: new Date().toISOString(),
+            connected: true
+          }));
+        }
+      },
+      onBiosecurityLogsUpdate: (remoteLogs) => {
+        if (Array.isArray(remoteLogs) && remoteLogs.length > 0) {
+          setBiosecurityLogs(prev => {
+            const map = new Map<string, BiosecurityVerificationLog>(prev.map(r => [r.id || `${r.requirementId}_${r.date}`, r]));
+            remoteLogs.forEach((r: any) => {
+              const key = r.id || `${r.requirementId}_${r.date}`;
+              map.set(key, { ...(map.get(key) || {}), ...r });
+            });
+            return Array.from(map.values());
+          });
+          setFirestoreStatus(prev => ({
+            ...prev,
+            lastSyncedAt: new Date().toISOString(),
+            connected: true
+          }));
+        }
+      },
+      onUsersUpdate: (remoteUsers) => {
+        if (Array.isArray(remoteUsers) && remoteUsers.length > 0) {
+          setUsers(prev => {
+            const map = new Map<string, UserAccount>(prev.map(u => [u.username.toLowerCase(), u]));
+            remoteUsers.forEach((ru: any) => {
+              if (ru && ru.username) {
+                const key = ru.username.toLowerCase();
+                const existing = map.get(key);
+                map.set(key, existing ? { ...existing, ...ru } : ru);
+              }
+            });
+            return Array.from(map.values());
+          });
+          setFirestoreStatus(prev => ({
+            ...prev,
+            lastSyncedAt: new Date().toISOString(),
+            connected: true
+          }));
+        }
+      },
+      onFarmProfileUpdate: (remoteProfile) => {
+        if (remoteProfile && typeof remoteProfile === 'object') {
+          setFarmProfile(prev => ({ ...prev, ...remoteProfile }));
+          setFirestoreStatus(prev => ({
+            ...prev,
+            lastSyncedAt: new Date().toISOString(),
+            connected: true
+          }));
+        }
+      },
+      onError: (err) => {
+        console.warn('Firestore live listener notice:', err);
+      }
+    });
+
+    return () => {
+      unsubscribe();
     };
   }, []);
 
@@ -966,8 +1138,9 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   };
 
-  const syncUserToBackend = (_userToSync: UserAccount) => {
-    // Local persistence via IndexedDB is automatic
+  const syncUserToBackend = (userToSync: UserAccount) => {
+    // Save to Firestore automatically across all platforms
+    saveDocToFirestore('users', userToSync.id || userToSync.username, userToSync);
   };
 
   const approveUser = (userId: string, designatedHouses?: string[]) => {
@@ -1056,6 +1229,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const deleteUser = (userId: string) => {
     setUsers(prev => prev.filter(u => u.id !== userId));
     logAction('DELETE_USER', 'admin', `Deleted user ID ${userId}.`);
+    deleteDocFromFirestore('users', userId);
     if (typeof fetch !== 'undefined' && typeof navigator !== 'undefined' && navigator.onLine) {
       fetch(`/api/users/${userId}`, {
         method: 'DELETE'
@@ -1084,7 +1258,11 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Farm Profile Methods
   const updateFarmProfile = (profile: Partial<FarmProfile>) => {
-    setFarmProfile(prev => ({ ...prev, ...profile }));
+    setFarmProfile(prev => {
+      const next = { ...prev, ...profile };
+      saveDocToFirestore('farm_config', 'profile', next);
+      return next;
+    });
     logAction('UPDATE_FARM_PROFILE', 'admin', `Updated farm profile information (${profile.name || 'details'}).`);
   };
 
@@ -1184,17 +1362,26 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       ]
     };
     setFlocks(prev => [...prev, newFlock]);
+    saveDocToFirestore('flocks', newFlock.id, newFlock);
     logAction('ADD_FLOCK', 'flock', `Added flock in ${newFlock.houseNumber} (${newFlock.breed}, ${newFlock.initialMales}M / ${newFlock.initialFemales}F).`, newFlock.houseNumber);
   };
 
   const updateFlock = (id: string, updates: Partial<Flock>) => {
-    setFlocks(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
+    setFlocks(prev => prev.map(f => {
+      if (f.id === id) {
+        const next = { ...f, ...updates };
+        saveDocToFirestore('flocks', id, next);
+        return next;
+      }
+      return f;
+    }));
     logAction('UPDATE_FLOCK', 'flock', `Updated flock parameters for ID ${id}.`);
   };
 
   const deleteFlock = (id: string) => {
     const target = flocks.find(f => f.id === id);
     setFlocks(prev => prev.filter(f => f.id !== id));
+    deleteDocFromFirestore('flocks', id);
     logAction('DELETE_FLOCK', 'flock', `Deleted flock in ${target?.houseNumber || id}.`, target?.houseNumber);
   };
 
@@ -1365,6 +1552,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       createdAt: new Date().toISOString()
     };
     setFeedConsumptionRecords(prev => [newRecord, ...prev]);
+    saveDocToFirestore('feedRecords', newRecord.id, newRecord);
 
     const descParts = [];
     if (record.femaleQuantityKg) descParts.push(`Females: ${record.femaleQuantityKg}kg (${record.femaleFeedType || primaryFeedType})`);
@@ -1394,6 +1582,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteFeedConsumption = (id: string) => {
     setFeedConsumptionRecords(prev => prev.filter(r => r.id !== id));
+    deleteDocFromFirestore('feedRecords', id);
     logAction('DELETE_FEED_CONSUMPTION', 'feed', `Deleted feed consumption record ID ${id}.`);
   };
 
@@ -1450,6 +1639,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       createdAt: new Date().toISOString()
     };
     setDepletions(prev => [newRecord, ...prev]);
+    saveDocToFirestore('depletions', newRecord.id, newRecord);
 
     setFlocks(prev => prev.map(f => {
       if (f.houseNumber === record.houseNumber) {
@@ -1485,6 +1675,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteDepletion = (id: string) => {
     setDepletions(prev => prev.filter(d => d.id !== id));
+    deleteDocFromFirestore('depletions', id);
     logAction('DELETE_DEPLETION', 'mortality', `Deleted depletion record ID ${id}.`);
   };
 
@@ -1546,6 +1737,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       createdAt: new Date().toISOString()
     };
     setMedAdministrations(prev => [newRecord, ...prev]);
+    saveDocToFirestore('medAdmins', newRecord.id, newRecord);
 
     setMedProducts(prev => prev.map(p => {
       if (p.id === record.productId) {
@@ -1578,6 +1770,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteMedAdministration = (id: string) => {
     setMedAdministrations(prev => prev.filter(a => a.id !== id));
+    deleteDocFromFirestore('medAdmins', id);
     logAction('DELETE_MED_ADMINISTRATION', 'medicine', `Deleted medication administration record ID ${id}.`);
   };
 
@@ -1626,6 +1819,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       createdAt: new Date().toISOString()
     };
     setBodyWeights(prev => [newRecord, ...prev]);
+    saveDocToFirestore('bodyWeights', newRecord.id, newRecord);
 
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
     logAction(
@@ -1650,6 +1844,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteBodyWeightRecord = (id: string) => {
     setBodyWeights(prev => prev.filter(b => b.id !== id));
+    deleteDocFromFirestore('bodyWeights', id);
     logAction('DELETE_BODY_WEIGHT', 'bodyweight', `Deleted body weight record ID ${id}.`);
   };
 
@@ -1768,6 +1963,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     setRawEggRecords(prev => [newRecord, ...prev]);
+    saveDocToFirestore('eggRecords', newRecord.id, newRecord);
 
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
     logAction(
@@ -1803,6 +1999,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteEggProductionRecord = (id: string) => {
     setRawEggRecords(prev => prev.filter(r => r.id !== id));
+    deleteDocFromFirestore('eggRecords', id);
     logAction('DELETE_EGG_PRODUCTION', 'egg_prod', `Deleted egg production record ID ${id}.`);
 
     fetch(`/api/egg-records/${id}`, {
@@ -1943,6 +2140,11 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     setBiosecurityLogs(newLogs);
     calculateAndUpdateDailySummary(date, newLogs, biosecurityRequirements);
+
+    const logToSave = newLogs.find(l => l.requirementId === requirementId && l.date === date);
+    if (logToSave) {
+      saveDocToFirestore('biosecurityLogs', logToSave.id || `${requirementId}_${date}`, logToSave);
+    }
 
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
     logAction(

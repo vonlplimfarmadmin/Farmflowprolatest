@@ -221,3 +221,135 @@ export async function deleteDocFromFirestore(collectionName: string, id: string)
     return false;
   }
 }
+
+/**
+ * Real-time Auto-Sync Subscriptions for all Farm Collections
+ */
+export interface FirestoreSubscriptions {
+  onEggRecordsUpdate?: (records: any[]) => void;
+  onFlocksUpdate?: (flocks: any[]) => void;
+  onFeedRecordsUpdate?: (feedRecords: any[]) => void;
+  onDepletionsUpdate?: (depletions: any[]) => void;
+  onMedAdminsUpdate?: (medAdmins: any[]) => void;
+  onBodyWeightsUpdate?: (bodyWeights: any[]) => void;
+  onBiosecurityLogsUpdate?: (logs: any[]) => void;
+  onUsersUpdate?: (users: any[]) => void;
+  onFarmProfileUpdate?: (profile: any) => void;
+  onError?: (err: any) => void;
+}
+
+export function subscribeToFarmCollections(subs: FirestoreSubscriptions): () => void {
+  const unsubs: (() => void)[] = [];
+
+  try {
+    // 1. Egg Records
+    if (subs.onEggRecordsUpdate) {
+      const unsub = onSnapshot(collection(db, 'eggRecords'), (snap) => {
+        if (!snap.empty) {
+          const docs = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+          subs.onEggRecordsUpdate!(docs);
+        }
+      }, (err) => subs.onError?.(err));
+      unsubs.push(unsub);
+    }
+
+    // 2. Flocks
+    if (subs.onFlocksUpdate) {
+      const unsub = onSnapshot(collection(db, 'flocks'), (snap) => {
+        if (!snap.empty) {
+          const docs = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+          subs.onFlocksUpdate!(docs);
+        }
+      }, (err) => subs.onError?.(err));
+      unsubs.push(unsub);
+    }
+
+    // 3. Feed Records
+    if (subs.onFeedRecordsUpdate) {
+      const unsub = onSnapshot(collection(db, 'feedRecords'), (snap) => {
+        if (!snap.empty) {
+          const docs = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+          subs.onFeedRecordsUpdate!(docs);
+        }
+      }, (err) => subs.onError?.(err));
+      unsubs.push(unsub);
+    }
+
+    // 4. Depletions
+    if (subs.onDepletionsUpdate) {
+      const unsub = onSnapshot(collection(db, 'depletions'), (snap) => {
+        if (!snap.empty) {
+          const docs = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+          subs.onDepletionsUpdate!(docs);
+        }
+      }, (err) => subs.onError?.(err));
+      unsubs.push(unsub);
+    }
+
+    // 5. Medication Administrations
+    if (subs.onMedAdminsUpdate) {
+      const unsub = onSnapshot(collection(db, 'medAdmins'), (snap) => {
+        if (!snap.empty) {
+          const docs = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+          subs.onMedAdminsUpdate!(docs);
+        }
+      }, (err) => subs.onError?.(err));
+      unsubs.push(unsub);
+    }
+
+    // 6. Body Weights
+    if (subs.onBodyWeightsUpdate) {
+      const unsub = onSnapshot(collection(db, 'bodyWeights'), (snap) => {
+        if (!snap.empty) {
+          const docs = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+          subs.onBodyWeightsUpdate!(docs);
+        }
+      }, (err) => subs.onError?.(err));
+      unsubs.push(unsub);
+    }
+
+    // 7. Biosecurity Logs
+    if (subs.onBiosecurityLogsUpdate) {
+      const unsub = onSnapshot(collection(db, 'biosecurityLogs'), (snap) => {
+        if (!snap.empty) {
+          const docs = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+          subs.onBiosecurityLogsUpdate!(docs);
+        }
+      }, (err) => subs.onError?.(err));
+      unsubs.push(unsub);
+    }
+
+    // 8. Users
+    if (subs.onUsersUpdate) {
+      const unsub = onSnapshot(collection(db, 'users'), (snap) => {
+        if (!snap.empty) {
+          const docs = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+          subs.onUsersUpdate!(docs);
+        }
+      }, (err) => subs.onError?.(err));
+      unsubs.push(unsub);
+    }
+
+    // 9. Farm Profile
+    if (subs.onFarmProfileUpdate) {
+      const unsub = onSnapshot(doc(db, 'farm_config', 'profile'), (snap) => {
+        if (snap.exists()) {
+          subs.onFarmProfileUpdate!(snap.data());
+        }
+      }, (err) => subs.onError?.(err));
+      unsubs.push(unsub);
+    }
+  } catch (e) {
+    console.warn('Failed to register some Firestore listeners:', e);
+  }
+
+  return () => {
+    unsubs.forEach(u => {
+      try {
+        u();
+      } catch (e) {
+        // ignore
+      }
+    });
+  };
+}
