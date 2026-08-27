@@ -25,6 +25,7 @@ import { MortalityManagementView } from './components/mortality/MortalityManagem
 import { MedicineVaccineView } from './components/medicine/MedicineVaccineView';
 import { BodyWeightView } from './components/bodyWeight/BodyWeightView';
 import { EggProductionView } from './components/eggProduction/EggProductionView';
+import { DeliveryView } from './components/delivery/DeliveryView';
 import { DynamicReportsView } from './components/reports/DynamicReportsView';
 import { SettingsView } from './components/settings/SettingsView';
 import { RoleBadge } from './components/common/RoleBadge';
@@ -211,6 +212,7 @@ const FarmAppContent: React.FC = () => {
               {activeModule === 'medicine' && <MedicineVaccineView />}
               {activeModule === 'body_weight' && <BodyWeightView />}
               {activeModule === 'egg_production' && <EggProductionView />}
+              {activeModule === 'delivery' && <DeliveryView />}
               {activeModule === 'reports' && <DynamicReportsView />}
               {activeModule === 'settings' && <SettingsView />}
             </ErrorBoundary>

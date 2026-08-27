@@ -18,6 +18,7 @@ import {
   LogOut,
   QrCode,
   Smartphone,
+  Truck,
   X
 } from 'lucide-react';
 
@@ -88,6 +89,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Egg,
       visible: permissions.canViewModule('egg_production'),
       badge: null
+    },
+    {
+      id: 'delivery',
+      label: 'Egg Delivery & ESRRR',
+      sublabel: 'Sending, Receiving & Regrading',
+      icon: Truck,
+      visible: permissions.canViewModule('delivery'),
+      badge: 'ESRRR',
+      badgeColor: 'bg-emerald-600 text-white font-extrabold'
     },
     {
       id: 'flockman_module',

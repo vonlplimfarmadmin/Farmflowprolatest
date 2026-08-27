@@ -19,6 +19,7 @@ import {
   X,
   Clock,
   Sparkles,
+  Truck,
   Users
 } from 'lucide-react';
 
@@ -104,6 +105,18 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         shortcut: 'R',
         action: () => {
           onNavigate('reports');
+          onClose();
+        }
+      },
+      {
+        id: 'qa-delivery-esrrr',
+        category: 'Quick Actions',
+        title: 'Egg Delivery & ESRRR Voucher',
+        description: 'Dispatch batches, hatchery receiving, sorting regrading and print',
+        icon: <Truck className="w-4 h-4 text-emerald-400" />,
+        shortcut: 'V',
+        action: () => {
+          onNavigate('delivery');
           onClose();
         }
       },

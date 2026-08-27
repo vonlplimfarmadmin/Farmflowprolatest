@@ -28,7 +28,9 @@ import {
   BiosecurityStatus,
   BiosecurityCategory,
   BiosecurityFrequency,
-  BiosecurityCriticalLevel
+  BiosecurityCriticalLevel,
+  DeliveryRecord,
+  DeliveryHouseRecord
 } from '../types';
 import { 
   INITIAL_FARM_PROFILE, 
@@ -46,7 +48,8 @@ import {
   INITIAL_SYSTEM_LOGS,
   INITIAL_BIOSECURITY_REQUIREMENTS,
   INITIAL_BIOSECURITY_LOGS,
-  INITIAL_BIOSECURITY_SUMMARIES
+  INITIAL_BIOSECURITY_SUMMARIES,
+  INITIAL_DELIVERIES
 } from '../data/initialData';
 import { calculateFlockAgeFromLoadingDate } from '../utils/dateCalculations';
 import { detectPlatform } from '../utils/platform';
@@ -206,6 +209,13 @@ interface FarmContextType {
   deleteEggProductionRecord: (id: string) => void;
   addWeeklyEggWeight: (record: Omit<WeeklyEggWeightRecord, 'id' | 'createdAt' | 'loggedBy'>) => void;
   deleteWeeklyEggWeight: (id: string) => void;
+
+  // Delivery & ESRRR
+  deliveries: DeliveryRecord[];
+  addDelivery: (record: Omit<DeliveryRecord, 'id' | 'createdAt'>) => DeliveryRecord;
+  updateDelivery: (id: string, updates: Partial<DeliveryRecord>) => void;
+  deleteDelivery: (id: string) => void;
+  getDeliveryById: (id: string) => DeliveryRecord | undefined;
 
   // Biosecurity Compliance
   biosecurityRequirements: BiosecurityRequirement[];
@@ -395,6 +405,10 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const [biosecuritySummaries, setBiosecuritySummaries] = useState<Record<string, BiosecurityDailySummary>>(() => 
     safeParseObject<Record<string, BiosecurityDailySummary>>(`${LOCAL_STORAGE_KEY}_biosecurity_summaries`, INITIAL_BIOSECURITY_SUMMARIES)
+  );
+
+  const [deliveries, setDeliveries] = useState<DeliveryRecord[]>(() => 
+    safeParseArray<DeliveryRecord>(`${LOCAL_STORAGE_KEY}_deliveries`, INITIAL_DELIVERIES)
   );
 
   // Platform & Mobile Auto-Routing Engine
@@ -775,7 +789,8 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           systemLogs,
           biosecurityRequirements,
           biosecurityLogs,
-          biosecuritySummaries
+          biosecuritySummaries,
+          deliveries
         });
         setLastIndexedDBSync(new Date().toISOString());
       } catch (err) {
@@ -802,7 +817,8 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     systemLogs,
     biosecurityRequirements,
     biosecurityLogs,
-    biosecuritySummaries
+    biosecuritySummaries,
+    deliveries
   ]);
 
   // Save changes to localStorage
@@ -853,6 +869,10 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_weekly_egg_weights`, JSON.stringify(weeklyEggWeights));
   }, [weeklyEggWeights]);
+
+  useEffect(() => {
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_deliveries`, JSON.stringify(deliveries));
+  }, [deliveries]);
 
   useEffect(() => {
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_logs`, JSON.stringify(systemLogs));
@@ -2099,6 +2119,40 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   };
 
+  // Delivery & ESRRR Management
+  const addDelivery = (record: Omit<DeliveryRecord, 'id' | 'createdAt'>): DeliveryRecord => {
+    const id = 'del_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+    const newDelivery: DeliveryRecord = {
+      ...record,
+      id,
+      createdAt: new Date().toISOString()
+    };
+    setDeliveries(prev => [newDelivery, ...prev]);
+    logAction('ADD_DELIVERY', 'egg_prod', `Created ESRRR delivery record #${newDelivery.esrrrNumber} for date ${newDelivery.productionDate} (${newDelivery.totalEggsReceived.toLocaleString()} total eggs).`);
+    return newDelivery;
+  };
+
+  const updateDelivery = (id: string, updates: Partial<DeliveryRecord>) => {
+    setDeliveries(prev => prev.map(d => {
+      if (d.id === id) {
+        const updated = { ...d, ...updates, updatedAt: new Date().toISOString() };
+        logAction('UPDATE_DELIVERY', 'egg_prod', `Updated ESRRR delivery #${updated.esrrrNumber}.`);
+        return updated;
+      }
+      return d;
+    }));
+  };
+
+  const deleteDelivery = (id: string) => {
+    const target = deliveries.find(d => d.id === id);
+    setDeliveries(prev => prev.filter(d => d.id !== id));
+    logAction('DELETE_DELIVERY', 'egg_prod', `Deleted ESRRR delivery record #${target?.esrrrNumber || id}.`);
+  };
+
+  const getDeliveryById = (id: string): DeliveryRecord | undefined => {
+    return deliveries.find(d => d.id === id);
+  };
+
   // Reset & Backup Data
   const resetAllDataToDefaults = () => {
     setFarmProfile(INITIAL_FARM_PROFILE);
@@ -2113,6 +2167,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setBodyWeights(INITIAL_BODY_WEIGHTS);
     setRawEggRecords(INITIAL_EGG_PRODUCTION);
     setWeeklyEggWeights(INITIAL_WEEKLY_EGG_WEIGHTS);
+    setDeliveries(INITIAL_DELIVERIES);
     setSystemLogs(INITIAL_SYSTEM_LOGS);
     setBiosecurityRequirements(INITIAL_BIOSECURITY_REQUIREMENTS);
     setBiosecurityLogs(INITIAL_BIOSECURITY_LOGS);
@@ -2150,6 +2205,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setFlocks(freshFlocks);
     setRawEggRecords([]);
     setWeeklyEggWeights([]);
+    setDeliveries([]);
     setFeedStockEntries([]);
     setFeedConsumptionRecords([]);
     setDepletions([]);
@@ -2165,7 +2221,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       userRole: currentUser?.role || 'admin',
       action: 'CYCLE_CLEARED',
       category: 'admin',
-      details: 'All flock production, egg collections, feed logs, and mortality history cleared to start a fresh cycle.',
+      details: 'All flock production, egg collections, feed logs, deliveries, and mortality history cleared to start a fresh cycle.',
     };
     setSystemLogs(prev => [newLog, ...prev.slice(0, 150)]);
 
@@ -2205,6 +2261,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       bodyWeights,
       eggProductionRecords: rawEggRecords,
       weeklyEggWeights,
+      deliveries,
       systemLogs,
       biosecurityRequirements,
       biosecurityLogs,
@@ -2228,6 +2285,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (data.bodyWeights) setBodyWeights(data.bodyWeights);
       if (data.eggProductionRecords) setRawEggRecords(data.eggProductionRecords);
       if (data.weeklyEggWeights) setWeeklyEggWeights(data.weeklyEggWeights);
+      if (data.deliveries) setDeliveries(data.deliveries);
       if (data.systemLogs) setSystemLogs(data.systemLogs);
       if (data.biosecurityRequirements) setBiosecurityRequirements(data.biosecurityRequirements);
       if (data.biosecurityLogs) setBiosecurityLogs(data.biosecurityLogs);
@@ -2253,16 +2311,16 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (isAdmin || isManager) return true;
 
       if (isFlockman) {
-        // Flockman: access designated flock's record Egg Production, view Flockman's Module, view Flock, Farm Profile and Reports
-        return ['dashboard', 'egg_production', 'flockman', 'flockman_module', 'flock', 'flock_list', 'farm_profile', 'reports', 'presentation'].includes(moduleId);
+        // Flockman: access designated flock's record Egg Production, view Flockman's Module, view Flock, Farm Profile, Delivery and Reports
+        return ['dashboard', 'egg_production', 'delivery', 'flockman', 'flockman_module', 'flock', 'flock_list', 'farm_profile', 'reports', 'presentation'].includes(moduleId);
       }
       if (isLeadman) {
-        // Leadman: access designated flock's record Egg Production, record Flockman's Module, view Flock, Farm Profile, mortality and Reports
-        return ['dashboard', 'egg_production', 'flockman', 'flockman_module', 'flock', 'flock_list', 'farm_profile', 'mortality', 'reports', 'presentation'].includes(moduleId);
+        // Leadman: access designated flock's record Egg Production, record Flockman's Module, view Flock, Farm Profile, mortality, Delivery and Reports
+        return ['dashboard', 'egg_production', 'delivery', 'flockman', 'flockman_module', 'flock', 'flock_list', 'farm_profile', 'mortality', 'reports', 'presentation'].includes(moduleId);
       }
       if (isCollector) {
-        // Egg Collector: access designated flock, Record Egg Production and Reports
-        return ['dashboard', 'egg_production', 'reports', 'presentation'].includes(moduleId);
+        // Egg Collector: access designated flock, Record Egg Production, Delivery and Reports
+        return ['dashboard', 'egg_production', 'delivery', 'reports', 'presentation'].includes(moduleId);
       }
       return false;
     },
@@ -2373,6 +2431,12 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         deleteEggProductionRecord,
         addWeeklyEggWeight,
         deleteWeeklyEggWeight,
+
+        deliveries,
+        addDelivery,
+        updateDelivery,
+        deleteDelivery,
+        getDeliveryById,
 
         biosecurityRequirements,
         biosecurityLogs,

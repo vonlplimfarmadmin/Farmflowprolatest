@@ -445,6 +445,101 @@ export interface SystemLog {
   houseNumber?: string;
 }
 
+export interface DeliveryHouseRecord {
+  houseNumber: string; // e.g. "1", "2", "3", "4", "5", "6" or "House 1"
+  date5PercentHD?: string; // Date reached 5% HD lay
+  nheDelivered: number; // Non-Hatching Eggs delivered
+  nheShortOver: number; // Discrepancy (- for short, + for over)
+  netNheReceived: number; // Net NHE received at hatchery (nheDelivered + nheShortOver)
+  heDelivered: number; // Hatching Eggs delivered
+  heShortOver: number; // Discrepancy (- for short, + for over)
+  netHeReceived: number; // Net HE received at hatchery (heDelivered + heShortOver)
+  totalEggsReceived: number; // netNheReceived + netHeReceived
+  // Transit / Handling (HE)
+  transitBreakage: number;
+  transitHairline: number;
+  transitSpoils: number;
+  intactHeReceived: number; // netHeReceived - (transitBreakage + transitHairline + transitSpoils)
+  // NHE Removed at Hatchery Sorting (Regrading)
+  regradingDirty: number;
+  regradingThinShell: number;
+  regradingMisShape: number;
+  regradingOffSize: number;
+  regradingCrack: number;
+  regradingSpoil: number;
+  regradingJRS: number; // Jumbo/Round/Small
+  totalNheSorting: number; // Sum of regrading defects
+  totalSettableEggs: number; // intactHeReceived - totalNheSorting
+}
+
+export type DeliveryStatus = 'Draft' | 'Dispatched' | 'In-Transit' | 'Received' | 'Regraded' | 'Completed';
+
+export interface DeliveryRecord {
+  id: string;
+  esrrrNumber: string; // e.g. "LPL20260809"
+  companyName: string; // "SAN MIGUEL FOODS, INC."
+  farmName: string; // "L. P. LIM CITY FAMILY FARM, INC."
+  farmCode: string; // "LPL"
+  farmAddress: string; // "GEN. AGUINALDO, RAMON, ISABELA"
+  productionDate: string; // YYYY-MM-DD
+  dateReceived: string; // YYYY-MM-DD
+  dateRegraded?: string; // YYYY-MM-DD
+  hatcheryName: string; // e.g. "MJBJ Hatchery" / "MJBJ"
+  status: DeliveryStatus;
+
+  // House-by-house line items
+  items: DeliveryHouseRecord[];
+
+  // Totals (computed / cached for summary and search)
+  totalNheDelivered: number;
+  totalNheShortOver: number;
+  totalNetNheReceived: number;
+  totalHeDelivered: number;
+  totalHeShortOver: number;
+  totalNetHeReceived: number;
+  totalEggsReceived: number;
+  totalTransitBreakage: number;
+  totalTransitHairline: number;
+  totalTransitSpoils: number;
+  totalIntactHeReceived: number;
+  totalRegradingDirty: number;
+  totalRegradingThinShell: number;
+  totalRegradingMisShape: number;
+  totalRegradingOffSize: number;
+  totalRegradingCrack: number;
+  totalRegradingSpoil: number;
+  totalRegradingJRS: number;
+  totalNheSorting: number;
+  totalSettableEggs: number;
+
+  // Logistics & Container Breakdown
+  cratesGreen: number; // e.g. 163
+  cratesRed: number; // e.g. 4
+  totalCrates: number; // 167
+  traysOrange: number; // e.g. 2259
+  traysYellow: number; // e.g. 44
+  traysGreen?: number; // e.g. 0
+  traysRed?: number; // e.g. 0
+  totalTrays: number; // sum of trays
+  timeArrival: string; // e.g. "14:00"
+  timeReceived: string; // e.g. "15:13"
+  eggShellTemperature: number; // e.g. 21.2 °C
+  plateNumber: string; // e.g. "CAL 4567"
+  driverName?: string;
+
+  // Signatures & Signoffs
+  preparedBy: string; // "VON CARLO S. FRANCISCO"
+  farmOic: string; // "CHERYLE U. BAYDUA"
+  checkedByFarm: string; // "MARK MARLON TIU"
+  receivedByHatchery: string; // "G. ROMANO"
+  checkedByHatchery: string; // "SC AGONIOR"
+
+  notes?: string;
+  loggedBy: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export type ModuleType = 
   | 'dashboard'
   | 'farm_profile'
@@ -457,6 +552,8 @@ export type ModuleType =
   | 'medicine'
   | 'body_weight'
   | 'egg_production'
+  | 'delivery'
   | 'reports'
   | 'settings';
+
 
