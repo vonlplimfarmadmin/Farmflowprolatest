@@ -2249,19 +2249,20 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const permissions: PermissionCheck = {
     canViewModule: (moduleId: string): boolean => {
+      if (moduleId === 'presentation') return true;
       if (isAdmin || isManager) return true;
 
       if (isFlockman) {
         // Flockman: access designated flock's record Egg Production, view Flockman's Module, view Flock, Farm Profile and Reports
-        return ['dashboard', 'egg_production', 'flockman', 'flockman_module', 'flock', 'flock_list', 'farm_profile', 'reports'].includes(moduleId);
+        return ['dashboard', 'egg_production', 'flockman', 'flockman_module', 'flock', 'flock_list', 'farm_profile', 'reports', 'presentation'].includes(moduleId);
       }
       if (isLeadman) {
         // Leadman: access designated flock's record Egg Production, record Flockman's Module, view Flock, Farm Profile, mortality and Reports
-        return ['dashboard', 'egg_production', 'flockman', 'flockman_module', 'flock', 'flock_list', 'farm_profile', 'mortality', 'reports'].includes(moduleId);
+        return ['dashboard', 'egg_production', 'flockman', 'flockman_module', 'flock', 'flock_list', 'farm_profile', 'mortality', 'reports', 'presentation'].includes(moduleId);
       }
       if (isCollector) {
         // Egg Collector: access designated flock, Record Egg Production and Reports
-        return ['dashboard', 'egg_production', 'reports'].includes(moduleId);
+        return ['dashboard', 'egg_production', 'reports', 'presentation'].includes(moduleId);
       }
       return false;
     },
