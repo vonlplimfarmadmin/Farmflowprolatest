@@ -9,14 +9,52 @@ let isConnected = false;
 let lastError: string | null = null;
 let connectingPromise: Promise<{ success: boolean; message?: string; dbName?: string }> | null = null;
 
-// Production Candidates for connection targeting farmflow_db
+// Production Primary connection string targeting farmflow_db
 const DEFAULT_FALLBACK_URIS = [
-  // Primary connection string with farmflow_db database
   'mongodb+srv://vonlplimfarm_db_user:kv5FvZZDssnVJ0Vk@farmflowv3.qlbn8c1.mongodb.net/farmflow_db?retryWrites=true&w=majority&appName=farmflowv3',
-  // Alternative formatting targeting farmflow_db
-  'mongodb+srv://vonlplimfarm_db_userkv5FvZZDssnVJ0Vk:@farmflowv3.qlbn8c1.mongodb.net/farmflow_db?retryWrites=true&w=majority&appName=farmflowv3',
-  'mongodb+srv://vonlplimfarm_db_userkv5FvZZDssnVJ0Vk:@farmflowv3.qlbn8c1.mongodb.net/?appName=farmflowv3'
 ];
+
+/**
+ * Sanitizes and safely encodes credentials in MongoDB connection strings to prevent
+ * "Password contains unescaped characters" errors.
+ */
+export function sanitizeMongoUri(rawUri: string): string {
+  if (!rawUri || typeof rawUri !== 'string') return '';
+  const trimmed = rawUri.trim();
+  if (!trimmed.startsWith('mongodb://') && !trimmed.startsWith('mongodb+srv://')) {
+    return trimmed;
+  }
+
+  try {
+    // Match scheme, credentials, host, db, options
+    const regex = /^(mongodb(?:\+srv)?:\/\/)(?:([^:]+)(?::([^@]*))?@)?([^?\/]+)(?:\/([^?]*))?(\?.*)?$/;
+    const match = trimmed.match(regex);
+    if (!match) return trimmed;
+
+    const [, scheme, user, pass, host, db, options] = match;
+
+    if (user !== undefined && pass !== undefined) {
+      // Decode in case it was partially encoded, then safely encode
+      let decodedUser = user;
+      let decodedPass = pass;
+      try { decodedUser = decodeURIComponent(user); } catch { /* ignore */ }
+      try { decodedPass = decodeURIComponent(pass); } catch { /* ignore */ }
+
+      // Don't encode if already safe, but encode reserved chars (@, :, /, ?, #, %, etc.)
+      const safeUser = encodeURIComponent(decodedUser);
+      const safePass = encodeURIComponent(decodedPass);
+
+      const targetDb = db && db.trim() ? db.trim() : PRODUCTION_DB_NAME;
+      const targetOpts = options || '?retryWrites=true&w=majority';
+
+      return `${scheme}${safeUser}:${safePass}@${host}/${targetDb}${targetOpts}`;
+    }
+
+    return trimmed;
+  } catch {
+    return trimmed;
+  }
+}
 
 // Setup global mongoose connection event listeners once
 if (typeof mongoose !== 'undefined' && mongoose.connection) {
@@ -66,7 +104,10 @@ export async function connectDB(customUri?: string): Promise<{ success: boolean;
       }
     }
 
-    for (const uri of urisToTry) {
+    for (const rawUri of urisToTry) {
+      const uri = sanitizeMongoUri(rawUri) || rawUri;
+      if (!uri) continue;
+
       try {
         // Mask credentials for console log
         const masked = uri.replace(/\/\/([^:]+):([^@]+)@/, '//$1:****@');
