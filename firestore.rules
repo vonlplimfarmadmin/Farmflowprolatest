@@ -1,14 +1,149 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function for user role validation
-    function isAuthenticated() {
+
+    // Helper functions
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    // Default permit rule for multi-tier farm operations with client identification
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    // Default deny fallback
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if isValidId(userId) &&
+        incoming().username is string && incoming().username.size() > 0 && incoming().username.size() <= 64 &&
+        incoming().fullName is string && incoming().fullName.size() > 0 && incoming().fullName.size() <= 128 &&
+        incoming().role is string && incoming().role.size() > 0 && incoming().role.size() <= 32;
+      allow delete: if isValidId(userId);
+    }
+
+    // Flocks Collection
+    match /flocks/{flockId} {
+      allow read: if true;
+      allow create, update: if isValidId(flockId) &&
+        incoming().houseNumber is string && incoming().houseNumber.size() > 0 && incoming().houseNumber.size() <= 32 &&
+        incoming().breed is string && incoming().breed.size() > 0 && incoming().breed.size() <= 64;
+      allow delete: if isValidId(flockId);
+    }
+
+    // Egg Production Records Collection
+    match /eggRecords/{recordId} {
+      allow read: if true;
+      allow create, update: if isValidId(recordId) &&
+        incoming().houseNumber is string && incoming().houseNumber.size() > 0 && incoming().houseNumber.size() <= 32 &&
+        incoming().date is string && incoming().date.size() > 0 && incoming().date.size() <= 32;
+      allow delete: if isValidId(recordId);
+    }
+
+    // Feed Consumption Records Collection
+    match /feedRecords/{recordId} {
+      allow read: if true;
+      allow create, update: if isValidId(recordId) &&
+        incoming().houseNumber is string && incoming().houseNumber.size() > 0 && incoming().houseNumber.size() <= 32 &&
+        incoming().date is string && incoming().date.size() > 0 && incoming().date.size() <= 32;
+      allow delete: if isValidId(recordId);
+    }
+
+    // Feed Warehouse Stock Inventory Collection
+    match /feedStock/{stockId} {
+      allow read: if true;
+      allow create, update: if isValidId(stockId) &&
+        incoming().feedType is string && incoming().feedType.size() > 0 && incoming().feedType.size() <= 32;
+      allow delete: if isValidId(stockId);
+    }
+
+    // Depletion & Mortality Records Collection
+    match /depletions/{depletionId} {
+      allow read: if true;
+      allow create, update: if isValidId(depletionId) &&
+        incoming().houseNumber is string && incoming().houseNumber.size() > 0 && incoming().houseNumber.size() <= 32 &&
+        incoming().date is string && incoming().date.size() > 0 && incoming().date.size() <= 32;
+      allow delete: if isValidId(depletionId);
+    }
+
+    // Bird Transfers Collection
+    match /transfers/{transferId} {
+      allow read: if true;
+      allow create, update: if isValidId(transferId) &&
+        incoming().sourceHouse is string && incoming().sourceHouse.size() > 0 && incoming().sourceHouse.size() <= 32 &&
+        incoming().destHouse is string && incoming().destHouse.size() > 0 && incoming().destHouse.size() <= 32;
+      allow delete: if isValidId(transferId);
+    }
+
+    // Medication & Vaccine Catalog Collection
+    match /medProducts/{productId} {
+      allow read: if true;
+      allow create, update: if isValidId(productId) &&
+        incoming().name is string && incoming().name.size() > 0 && incoming().name.size() <= 128 &&
+        incoming().type is string && incoming().type.size() > 0 && incoming().type.size() <= 64;
+      allow delete: if isValidId(productId);
+    }
+
+    // Medication Administration Records Collection
+    match /medAdmins/{adminId} {
+      allow read: if true;
+      allow create, update: if isValidId(adminId) &&
+        incoming().houseNumber is string && incoming().houseNumber.size() > 0 && incoming().houseNumber.size() <= 32 &&
+        incoming().date is string && incoming().date.size() > 0 && incoming().date.size() <= 32;
+      allow delete: if isValidId(adminId);
+    }
+
+    // Body Weight Logs Collection
+    match /bodyWeights/{weightId} {
+      allow read: if true;
+      allow create, update: if isValidId(weightId) &&
+        incoming().houseNumber is string && incoming().houseNumber.size() > 0 && incoming().houseNumber.size() <= 32 &&
+        incoming().date is string && incoming().date.size() > 0 && incoming().date.size() <= 32;
+      allow delete: if isValidId(weightId);
+    }
+
+    // Biosecurity Logs Collection
+    match /biosecurityLogs/{logId} {
+      allow read: if true;
+      allow create, update: if isValidId(logId) &&
+        incoming().date is string && incoming().date.size() > 0 && incoming().date.size() <= 32;
+      allow delete: if isValidId(logId);
+    }
+
+    // ESRRR Hatchery Deliveries Collection
+    match /deliveries/{deliveryId} {
+      allow read: if true;
+      allow create, update: if isValidId(deliveryId) &&
+        incoming().esrrrNumber is string && incoming().esrrrNumber.size() > 0 && incoming().esrrrNumber.size() <= 64 &&
+        incoming().productionDate is string && incoming().productionDate.size() > 0 && incoming().productionDate.size() <= 32;
+      allow delete: if isValidId(deliveryId);
+    }
+
+    // Farm Configuration Profile Collection
+    match /farmProfile/{profileId} {
+      allow read: if true;
+      allow create, update: if isValidId(profileId) &&
+        incoming().name is string && incoming().name.size() > 0 && incoming().name.size() <= 128;
+      allow delete: if isValidId(profileId);
+    }
+
+    // Farm Config Document Collection
+    match /farm_config/{configId} {
+      allow read: if true;
+      allow create, update: if isValidId(configId);
+      allow delete: if isValidId(configId);
     }
   }
 }

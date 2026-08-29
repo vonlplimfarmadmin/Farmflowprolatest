@@ -132,6 +132,72 @@
       },
       "required": ["id", "date", "requirementId"]
     },
+    "feedStock": {
+      "title": "Feed Stock Inventory",
+      "description": "Feed bag inventory intake, bags received, kilogram conversion, and batch details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "feedType": { "type": "string" },
+        "bags": { "type": "number" },
+        "kgPerBag": { "type": "number" },
+        "totalKg": { "type": "number" },
+        "supplier": { "type": "string" },
+        "deliveryDate": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "feedType", "bags", "totalKg"]
+    },
+    "transfers": {
+      "title": "Bird Transfers",
+      "description": "Inter-house bird movement tracking male/female transfers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sourceHouse": { "type": "string" },
+        "destHouse": { "type": "string" },
+        "maleCount": { "type": "number" },
+        "femaleCount": { "type": "number" },
+        "transferDate": { "type": "string" },
+        "reason": { "type": "string" },
+        "performedBy": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "sourceHouse", "destHouse", "maleCount", "femaleCount"]
+    },
+    "medProducts": {
+      "title": "Medicine Products",
+      "description": "Farm medication, vaccine, and health product catalog with live stock",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "unit": { "type": "string" },
+        "currentStockUnits": { "type": "number" },
+        "currentStock": { "type": "number" },
+        "minThreshold": { "type": "number" }
+      },
+      "required": ["id", "name", "type", "unit"]
+    },
+    "deliveries": {
+      "title": "ESRRR Hatchery Deliveries",
+      "description": "Egg Stock Receiving & Release Record hatchery delivery logs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "esrrrNumber": { "type": "string" },
+        "productionDate": { "type": "string" },
+        "totalEggsReceived": { "type": "number" },
+        "hatchableEggs": { "type": "number" },
+        "rejectEggs": { "type": "number" },
+        "truckPlateNumber": { "type": "string" },
+        "driverName": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "esrrrNumber", "productionDate", "totalEggsReceived"]
+    },
     "farmProfile": {
       "title": "Farm Configuration Profile",
       "description": "Farm metadata, location, company name, default standards",
@@ -144,6 +210,64 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "name"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "#/entities/users",
+      "description": "User profiles and credentials"
+    },
+    "/flocks/{flockId}": {
+      "schema": "#/entities/flocks",
+      "description": "Flock houses and bird counts"
+    },
+    "/eggRecords/{recordId}": {
+      "schema": "#/entities/eggRecords",
+      "description": "Daily egg production records"
+    },
+    "/feedRecords/{recordId}": {
+      "schema": "#/entities/feedRecords",
+      "description": "Daily feed consumption records"
+    },
+    "/feedStock/{stockId}": {
+      "schema": "#/entities/feedStock",
+      "description": "Feed warehouse inventory records"
+    },
+    "/depletions/{depletionId}": {
+      "schema": "#/entities/depletions",
+      "description": "Mortality and depletion records"
+    },
+    "/transfers/{transferId}": {
+      "schema": "#/entities/transfers",
+      "description": "Bird transfer records between houses"
+    },
+    "/medProducts/{productId}": {
+      "schema": "#/entities/medProducts",
+      "description": "Veterinary medicine and vaccine catalog"
+    },
+    "/medAdmins/{adminId}": {
+      "schema": "#/entities/medAdmins",
+      "description": "Medication and vaccine administration records"
+    },
+    "/bodyWeights/{weightId}": {
+      "schema": "#/entities/bodyWeights",
+      "description": "Weekly flock body weight records"
+    },
+    "/biosecurityLogs/{logId}": {
+      "schema": "#/entities/biosecurityLogs",
+      "description": "Daily biosecurity inspection verifications"
+    },
+    "/deliveries/{deliveryId}": {
+      "schema": "#/entities/deliveries",
+      "description": "ESRRR Hatchery egg delivery receipts"
+    },
+    "/farmProfile/{profileId}": {
+      "schema": "#/entities/farmProfile",
+      "description": "Global farm configuration and metadata"
+    },
+    "/farm_config/{configId}": {
+      "schema": "#/entities/farmProfile",
+      "description": "Global farm settings and profile record"
     }
   }
 }
