@@ -106,16 +106,47 @@ function normalizeFeedType(val: any, defaultType: FeedType = 'BLC 1'): FeedType 
 }
 
 /**
- * Finds key in row object by list of normalized synonyms
+ * Finds key in row object by list of normalized synonyms with optional intelligent fallback filter
  */
-function findValueBySynonyms(row: Record<string, any>, synonyms: string[]): any {
+function findValueBySynonyms(
+  row: Record<string, any>,
+  synonyms: string[],
+  fallbackFilter?: (normKey: string, rawKey: string) => boolean
+): any {
   const normalizedSynonyms = synonyms.map(s => normalizeHeader(s));
+
+  // 1. High-priority exact normalized match for non-empty values
   for (const [key, val] of Object.entries(row)) {
     const normKey = normalizeHeader(key);
-    if (normalizedSynonyms.includes(normKey)) {
+    if (normalizedSynonyms.includes(normKey) && val !== null && val !== undefined && val !== '') {
       return val;
     }
   }
+
+  // 2. Exact match even if 0 or empty string
+  for (const [key, val] of Object.entries(row)) {
+    const normKey = normalizeHeader(key);
+    if (normalizedSynonyms.includes(normKey) && val !== null && val !== undefined) {
+      return val;
+    }
+  }
+
+  // 3. Intelligent fallback filter if provided
+  if (fallbackFilter) {
+    for (const [key, val] of Object.entries(row)) {
+      const normKey = normalizeHeader(key);
+      if (val !== null && val !== undefined && val !== '' && fallbackFilter(normKey, key)) {
+        return val;
+      }
+    }
+    for (const [key, val] of Object.entries(row)) {
+      const normKey = normalizeHeader(key);
+      if (val !== null && val !== undefined && fallbackFilter(normKey, key)) {
+        return val;
+      }
+    }
+  }
+
   return undefined;
 }
 
@@ -129,8 +160,16 @@ function parseVaccineRows(rows: Record<string, any>[]): { items: StandardMedProg
 
   rows.forEach((row, idx) => {
     const rowNum = idx + 2;
-    const weekVal = findValueBySynonyms(row, ['ageweek', 'week', 'ageinweeks', 'age', 'flockweek', 'wk', 'age_week']);
-    const productVal = findValueBySynonyms(row, ['productname', 'product', 'vaccine', 'medication', 'itemname', 'name']);
+    const weekVal = findValueBySynonyms(
+      row,
+      ['ageweek', 'agewk', 'agewks', 'ageweeks', 'week', 'weeks', 'ageinweeks', 'age', 'flockweek', 'flockwk', 'wk', 'wks', 'age_week', 'w', 'flockage'],
+      (k) => (k.includes('week') || k.includes('wk') || k.startsWith('age') || k.startsWith('flock')) && !k.includes('day') && !k.includes('date') && !k.includes('feed') && !k.includes('weight')
+    );
+    const productVal = findValueBySynonyms(
+      row,
+      ['productname', 'product', 'vaccine', 'medication', 'itemname', 'name', 'vaccinename', 'medicinename', 'product_name', 'item'],
+      (k) => (k.includes('product') || k.includes('vacc') || k.includes('med') || k.includes('item')) && !k.includes('type') && !k.includes('method')
+    );
 
     if (weekVal == null && !productVal) {
       // Empty row, skip quietly
@@ -149,17 +188,17 @@ function parseVaccineRows(rows: Record<string, any>[]): { items: StandardMedProg
       return;
     }
 
-    const ageDaysVal = findValueBySynonyms(row, ['agedays', 'day', 'days', 'ageindays', 'age_days']);
+    const ageDaysVal = findValueBySynonyms(row, ['agedays', 'day', 'days', 'ageindays', 'age_days', 'flockdays', 'd']);
     const ageDays = ageDaysVal != null ? parseIntSafe(ageDaysVal, ageWeek * 7) : undefined;
 
-    const typeVal = findValueBySynonyms(row, ['producttype', 'type', 'category']);
-    const diseaseVal = findValueBySynonyms(row, ['diseasetarget', 'target', 'disease', 'targetdisease', 'indication']);
-    const methodVal = findValueBySynonyms(row, ['method', 'route', 'application', 'adminmethod', 'administration']);
-    const mandatoryVal = findValueBySynonyms(row, ['mandatory', 'required', 'compulsory', 'isrequired']);
-    const notesVal = findValueBySynonyms(row, ['notes', 'remarks', 'comments', 'instructions', 'dosage']);
+    const typeVal = findValueBySynonyms(row, ['producttype', 'type', 'category', 'product_type', 'itemtype']);
+    const diseaseVal = findValueBySynonyms(row, ['diseasetarget', 'target', 'disease', 'targetdisease', 'indication', 'disease_target', 'target_disease', 'pathogen']);
+    const methodVal = findValueBySynonyms(row, ['method', 'route', 'application', 'adminmethod', 'administration', 'admin_method', 'deliverymethod']);
+    const mandatoryVal = findValueBySynonyms(row, ['mandatory', 'required', 'compulsory', 'isrequired', 'mand', 'req']);
+    const notesVal = findValueBySynonyms(row, ['notes', 'remarks', 'comments', 'instructions', 'dosage', 'note', 'remark', 'comment', 'dose']);
 
     items.push({
-      id: `vac_imp_${Date.now()}_${idx}`,
+      id: row.id || `vac_imp_${Date.now()}_${idx}`,
       ageWeek,
       ageDays,
       productName,
@@ -181,7 +220,11 @@ function parseFeedGuideRows(rows: Record<string, any>[]): { items: StandardFeedG
 
   rows.forEach((row, idx) => {
     const rowNum = idx + 2;
-    const weekVal = findValueBySynonyms(row, ['ageweek', 'week', 'age', 'flockage', 'wk', 'age_week']);
+    const weekVal = findValueBySynonyms(
+      row,
+      ['ageweek', 'agewk', 'agewks', 'ageweeks', 'week', 'weeks', 'age', 'flockage', 'wk', 'wks', 'age_week', 'w', 'ageinweeks'],
+      (k) => (k.includes('week') || k.includes('wk') || k.startsWith('age') || k.startsWith('flock')) && !k.includes('day') && !k.includes('feed') && !k.includes('weight')
+    );
     if (weekVal == null) return;
 
     const ageWeek = parseIntSafe(weekVal, 0);
@@ -190,12 +233,20 @@ function parseFeedGuideRows(rows: Record<string, any>[]): { items: StandardFeedG
       return;
     }
 
-    const breedVal = findValueBySynonyms(row, ['breedtype', 'breed', 'strain', 'line', 'primarybreed']);
-    const phaseVal = findValueBySynonyms(row, ['productionphase', 'phase', 'stage', 'feedphase', 'phaseofproduction']);
-    const femaleFeedVal = findValueBySynonyms(row, ['femalefeedtype', 'femaletype', 'ffeedtype', 'female_feed_type']);
-    const femaleGramsVal = findValueBySynonyms(row, ['femalegramsperbird', 'femalegrams', 'female_grams', 'femaledailygrams', 'femaleg', 'f_grams', 'female']);
-    const maleFeedVal = findValueBySynonyms(row, ['malefeedtype', 'maletype', 'mfeedtype', 'male_feed_type']);
-    const maleGramsVal = findValueBySynonyms(row, ['malegramsperbird', 'malegrams', 'male_grams', 'maledailygrams', 'maleg', 'm_grams', 'male']);
+    const breedVal = findValueBySynonyms(row, ['breedtype', 'breed', 'strain', 'line', 'primarybreed', 'breed_type']);
+    const phaseVal = findValueBySynonyms(row, ['productionphase', 'phase', 'stage', 'feedphase', 'phaseofproduction', 'production_phase', 'growthstage']);
+    const femaleFeedVal = findValueBySynonyms(row, ['femalefeedtype', 'femaletype', 'ffeedtype', 'female_feed_type', 'ffeed', 'femaleformula', 'femalefeed']);
+    const femaleGramsVal = findValueBySynonyms(
+      row,
+      ['femalegramsperbird', 'femalegrams', 'female_grams', 'femaledailygrams', 'femaleg', 'f_grams', 'female', 'femalegbird', 'femalegbirdday', 'fg', 'femaleallocation', 'femaledaily', 'female_grams_per_bird'],
+      (k) => k.includes('female') && (k.includes('gram') || k.includes('feed') || k.endsWith('g') || k.includes('bird')) && !k.includes('weight') && !k.includes('target')
+    );
+    const maleFeedVal = findValueBySynonyms(row, ['malefeedtype', 'maletype', 'mfeedtype', 'male_feed_type', 'mfeed', 'maleformula', 'malefeed']);
+    const maleGramsVal = findValueBySynonyms(
+      row,
+      ['malegramsperbird', 'malegrams', 'male_grams', 'maledailygrams', 'maleg', 'm_grams', 'male', 'malegbird', 'malegbirdday', 'mg', 'maleallocation', 'maledaily', 'male_grams_per_bird'],
+      (k) => k.includes('male') && !k.includes('female') && (k.includes('gram') || k.includes('feed') || k.endsWith('g') || k.includes('bird')) && !k.includes('weight') && !k.includes('target')
+    );
 
     const femaleFeedType = normalizeFeedType(femaleFeedVal, ageWeek >= 20 ? 'BLC 1' : 'CSC 1');
     const maleFeedType = normalizeFeedType(maleFeedVal, ageWeek >= 20 ? 'BMCC' : 'CSC 1');
@@ -207,7 +258,7 @@ function parseFeedGuideRows(rows: Record<string, any>[]): { items: StandardFeedG
     }
 
     items.push({
-      id: `fg_imp_${Date.now()}_${idx}`,
+      id: row.id || `fg_imp_${Date.now()}_${idx}`,
       breedType: String(breedVal || 'Cobb 500').trim(),
       ageWeek,
       productionPhase: String(phaseVal || (ageWeek < 6 ? 'Brooding / Starter' : ageWeek < 20 ? 'Rearing / Grower' : 'Laying Phase')).trim(),
@@ -234,7 +285,11 @@ function parseHendayRows(rows: Record<string, any>[]): { items: StandardHendayIt
 
   rows.forEach((row, idx) => {
     const rowNum = idx + 2;
-    const weekVal = findValueBySynonyms(row, ['ageweek', 'week', 'flockage', 'age', 'age_week']);
+    const weekVal = findValueBySynonyms(
+      row,
+      ['ageweek', 'agewk', 'agewks', 'ageweeks', 'week', 'weeks', 'flockage', 'age', 'age_week', 'w', 'wk', 'wks', 'flockweek', 'flockwk', 'ageinweeks'],
+      (k) => (k.includes('week') || k.includes('wk') || k.startsWith('age') || k.startsWith('flock')) && !k.includes('prod') && !k.includes('lay') && !k.includes('feed')
+    );
     if (weekVal == null) return;
 
     const ageWeek = parseIntSafe(weekVal, 0);
@@ -243,11 +298,30 @@ function parseHendayRows(rows: Record<string, any>[]): { items: StandardHendayIt
       return;
     }
 
-    const prodWeekVal = findValueBySynonyms(row, ['ageinproduction', 'prodweek', 'productionweek', 'layweek', 'production_week']);
+    const prodWeekVal = findValueBySynonyms(
+      row,
+      ['ageinproduction', 'prodweek', 'productionweek', 'layweek', 'production_week', 'prod_week', 'prod_wk', 'pwk', 'pweek', 'productionage'],
+      (k) => (k.includes('prod') || k.includes('lay')) && (k.includes('week') || k.includes('wk') || k.includes('age') || k.includes('pwk'))
+    );
     const ageInProduction = prodWeekVal != null ? parseIntSafe(prodWeekVal, Math.max(1, ageWeek - 23)) : Math.max(1, ageWeek - 23);
 
-    const hendayVal = findValueBySynonyms(row, ['standardhendaypct', 'hendaypct', 'henday', 'standardhenday', 'laypct', 'lay%', 'hd%', 'standard_henday_pct']);
-    const hatchVal = findValueBySynonyms(row, ['standardhatchingpct', 'hatchingpct', 'hatching', 'standardhe%', 'he%', 'standard_hatching_pct']);
+    const hendayVal = findValueBySynonyms(
+      row,
+      [
+        'standardhendaypct', 'standardhenday', 'hendaypct', 'henday', 'laypct', 'lay', 'lay%', 'hd%', 'standard_henday_pct',
+        'standardhenday%', 'henday%', 'hd', 'standardhd', 'standardhd%', 'eggprod', 'eggproduction%', 'eggproductionpct'
+      ],
+      (k) => (k.includes('henday') || k.includes('hd') || (k.includes('lay') && !k.includes('week'))) && !k.includes('hatch') && !k.includes('he')
+    );
+    const hatchVal = findValueBySynonyms(
+      row,
+      [
+        'standardhatchingpct', 'standardhatchingegg', 'standardhatchingeggpct', 'standardhatching', 'hatchingpct',
+        'hatchingegg', 'hatchingeggpct', 'hatching', 'standardhe%', 'he%', 'standard_hatching_pct', 'standardhe',
+        'he', 'hatching%', 'hatchingegg%', 'standardhatch', 'standardhatch%'
+      ],
+      (k) => k.includes('hatch') || k.includes('he')
+    );
 
     const standardHendayPct = parseNumber(hendayVal, 0);
     const standardHatchingPct = parseNumber(hatchVal, 0);
@@ -257,7 +331,7 @@ function parseHendayRows(rows: Record<string, any>[]): { items: StandardHendayIt
     }
 
     items.push({
-      id: `hd_imp_${Date.now()}_${idx}`,
+      id: row.id || `hd_imp_${Date.now()}_${idx}`,
       ageWeek,
       ageInProduction,
       standardHendayPct: Math.round(standardHendayPct * 10) / 10,
@@ -275,7 +349,16 @@ function parseBodyWeightRows(rows: Record<string, any>[]): { items: StandardBody
 
   rows.forEach((row, idx) => {
     const rowNum = idx + 2;
-    const weekVal = findValueBySynonyms(row, ['ageweek', 'week', 'flockage', 'age', 'age_week']);
+    // Match Age / Week column with exhaustive synonyms and fuzzy pattern
+    const weekVal = findValueBySynonyms(
+      row,
+      [
+        'ageweek', 'agewk', 'agewks', 'ageweeks', 'week', 'weeks', 'wk', 'wks', 'flockage', 'flockagewks', 'flockageweeks',
+        'age', 'ageinweeks', 'flockweek', 'flockwk', 'age_week', 'agew', 'w', 'weeknumber', 'weekno', 'age(wks)', 'age(weeks)', 'week(age)'
+      ],
+      (k) => (k.includes('week') || k.includes('wk') || k.startsWith('age') || k.startsWith('flock')) &&
+             !k.includes('day') && !k.includes('date') && !k.includes('feed') && !k.includes('weight') && !k.includes('ratio')
+    );
     if (weekVal == null) return;
 
     const ageWeek = parseIntSafe(weekVal, 0);
@@ -284,25 +367,92 @@ function parseBodyWeightRows(rows: Record<string, any>[]): { items: StandardBody
       return;
     }
 
-    const maleVal = findValueBySynonyms(row, ['malestandardgrams', 'malestandard', 'maleweight', 'maletarget', 'male_target_grams', 'male(g)', 'malegrams', 'male_standard_grams']);
-    const femaleVal = findValueBySynonyms(row, ['femalestandardgrams', 'femalestandard', 'femaleweight', 'femaletarget', 'female_target_grams', 'female(g)', 'femalegrams', 'female_standard_grams']);
-    const tolMinVal = findValueBySynonyms(row, ['tolerancemingrams', 'tolerancemin', 'minweight', 'tolerance_min_grams']);
-    const tolMaxVal = findValueBySynonyms(row, ['tolerancemaxgrams', 'tolerancemax', 'maxweight', 'tolerance_max_grams']);
+    // Match Male Standard / Target Weight
+    const maleVal = findValueBySynonyms(
+      row,
+      [
+        'maletargetg', 'maletarget', 'maletargetgrams', 'malestandardg', 'malestandard', 'malestandardgrams',
+        'maleweightg', 'maleweight', 'maleweightgrams', 'maleg', 'malegrams', 'male', 'malebw', 'malebodyweight',
+        'male_target_grams', 'male_standard_grams', 'male(g)', 'mstandard', 'mtarget', 'mweight', 'm(g)', 'mg', 'mbw',
+        'targetmale', 'standardmale', 'malegbird', 'malegram', 'male(grams)', 'maletarget(g)', 'malestandard(g)'
+      ],
+      (k) => k.includes('male') && !k.includes('female') &&
+             (k.includes('weight') || k.includes('target') || k.includes('std') || k.includes('gram') || k.includes('bw') || k.endsWith('g') || k === 'male') &&
+             !k.includes('feed') && !k.includes('ratio')
+    );
 
-    const maleStandardGrams = parseIntSafe(maleVal, 0);
-    const femaleStandardGrams = parseIntSafe(femaleVal, 0);
+    // Match Female Standard / Target Weight
+    const femaleVal = findValueBySynonyms(
+      row,
+      [
+        'femaletargetg', 'femaletarget', 'femaletargetgrams', 'femalestandardg', 'femalestandard', 'femalestandardgrams',
+        'femaleweightg', 'femaleweight', 'femaleweightgrams', 'femaleg', 'femalegrams', 'female', 'femalebw', 'femalebodyweight',
+        'female_target_grams', 'female_standard_grams', 'female(g)', 'fstandard', 'ftarget', 'fweight', 'f(g)', 'fg', 'fbw',
+        'targetfemale', 'standardfemale', 'femalegbird', 'femalegram', 'female(grams)', 'femaletarget(g)', 'femalestandard(g)'
+      ],
+      (k) => k.includes('female') &&
+             (k.includes('weight') || k.includes('target') || k.includes('std') || k.includes('gram') || k.includes('bw') || k.endsWith('g') || k === 'female') &&
+             !k.includes('feed') && !k.includes('ratio')
+    );
+
+    // Match Tolerance Min and Max
+    const tolMinVal = findValueBySynonyms(
+      row,
+      [
+        'toleranceming', 'tolerancemin', 'tolerancemingrams', 'minweight', 'minweightg', 'min', 'ming',
+        'tolerance_min_grams', 'lowerlimit', 'lowlimit', 'minimumgrams', 'minimumg', 'minimum',
+        'tolmin', 'tolming', 'tolerance-min', 'mintolerance', 'tolerancemin(g)'
+      ],
+      (k) => (k.includes('tol') && (k.includes('min') || k.includes('low'))) || (k.startsWith('min') && (k.includes('weight') || k.endsWith('g')))
+    );
+
+    const tolMaxVal = findValueBySynonyms(
+      row,
+      [
+        'tolerancemaxg', 'tolerancemax', 'tolerancemaxgrams', 'maxweight', 'maxweightg', 'max', 'maxg',
+        'tolerance_max_grams', 'upperlimit', 'highlimit', 'maximumgrams', 'maximumg', 'maximum',
+        'tolmax', 'tolmaxg', 'tolerance-max', 'maxtolerance', 'tolerancemax(g)'
+      ],
+      (k) => (k.includes('tol') && (k.includes('max') || k.includes('high') || k.includes('upper'))) || (k.startsWith('max') && (k.includes('weight') || k.endsWith('g')))
+    );
+
+    let maleStandardGrams = parseIntSafe(maleVal, 0);
+    let femaleStandardGrams = parseIntSafe(femaleVal, 0);
+
+    // If single unified weight column was supplied instead of separate male and female columns
+    if (maleStandardGrams <= 0 && femaleStandardGrams <= 0) {
+      const unifiedWeightVal = findValueBySynonyms(
+        row,
+        [
+          'targetweightg', 'targetweight', 'standardweightg', 'standardweight', 'bodyweightg', 'bodyweight',
+          'weightg', 'weight', 'targetg', 'target', 'bw', 'bwg', 'target(g)', 'standard(g)', 'weight(g)'
+        ],
+        (k) => (k.includes('weight') || k.includes('bw') || k.includes('target')) && !k.includes('ratio') && !k.includes('feed')
+      );
+      if (unifiedWeightVal != null) {
+        const parsedUnified = parseIntSafe(unifiedWeightVal, 0);
+        maleStandardGrams = Math.round(parsedUnified * 1.15);
+        femaleStandardGrams = parsedUnified;
+      }
+    } else if (maleStandardGrams > 0 && femaleStandardGrams <= 0) {
+      // If only male weight was supplied, approximate female standard proportionally
+      femaleStandardGrams = Math.round(maleStandardGrams * 0.85);
+    } else if (femaleStandardGrams > 0 && maleStandardGrams <= 0) {
+      // If only female weight was supplied, approximate male standard proportionally
+      maleStandardGrams = Math.round(femaleStandardGrams * 1.15);
+    }
 
     if (maleStandardGrams <= 0 && femaleStandardGrams <= 0) {
-      issues.push({ row: rowNum, field: 'Weights', message: `Male and Female standard weights are 0 for week ${ageWeek}.`, severity: 'warning' });
+      issues.push({ row: rowNum, field: 'Weights', message: `Male and Female standard weights could not be detected or are 0 for week ${ageWeek}.`, severity: 'warning' });
     }
 
     items.push({
-      id: `bw_imp_${Date.now()}_${idx}`,
+      id: row.id || `bw_imp_${Date.now()}_${idx}`,
       ageWeek,
       maleStandardGrams,
       femaleStandardGrams,
-      toleranceMinGrams: tolMinVal != null ? parseIntSafe(tolMinVal, Math.round(femaleStandardGrams * 0.95)) : undefined,
-      toleranceMaxGrams: tolMaxVal != null ? parseIntSafe(tolMaxVal, Math.round(femaleStandardGrams * 1.05)) : undefined,
+      toleranceMinGrams: tolMinVal != null ? parseIntSafe(tolMinVal, Math.round(femaleStandardGrams * 0.95)) : Math.round(femaleStandardGrams * 0.95),
+      toleranceMaxGrams: tolMaxVal != null ? parseIntSafe(tolMaxVal, Math.round(femaleStandardGrams * 1.05)) : Math.round(femaleStandardGrams * 1.05),
     });
   });
 
@@ -316,7 +466,11 @@ function parseEggWeightRows(rows: Record<string, any>[]): { items: StandardEggWe
 
   rows.forEach((row, idx) => {
     const rowNum = idx + 2;
-    const weekVal = findValueBySynonyms(row, ['ageweek', 'week', 'flockage', 'age', 'age_week']);
+    const weekVal = findValueBySynonyms(
+      row,
+      ['ageweek', 'agewk', 'agewks', 'ageweeks', 'week', 'weeks', 'flockage', 'age', 'age_week', 'w', 'wk', 'wks', 'flockweek', 'flockwk', 'ageinweeks'],
+      (k) => (k.includes('week') || k.includes('wk') || k.startsWith('age') || k.startsWith('flock')) && !k.includes('prod') && !k.includes('lay') && !k.includes('feed')
+    );
     if (weekVal == null) return;
 
     const ageWeek = parseIntSafe(weekVal, 0);
@@ -325,10 +479,22 @@ function parseEggWeightRows(rows: Record<string, any>[]): { items: StandardEggWe
       return;
     }
 
-    const prodWeekVal = findValueBySynonyms(row, ['ageinproduction', 'prodweek', 'productionweek', 'layweek', 'production_week']);
+    const prodWeekVal = findValueBySynonyms(
+      row,
+      ['ageinproduction', 'prodweek', 'productionweek', 'layweek', 'production_week', 'prod_week', 'prod_wk', 'pwk', 'pweek', 'productionage'],
+      (k) => (k.includes('prod') || k.includes('lay')) && (k.includes('week') || k.includes('wk') || k.includes('age') || k.includes('pwk'))
+    );
     const ageInProduction = prodWeekVal != null ? parseIntSafe(prodWeekVal, Math.max(1, ageWeek - 23)) : Math.max(1, ageWeek - 23);
 
-    const weightVal = findValueBySynonyms(row, ['standardweightgrams', 'standardweight', 'eggweight', 'eggweightgrams', 'standard_weight_grams', 'weight(g)']);
+    const weightVal = findValueBySynonyms(
+      row,
+      [
+        'standardweightgrams', 'standardweightg', 'standardweight', 'eggweight', 'eggweightg', 'eggweightgrams',
+        'standard_weight_grams', 'weight(g)', 'weightg', 'eggwt', 'eggwtg', 'standardeggweight', 'standardeggweightg',
+        'targetweight', 'targetweightg', 'targetweightgrams', 'egg_weight_grams', 'eggweight(g)', 'standardweight(g)'
+      ],
+      (k) => (k.includes('weight') || k.includes('egg')) && (k.endsWith('g') || k.includes('gram') || k.includes('target') || k.includes('std'))
+    );
     const standardWeightGrams = parseNumber(weightVal, 0);
 
     if (standardWeightGrams <= 0) {
@@ -336,7 +502,7 @@ function parseEggWeightRows(rows: Record<string, any>[]): { items: StandardEggWe
     }
 
     items.push({
-      id: `ew_imp_${Date.now()}_${idx}`,
+      id: row.id || `ew_imp_${Date.now()}_${idx}`,
       ageWeek,
       ageInProduction,
       standardWeightGrams: Math.round(standardWeightGrams * 10) / 10,
@@ -372,15 +538,50 @@ export async function parseStandardsFile(
     return XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: null });
   };
 
-  // If single specific target selected and file only has 1 sheet, use that sheet directly regardless of its name
-  const useSingleSheetFallback = target !== 'all' && detectedSheets.length === 1;
+  /**
+   * Intelligently selects the best worksheet for a given standard category.
+   * Checks:
+   * 1. Exact name regex match
+   * 2. If target is specific or all, inspect sheet rows to see which sheet has the expected column signatures
+   * 3. Fallback to first sheet if user explicitly selected this target
+   */
+  const resolveSheetForCategory = (
+    category: 'vaccine' | 'feed' | 'henday' | 'bodyweight' | 'eggweight',
+    nameRegex: RegExp,
+    columnCheck: (rows: Record<string, any>[]) => boolean
+  ): string | undefined => {
+    // 1. By sheet name regex
+    const nameMatch = detectedSheets.find(s => nameRegex.test(s));
+    if (nameMatch) return nameMatch;
+
+    // 2. Scan sheet rows for signature columns
+    for (const sheetName of detectedSheets) {
+      const rows = getSheetRows(sheetName);
+      if (rows.length > 0 && columnCheck(rows)) {
+        return sheetName;
+      }
+    }
+
+    // 3. Fallback when user explicitly selected this specific standard
+    if (target === category && detectedSheets.length > 0) {
+      // Prefer first non-empty sheet
+      for (const sheetName of detectedSheets) {
+        const rows = getSheetRows(sheetName);
+        if (rows.length > 0) return sheetName;
+      }
+      return detectedSheets[0];
+    }
+
+    return undefined;
+  };
 
   // 1. Vaccination Program
   if (target === 'all' || target === 'vaccine') {
-    let sheetName = detectedSheets.find(s => /vaccin|med/i.test(s));
-    if (!sheetName && useSingleSheetFallback && target === 'vaccine') {
-      sheetName = detectedSheets[0];
-    }
+    const sheetName = resolveSheetForCategory(
+      'vaccine',
+      /vaccin|med|immun|schedule/i,
+      (rows) => rows.some(r => Object.keys(r).some(k => /vacc|product|diseas|med/i.test(k)))
+    );
     if (sheetName) {
       const rows = getSheetRows(sheetName);
       rawPreviews['vaccine'] = rows.slice(0, 10);
@@ -394,10 +595,11 @@ export async function parseStandardsFile(
 
   // 2. Feed Guide
   if (target === 'all' || target === 'feed') {
-    let sheetName = detectedSheets.find(s => /feed/i.test(s));
-    if (!sheetName && useSingleSheetFallback && target === 'feed') {
-      sheetName = detectedSheets[0];
-    }
+    const sheetName = resolveSheetForCategory(
+      'feed',
+      /feed|ration|diet|nutrition/i,
+      (rows) => rows.some(r => Object.keys(r).some(k => /feed|ration|gram.*bird|phase/i.test(k)))
+    );
     if (sheetName) {
       const rows = getSheetRows(sheetName);
       rawPreviews['feed'] = rows.slice(0, 10);
@@ -411,10 +613,11 @@ export async function parseStandardsFile(
 
   // 3. Henday %
   if (target === 'all' || target === 'henday') {
-    let sheetName = detectedSheets.find(s => /henday|lay/i.test(s));
-    if (!sheetName && useSingleSheetFallback && target === 'henday') {
-      sheetName = detectedSheets[0];
-    }
+    const sheetName = resolveSheetForCategory(
+      'henday',
+      /henday|lay|hd%|he%|egg.*prod|production.*curve/i,
+      (rows) => rows.some(r => Object.keys(r).some(k => /henday|hatch|lay|hd%/i.test(k)))
+    );
     if (sheetName) {
       const rows = getSheetRows(sheetName);
       rawPreviews['henday'] = rows.slice(0, 10);
@@ -428,10 +631,11 @@ export async function parseStandardsFile(
 
   // 4. Body Weight
   if (target === 'all' || target === 'bodyweight') {
-    let sheetName = detectedSheets.find(s => /body.*weight|weight.*body|^body/i.test(s));
-    if (!sheetName && useSingleSheetFallback && target === 'bodyweight') {
-      sheetName = detectedSheets[0];
-    }
+    const sheetName = resolveSheetForCategory(
+      'bodyweight',
+      /body.*weight|weight.*body|^body|^bw$|bw.*target|standard.*weight|weight.*curve|^weight|growth/i,
+      (rows) => rows.some(r => Object.keys(r).some(k => /male.*target|male.*std|male.*weight|female.*target|female.*std|female.*weight|body.*weight|^bw$/i.test(k)))
+    );
     if (sheetName) {
       const rows = getSheetRows(sheetName);
       rawPreviews['bodyweight'] = rows.slice(0, 10);
@@ -445,10 +649,11 @@ export async function parseStandardsFile(
 
   // 5. Egg Weight
   if (target === 'all' || target === 'eggweight') {
-    let sheetName = detectedSheets.find(s => /egg.*weight|weight.*egg|^egg/i.test(s));
-    if (!sheetName && useSingleSheetFallback && target === 'eggweight') {
-      sheetName = detectedSheets[0];
-    }
+    const sheetName = resolveSheetForCategory(
+      'eggweight',
+      /egg.*weight|weight.*egg|^egg|ew.*standard|^ew$/i,
+      (rows) => rows.some(r => Object.keys(r).some(k => /egg.*weight|standard.*weight/i.test(k)))
+    );
     if (sheetName) {
       const rows = getSheetRows(sheetName);
       rawPreviews['eggweight'] = rows.slice(0, 10);

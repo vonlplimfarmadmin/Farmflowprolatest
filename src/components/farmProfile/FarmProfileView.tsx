@@ -2264,49 +2264,59 @@ export const FarmProfileView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {(farmProfile.standardBodyWeights || []).map((item) => {
-                  const isEditingThis = editingBwItem?.id === item.id;
-                  return (
-                    <tr key={item.id} className={`transition ${isEditingThis ? 'bg-teal-50/90 ring-1 ring-teal-300 font-medium' : 'hover:bg-slate-50/80'}`}>
-                      <td className="py-2.5 px-3 font-bold text-slate-800">Week {item.ageWeek}</td>
-                      <td className="py-2.5 px-3 font-semibold text-teal-950">{(item.maleStandardGrams || 0).toLocaleString()} g</td>
-                      <td className="py-2.5 px-3 font-semibold text-teal-700">{(item.femaleStandardGrams || 0).toLocaleString()} g</td>
-                      <td className="py-2.5 px-3 text-slate-500 font-medium">
-                        {(() => {
-                          const m = item.maleStandardGrams || 0;
-                          const f = item.femaleStandardGrams || 0;
-                          const diff = m - f;
-                          const ratio = f > 0 ? (m / f).toFixed(2) : '1.00';
-                          return `+${isNaN(diff) ? 0 : diff} g (${ratio}x)`;
-                        })()}
-                      </td>
-                      {permissions.canManageFarmProfile && (
-                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditBodyWeight(item)}
-                              className="p-1 text-slate-400 hover:text-teal-600 rounded transition cursor-pointer"
-                              title="Edit body weight target"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            {permissions.canDeleteRecord && (
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteBodyWeight(item.id)}
-                                className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
-                                title="Delete body weight target"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
+                {(farmProfile.standardBodyWeights || []).length === 0 ? (
+                  <tr>
+                    <td colSpan={permissions.canManageFarmProfile ? 5 : 4} className="py-8 text-center text-slate-400">
+                      No standard body weight benchmarks recorded yet. Click &quot;Add Body Weight Standard&quot; or &quot;Batch Upload&quot; to import curve targets.
+                    </td>
+                  </tr>
+                ) : (
+                  [...(farmProfile.standardBodyWeights || [])]
+                    .sort((a, b) => a.ageWeek - b.ageWeek)
+                    .map((item, idx) => {
+                      const isEditingThis = editingBwItem?.id === item.id;
+                      return (
+                        <tr key={item.id || `bw_item_${item.ageWeek}_${idx}`} className={`transition ${isEditingThis ? 'bg-teal-50/90 ring-1 ring-teal-300 font-medium' : 'hover:bg-slate-50/80'}`}>
+                          <td className="py-2.5 px-3 font-bold text-slate-800">Week {item.ageWeek}</td>
+                          <td className="py-2.5 px-3 font-semibold text-teal-950">{(item.maleStandardGrams || 0).toLocaleString()} g</td>
+                          <td className="py-2.5 px-3 font-semibold text-teal-700">{(item.femaleStandardGrams || 0).toLocaleString()} g</td>
+                          <td className="py-2.5 px-3 text-slate-500 font-medium">
+                            {(() => {
+                              const m = item.maleStandardGrams || 0;
+                              const f = item.femaleStandardGrams || 0;
+                              const diff = m - f;
+                              const ratio = f > 0 ? (m / f).toFixed(2) : '1.00';
+                              return `+${isNaN(diff) ? 0 : diff} g (${ratio}x)`;
+                            })()}
+                          </td>
+                          {permissions.canManageFarmProfile && (
+                            <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditBodyWeight(item)}
+                                  className="p-1 text-slate-400 hover:text-teal-600 rounded transition cursor-pointer"
+                                  title="Edit body weight target"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                {permissions.canDeleteRecord && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteBodyWeight(item.id)}
+                                    className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
+                                    title="Delete body weight target"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })
+                )}
               </tbody>
             </table>
           </div>
@@ -2421,42 +2431,52 @@ export const FarmProfileView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {(farmProfile.standardEggWeights || []).map((item) => {
-                  const isEditingThis = editingEwItem?.id === item.id;
-                  return (
-                    <tr key={item.id} className={`transition ${isEditingThis ? 'bg-teal-50/90 ring-1 ring-teal-300 font-medium' : 'hover:bg-slate-50/80'}`}>
-                      <td className="py-2.5 px-3 font-bold text-slate-800">Week {item.ageWeek}</td>
-                      <td className="py-2.5 px-3 font-medium text-slate-600">Week {item.ageInProduction} of Lay</td>
-                      <td className="py-2.5 px-3 font-bold text-teal-700">
-                        {typeof item.standardWeightGrams === 'number' && !isNaN(item.standardWeightGrams) ? item.standardWeightGrams.toFixed(1) : '0.0'} g
-                      </td>
-                      {permissions.canManageFarmProfile && (
-                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditEggWeight(item)}
-                              className="p-1 text-slate-400 hover:text-teal-600 rounded transition cursor-pointer"
-                              title="Edit egg weight standard"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            {permissions.canDeleteRecord && (
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteEggWeight(item.id)}
-                                className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
-                                title="Delete egg weight standard"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
+                {(farmProfile.standardEggWeights || []).length === 0 ? (
+                  <tr>
+                    <td colSpan={permissions.canManageFarmProfile ? 4 : 3} className="py-8 text-center text-slate-400">
+                      No standard egg weight benchmarks recorded yet. Click &quot;Add Egg Weight Target&quot; or &quot;Batch Upload&quot; to import curve targets.
+                    </td>
+                  </tr>
+                ) : (
+                  [...(farmProfile.standardEggWeights || [])]
+                    .sort((a, b) => a.ageWeek - b.ageWeek)
+                    .map((item, idx) => {
+                      const isEditingThis = editingEwItem?.id === item.id;
+                      return (
+                        <tr key={item.id || `ew_item_${item.ageWeek}_${idx}`} className={`transition ${isEditingThis ? 'bg-teal-50/90 ring-1 ring-teal-300 font-medium' : 'hover:bg-slate-50/80'}`}>
+                          <td className="py-2.5 px-3 font-bold text-slate-800">Week {item.ageWeek}</td>
+                          <td className="py-2.5 px-3 font-medium text-slate-600">Week {item.ageInProduction} of Lay</td>
+                          <td className="py-2.5 px-3 font-bold text-teal-700">
+                            {typeof item.standardWeightGrams === 'number' && !isNaN(item.standardWeightGrams) ? item.standardWeightGrams.toFixed(1) : '0.0'} g
+                          </td>
+                          {permissions.canManageFarmProfile && (
+                            <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditEggWeight(item)}
+                                  className="p-1 text-slate-400 hover:text-teal-600 rounded transition cursor-pointer"
+                                  title="Edit egg weight standard"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                {permissions.canDeleteRecord && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteEggWeight(item.id)}
+                                    className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
+                                    title="Delete egg weight standard"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })
+                )}
               </tbody>
             </table>
           </div>
