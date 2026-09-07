@@ -515,18 +515,18 @@ export const FlockProductivityDashboard: React.FC<{
   return (
     <div 
       id="flock-productivity-dashboard-section"
-      className={`bg-white rounded-3xl border border-graphite-200/90 shadow-sm transition-all duration-300 overflow-hidden ${
-        isExpanded ? 'fixed inset-4 z-50 overflow-y-auto p-6 md:p-8 bg-white/98 backdrop-blur-xl ring-1 ring-forest-800/30' : 'p-5 sm:p-7'
+      className={`glass-card rounded-3xl transition-all duration-300 overflow-hidden ${
+        isExpanded ? 'fixed inset-4 z-50 overflow-y-auto p-6 md:p-8 glass-modal ring-1 ring-forest-800/30' : 'p-5 sm:p-7'
       }`}
     >
       {/* Header & Controls Bar */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-graphite-100">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-graphite-200/60">
         <div className="space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="px-2.5 py-0.5 rounded-full bg-forest-900 text-mint-300 text-[10px] font-extrabold uppercase tracking-wider shadow-2xs">
+            <span className="px-2.5 py-0.5 rounded-full bg-forest-950 text-mint-300 text-[10px] font-extrabold uppercase tracking-wider shadow-2xs">
               Performance Analytics Engine
             </span>
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold flex items-center gap-1">
+            <span className="px-2.5 py-0.5 rounded-full bg-emerald-50/80 text-emerald-800 border border-emerald-200/80 text-[10px] font-bold flex items-center gap-1 backdrop-blur-xs">
               <Sparkles className="w-3 h-3 text-emerald-600" />
               Cobb 500 / Ross 308 Grounded
             </span>
@@ -543,7 +543,7 @@ export const FlockProductivityDashboard: React.FC<{
         {/* Global Filter Bar */}
         <div className="flex flex-wrap items-center gap-2.5">
           {/* House Filter Selector */}
-          <div className="flex items-center gap-1.5 bg-graphite-50 p-1 rounded-2xl border border-graphite-200 shadow-2xs">
+          <div className="flex items-center gap-1.5 glass-pill p-1 rounded-2xl">
             <Building2 className="w-3.5 h-3.5 text-graphite-500 ml-2" />
             <select
               id="productivity-house-filter"
@@ -560,15 +560,15 @@ export const FlockProductivityDashboard: React.FC<{
           </div>
 
           {/* Time Window Selector */}
-          <div className="flex items-center gap-1 bg-graphite-50 p-1 rounded-2xl border border-graphite-200 shadow-2xs">
+          <div className="flex items-center gap-1 glass-pill p-1 rounded-2xl">
             {(['7days', '14days', '30days'] as TimeWindow[]).map((tw) => (
               <button
                 key={tw}
                 onClick={() => setTimeWindow(tw)}
                 className={`px-2.5 py-1 rounded-xl text-xs font-bold transition cursor-pointer ${
                   timeWindow === tw
-                    ? 'bg-forest-900 text-mint-300 shadow-xs'
-                    : 'text-graphite-600 hover:text-graphite-900 hover:bg-graphite-100'
+                    ? 'bg-forest-950 text-mint-300 shadow-xs'
+                    : 'text-graphite-600 hover:text-graphite-900 hover:bg-white/60'
                 }`}
               >
                 {tw === '7days' ? '7D' : tw === '14days' ? '14D' : '30D'}
@@ -581,8 +581,8 @@ export const FlockProductivityDashboard: React.FC<{
             onClick={() => setShowStandards(!showStandards)}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 shadow-2xs cursor-pointer ${
               showStandards
-                ? 'bg-mint-50 text-forest-900 border-mint-300'
-                : 'bg-white text-graphite-500 border-graphite-200 hover:bg-graphite-50'
+                ? 'bg-mint-50/90 text-forest-900 border-mint-300/80 backdrop-blur-xs'
+                : 'glass-pill text-graphite-500 hover:text-graphite-800'
             }`}
             title="Toggle Cobb 500 / Ross 308 standard target curves"
           >
@@ -593,7 +593,7 @@ export const FlockProductivityDashboard: React.FC<{
           {/* Export CSV Button */}
           <button
             onClick={handleExportCSV}
-            className="p-2 bg-graphite-50 hover:bg-graphite-100 text-graphite-700 border border-graphite-200 rounded-xl transition shadow-2xs cursor-pointer"
+            className="p-2 glass-pill text-graphite-700 hover:text-graphite-950 transition cursor-pointer"
             title="Export Trend Data to CSV"
           >
             <Download className="w-4 h-4" />
@@ -602,7 +602,7 @@ export const FlockProductivityDashboard: React.FC<{
           {/* Fullscreen Expand / Collapse Toggle */}
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="p-2 bg-graphite-50 hover:bg-graphite-100 text-graphite-700 border border-graphite-200 rounded-xl transition shadow-2xs cursor-pointer"
+            className="p-2 glass-pill text-graphite-700 hover:text-graphite-950 transition cursor-pointer"
             title={isExpanded ? "Collapse View" : "Expand Fullscreen"}
           >
             {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}

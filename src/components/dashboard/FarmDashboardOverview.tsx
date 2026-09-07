@@ -82,9 +82,10 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
 
   return (
     <div className="space-y-6 animate-fadeIn pb-8">
-      {/* Sleek Hero Banner */}
-      <div className="bg-gradient-to-br from-forest-950 via-forest-900 to-forest-950 text-white rounded-3xl p-6 sm:p-8 shadow-lg relative overflow-hidden border border-forest-900/80">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+      {/* Sleek Hero Banner with Glassmorphism */}
+      <div className="glass-card-dark text-white rounded-3xl p-6 sm:p-8 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-400/15 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20 animate-pulse" style={{ animationDuration: '6s' }} />
+        <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-mint-400/10 rounded-full blur-2xl pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-start gap-4 sm:gap-5 max-w-2xl">
             {farmProfile.logoUrl ? (
@@ -106,7 +107,7 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
             )}
             <div className="space-y-2">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="px-3 py-0.5 rounded-full bg-forest-900/90 text-mint-300 border border-mint-400/30 text-[10px] font-bold uppercase tracking-wider shadow-2xs">
+                <span className="px-3 py-0.5 rounded-full glass-pill-dark text-mint-300 text-[10px] font-bold uppercase tracking-wider shadow-2xs">
                   Live Operations Station
                 </span>
                 {currentUser && <RoleBadge role={currentUser.role} />}
@@ -126,7 +127,7 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
                 const el = document.getElementById('flock-productivity-dashboard-section');
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="px-4 py-2.5 bg-forest-900/90 hover:bg-forest-800 text-mint-300 border border-mint-400/40 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-xs transition-all cursor-pointer"
+              className="px-4 py-2.5 glass-pill-dark hover:bg-forest-900/90 text-mint-300 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-xs transition-all cursor-pointer"
             >
               <ChartIcon className="w-4 h-4 text-mint-400" />
               <span>Trends & Curves</span>
@@ -148,7 +149,7 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
           {lowFeedAlerts.length > 0 && (
             <div 
               onClick={() => onNavigate('feed_inventory')}
-              className="cursor-pointer p-4 bg-gradient-to-r from-rose-50 to-white hover:bg-rose-50/80 border border-rose-200 rounded-2xl flex items-center justify-between gap-3 transition-all shadow-xs group"
+              className="cursor-pointer p-4 glass-card hover:border-rose-300 rounded-2xl flex items-center justify-between gap-3 transition-all shadow-xs group"
             >
               <div className="flex items-center gap-3">
                 <div className="p-2.5 bg-rose-600 text-white rounded-xl shadow-xs group-hover:scale-105 transition-transform">
@@ -168,7 +169,7 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
           {upcomingVacAlerts.length > 0 && (
             <div 
               onClick={() => onNavigate('medicine')}
-              className="cursor-pointer p-4 bg-gradient-to-r from-indigo-50 to-white hover:bg-indigo-50/80 border border-indigo-200 rounded-2xl flex items-center justify-between gap-3 transition-all shadow-xs group"
+              className="cursor-pointer p-4 glass-card hover:border-indigo-300 rounded-2xl flex items-center justify-between gap-3 transition-all shadow-xs group"
             >
               <div className="flex items-center gap-3">
                 <div className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-xs group-hover:scale-105 transition-transform">
@@ -187,16 +188,16 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
         </div>
       )}
 
-      {/* 4 Key Executive Farm KPIs */}
+      {/* 4 Key Executive Farm KPIs with Glassmorphism */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Flock Population */}
         <div 
           onClick={() => onNavigate('flock_list')}
-          className="cursor-pointer bg-white rounded-2xl border border-graphite-200/80 p-5 shadow-xs hover:shadow-md hover:border-mint-400 transition-all duration-200 group"
+          className="cursor-pointer glass-card-interactive rounded-2xl p-5 group"
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-graphite-500 uppercase tracking-wider">Total Population</span>
-            <div className="p-2 bg-forest-50 text-forest-800 rounded-xl group-hover:bg-forest-100 transition-colors">
+            <div className="p-2 bg-forest-50/90 text-forest-800 rounded-xl group-hover:bg-forest-100 transition-colors border border-forest-100">
               <Bird className="w-4 h-4 text-forest-700" />
             </div>
           </div>
@@ -212,11 +213,11 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
         {/* Flock Livability */}
         <div 
           onClick={() => onNavigate('mortality')}
-          className="cursor-pointer bg-white rounded-2xl border border-graphite-200/80 p-5 shadow-xs hover:shadow-md hover:border-mint-400 transition-all duration-200 group"
+          className="cursor-pointer glass-card-interactive rounded-2xl p-5 group"
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-graphite-500 uppercase tracking-wider">Farm Livability %</span>
-            <div className="p-2 bg-mint-50 text-mint-800 rounded-xl border border-mint-200 group-hover:bg-mint-100 transition-colors">
+            <div className="p-2 bg-mint-50/90 text-mint-800 rounded-xl border border-mint-200 group-hover:bg-mint-100 transition-colors">
               <TrendingUp className="w-4 h-4 text-forest-700" />
             </div>
           </div>
@@ -232,7 +233,7 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
         {/* Daily Egg Volume */}
         <div 
           onClick={() => onNavigate('egg_production')}
-          className="cursor-pointer bg-gradient-to-br from-forest-950 to-forest-900 text-white rounded-2xl border border-forest-800 p-5 shadow-xs hover:shadow-md hover:border-mint-400 transition-all duration-200 group"
+          className="cursor-pointer glass-card-dark rounded-2xl p-5 group transition-all duration-200 hover:-translate-y-0.5 hover:border-mint-400/50"
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-mint-300 uppercase tracking-wider">Today's Total Eggs</span>
@@ -252,11 +253,11 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
         {/* Active Houses */}
         <div 
           onClick={() => onNavigate('flock_list')}
-          className="cursor-pointer bg-white rounded-2xl border border-graphite-200/80 p-5 shadow-xs hover:shadow-md hover:border-mint-400 transition-all duration-200 group"
+          className="cursor-pointer glass-card-interactive rounded-2xl p-5 group"
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-graphite-500 uppercase tracking-wider">Production Houses</span>
-            <div className="p-2 bg-graphite-100 text-graphite-700 rounded-xl group-hover:bg-graphite-200/80 transition-colors">
+            <div className="p-2 bg-graphite-100/80 text-graphite-700 rounded-xl group-hover:bg-graphite-200/80 transition-colors">
               <Building2 className="w-4 h-4" />
             </div>
           </div>
@@ -274,7 +275,7 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
       <FlockProductivityDashboard onNavigateModule={onNavigate} />
 
       {/* Flock House Status Grid */}
-      <div className="bg-white rounded-3xl border border-graphite-200/80 p-6 sm:p-7 shadow-xs space-y-5">
+      <div className="glass-card rounded-3xl p-6 sm:p-7 space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="text-base font-bold text-graphite-900 font-display">Live House Production Roster</h3>
@@ -283,7 +284,7 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
           {permissions.canAddFlock && (
             <button
               onClick={() => onNavigate('flock_list')}
-              className="text-xs font-bold text-forest-800 hover:text-forest-900 uppercase tracking-wider cursor-pointer"
+              className="text-xs font-bold text-forest-800 hover:text-forest-950 uppercase tracking-wider cursor-pointer"
             >
               Manage Flocks →
             </button>
@@ -299,7 +300,7 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
               <div
                 key={flock.id}
                 onClick={() => onNavigate('flockman_module')}
-                className="cursor-pointer p-4.5 bg-graphite-50/70 hover:bg-forest-50/40 border border-graphite-200/80 hover:border-mint-400 rounded-2xl transition-all duration-150 space-y-3.5 group shadow-2xs"
+                className="cursor-pointer p-4.5 glass-card-interactive rounded-2xl space-y-3.5 group"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -308,21 +309,21 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
                     </span>
                     <span className="text-xs font-bold text-graphite-800">{flock.breed}</span>
                   </div>
-                  <span className="text-xs font-bold text-forest-800 bg-forest-50 px-2.5 py-0.5 rounded-lg border border-forest-200/80" title={`Loading Date: ${flock.loadingDateFemale || flock.loadingDateMale} (${stats.totalDaysFromLoading || 0} days housed)`}>
+                  <span className="text-xs font-bold text-forest-800 glass-pill px-2.5 py-0.5 rounded-lg border border-forest-200/80" title={`Loading Date: ${flock.loadingDateFemale || flock.loadingDateMale} (${stats.totalDaysFromLoading || 0} days housed)`}>
                     Week {stats.ageWeeks} <span className="text-[10px] text-forest-600 font-semibold">(D{stats.ageDays || 1})</span>
                   </span>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                  <div className="bg-white p-2 rounded-xl border border-graphite-200/80 shadow-2xs">
+                  <div className="glass-pill p-2 rounded-xl">
                     <span className="text-[10px] text-forest-700 font-semibold block">Males</span>
                     <span className="font-extrabold text-graphite-900">{stats.currentMales}</span>
                   </div>
-                  <div className="bg-white p-2 rounded-xl border border-graphite-200/80 shadow-2xs">
+                  <div className="glass-pill p-2 rounded-xl">
                     <span className="text-[10px] text-rose-600 font-semibold block">Females</span>
                     <span className="font-extrabold text-graphite-900">{stats.currentFemales}</span>
                   </div>
-                  <div className="bg-white p-2 rounded-xl border border-graphite-200/80 shadow-2xs">
+                  <div className="glass-pill p-2 rounded-xl">
                     <span className="text-[10px] text-forest-700 font-semibold block">Livability</span>
                     <span className="font-extrabold text-forest-800">
                       {typeof stats.livabilityPct === 'number' && !isNaN(stats.livabilityPct) ? stats.livabilityPct.toFixed(1) : '100.0'}%
@@ -350,9 +351,9 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <button
             onClick={() => onNavigate('egg_production')}
-            className="p-4 bg-white hover:bg-forest-50/40 border border-graphite-200/80 hover:border-mint-400 rounded-2xl text-left transition-all duration-150 shadow-2xs group cursor-pointer"
+            className="p-4 glass-card-interactive rounded-2xl text-left group cursor-pointer"
           >
-            <div className="w-8 h-8 rounded-xl bg-forest-50 text-forest-800 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+            <div className="w-8 h-8 rounded-xl bg-forest-50/90 text-forest-800 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform border border-forest-100">
               <Egg className="w-4 h-4 text-forest-700" />
             </div>
             <p className="font-bold text-xs text-graphite-900">Egg Grading</p>
@@ -361,9 +362,9 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
 
           <button
             onClick={() => onNavigate('flockman_module')}
-            className="p-4 bg-white hover:bg-forest-50/40 border border-graphite-200/80 hover:border-mint-400 rounded-2xl text-left transition-all duration-150 shadow-2xs group cursor-pointer"
+            className="p-4 glass-card-interactive rounded-2xl text-left group cursor-pointer"
           >
-            <div className="w-8 h-8 rounded-xl bg-forest-50 text-forest-800 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+            <div className="w-8 h-8 rounded-xl bg-forest-50/90 text-forest-800 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform border border-forest-100">
               <Layers className="w-4 h-4 text-forest-700" />
             </div>
             <p className="font-bold text-xs text-graphite-900">Flockman's Station</p>
@@ -372,9 +373,9 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
 
           <button
             onClick={() => onNavigate('feed_inventory')}
-            className="p-4 bg-white hover:bg-forest-50/40 border border-graphite-200/80 hover:border-mint-400 rounded-2xl text-left transition-all duration-150 shadow-2xs group cursor-pointer"
+            className="p-4 glass-card-interactive rounded-2xl text-left group cursor-pointer"
           >
-            <div className="w-8 h-8 rounded-xl bg-forest-50 text-forest-800 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+            <div className="w-8 h-8 rounded-xl bg-forest-50/90 text-forest-800 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform border border-forest-100">
               <Wheat className="w-4 h-4 text-forest-700" />
             </div>
             <p className="font-bold text-xs text-graphite-900">Feed Silos</p>
@@ -383,9 +384,9 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
 
           <button
             onClick={() => onNavigate('mortality')}
-            className="p-4 bg-white hover:bg-rose-50/40 border border-graphite-200/80 hover:border-rose-300 rounded-2xl text-left transition-all duration-150 shadow-2xs group cursor-pointer"
+            className="p-4 glass-card-interactive hover:border-rose-300 rounded-2xl text-left group cursor-pointer"
           >
-            <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+            <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform border border-rose-100">
               <Skull className="w-4 h-4" />
             </div>
             <p className="font-bold text-xs text-graphite-900">Depletions</p>
@@ -394,9 +395,9 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
 
           <button
             onClick={() => onNavigate('medicine')}
-            className="p-4 bg-white hover:bg-forest-50/40 border border-graphite-200/80 hover:border-mint-400 rounded-2xl text-left transition-all duration-150 shadow-2xs group cursor-pointer"
+            className="p-4 glass-card-interactive rounded-2xl text-left group cursor-pointer"
           >
-            <div className="w-8 h-8 rounded-xl bg-forest-50 text-forest-800 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+            <div className="w-8 h-8 rounded-xl bg-forest-50/90 text-forest-800 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform border border-forest-100">
               <Syringe className="w-4 h-4 text-forest-700" />
             </div>
             <p className="font-bold text-xs text-graphite-900">Vaccine & Meds</p>
@@ -405,9 +406,9 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
 
           <button
             onClick={() => onNavigate('body_weight')}
-            className="p-4 bg-white hover:bg-forest-50/40 border border-graphite-200/80 hover:border-mint-400 rounded-2xl text-left transition-all duration-150 shadow-2xs group cursor-pointer"
+            className="p-4 glass-card-interactive rounded-2xl text-left group cursor-pointer"
           >
-            <div className="w-8 h-8 rounded-xl bg-forest-50 text-forest-800 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+            <div className="w-8 h-8 rounded-xl bg-forest-50/90 text-forest-800 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform border border-forest-100">
               <Scale className="w-4 h-4 text-forest-700" />
             </div>
             <p className="font-bold text-xs text-graphite-900">Body Weight</p>

@@ -1,7 +1,22 @@
 import React, { useState } from 'react';
 import { useFarm } from '../../context/FarmContext';
 import { UserRole } from '../../types';
-import { X, Lock, User, Mail, Phone, KeyRound, AlertCircle, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { 
+  X, 
+  Lock, 
+  User, 
+  Mail, 
+  Phone, 
+  KeyRound, 
+  AlertCircle, 
+  CheckCircle2, 
+  ShieldCheck, 
+  Eye, 
+  EyeOff, 
+  Check, 
+  ShieldAlert 
+} from 'lucide-react';
+import { evaluatePasswordStrength } from '../../utils/security';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -13,26 +28,40 @@ interface AuthModalProps {
 
 export const LoginModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSwitchToRegister, onSwitchToForgot }) => {
   const { login } = useFarm();
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('pass123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [lockoutMinutes, setLockoutMinutes] = useState(0);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
+    setLockoutMinutes(0);
+    setIsLoading(true);
 
-    const res = login(username, password);
-    if (res.success) {
-      setSuccessMsg(res.message);
-      setTimeout(() => {
-        onClose();
-      }, 700);
-    } else {
-      setErrorMsg(res.message);
+    try {
+      const res = await login(username, password);
+      setIsLoading(false);
+      if (res.success) {
+        setSuccessMsg(res.message);
+        setTimeout(() => {
+          onClose();
+        }, 700);
+      } else {
+        setErrorMsg(res.message);
+        if (res.lockedOut) {
+          setLockoutMinutes(res.remainingMinutes || 15);
+        }
+      }
+    } catch (err: any) {
+      setIsLoading(false);
+      setErrorMsg(err?.message || 'Login error occurred.');
     }
   };
 
@@ -56,7 +85,17 @@ export const LoginModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSwitch
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {errorMsg && (
+          {lockoutMinutes > 0 && (
+            <div className="p-3 bg-rose-50 border-2 border-rose-300 text-rose-900 text-xs rounded-xl flex items-start gap-2.5">
+              <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Account Locked ({lockoutMinutes}m remaining)</p>
+                <p className="text-[11px] text-rose-800 mt-0.5">Please wait for the lockout window to expire or contact your Farm Administrator.</p>
+              </div>
+            </div>
+          )}
+
+          {errorMsg && lockoutMinutes === 0 && (
             <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
@@ -71,15 +110,21 @@ export const LoginModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSwitch
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-graphite-700 mb-1">Username</label>
+            <label className="block text-xs font-semibold text-graphite-700 mb-1">Username or Email</label>
             <div className="relative">
               <User className="w-4 h-4 text-graphite-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 required
+                inputMode="text"
+                enterKeyHint="next"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="username"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
-                placeholder="Enter username (e.g. admin, farm_mgr_ramon)"
+                placeholder="Enter your username"
                 className="w-full pl-9 pr-3 py-2 text-sm border border-graphite-200 rounded-xl focus:border-mint-500 focus:ring-1 focus:ring-mint-500 outline-hidden transition"
               />
             </div>
@@ -101,21 +146,34 @@ export const LoginModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSwitch
             <div className="relative">
               <Lock className="w-4 h-4 text-graphite-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 required
+                enterKeyHint="go"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="current-password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-9 pr-3 py-2 text-sm border border-graphite-200 rounded-xl focus:border-mint-500 focus:ring-1 focus:ring-mint-500 outline-hidden transition"
+                className="w-full pl-9 pr-10 py-2 text-sm border border-graphite-200 rounded-xl focus:border-mint-500 focus:ring-1 focus:ring-mint-500 outline-hidden transition"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-graphite-400 hover:text-graphite-700"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
           </div>
 
           <button
             type="submit"
-            className="w-full py-2.5 bg-mint-400 hover:bg-mint-300 text-forest-950 text-sm font-extrabold rounded-xl transition shadow-xs active:scale-98"
+            disabled={isLoading}
+            className="w-full py-2.5 bg-mint-400 hover:bg-mint-300 text-forest-950 text-sm font-extrabold rounded-xl transition shadow-xs active:scale-98 disabled:opacity-60 cursor-pointer"
           >
-            Sign In to Dashboard
+            {isLoading ? 'Signing In...' : 'Sign In to Dashboard'}
           </button>
 
           <div className="pt-2 text-center text-xs text-graphite-500">
@@ -145,12 +203,16 @@ export const RegisterModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSwi
   const [role, setRole] = useState<UserRole>('flockman');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [securityQuestion, setSecurityQuestion] = useState('What town were you born in?');
   const [securityAnswer, setSecurityAnswer] = useState('');
   const [designatedHouses, setDesignatedHouses] = useState<string[]>(['House 1']);
+  const [isLoading, setIsLoading] = useState(false);
 
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  const regStrength = evaluatePasswordStrength(password);
 
   if (!isOpen) return null;
 
@@ -164,7 +226,7 @@ export const RegisterModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSwi
     }
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
@@ -174,8 +236,8 @@ export const RegisterModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSwi
       return;
     }
 
-    if (password.length < 6) {
-      setErrorMsg('Password must be at least 6 characters.');
+    if (password.length < 8) {
+      setErrorMsg('Password must be at least 8 characters for security compliance.');
       return;
     }
 
@@ -184,25 +246,33 @@ export const RegisterModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSwi
       return;
     }
 
-    const res = registerUser({
-      username: username.trim(),
-      fullName: fullName.trim(),
-      email: email.trim(),
-      contactNumber: contactNumber.trim(),
-      role,
-      securityQuestion,
-      securityAnswer: securityAnswer.trim(),
-      designatedHouses: ['admin', 'farm_manager'].includes(role) ? housesList : designatedHouses
-    });
+    setIsLoading(true);
+    try {
+      const res = await registerUser({
+        username: username.trim(),
+        fullName: fullName.trim(),
+        email: email.trim(),
+        contactNumber: contactNumber.trim(),
+        role,
+        password,
+        securityQuestion,
+        securityAnswer: securityAnswer.trim(),
+        designatedHouses: ['admin', 'farm_manager'].includes(role) ? housesList : designatedHouses
+      });
 
-    if (res.success) {
-      setSuccessMsg(res.message);
-      setTimeout(() => {
-        if (onSwitchToLogin) onSwitchToLogin();
-        else onClose();
-      }, 2500);
-    } else {
-      setErrorMsg(res.message);
+      setIsLoading(false);
+      if (res.success) {
+        setSuccessMsg(res.message);
+        setTimeout(() => {
+          if (onSwitchToLogin) onSwitchToLogin();
+          else onClose();
+        }, 2500);
+      } else {
+        setErrorMsg(res.message);
+      }
+    } catch (err: any) {
+      setIsLoading(false);
+      setErrorMsg(err?.message || 'Registration failed.');
     }
   };
 
@@ -218,11 +288,11 @@ export const RegisterModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSwi
           </button>
           <div className="flex items-center gap-2 text-mint-400 text-xs font-semibold uppercase tracking-wider mb-1">
             <ShieldCheck className="w-4 h-4" />
-            <span>Account Registration</span>
+            <span>Secure Account Registration</span>
           </div>
           <h2 className="text-xl font-bold">Register Farm Staff Account</h2>
           <p className="text-xs text-mint-300 mt-1">
-            New accounts will be reviewed & approved by the System Administrator before activation.
+            New accounts are encrypted with salted SHA-256 hashes and reviewed by the Admin.
           </p>
         </div>
 
@@ -346,33 +416,64 @@ export const RegisterModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSwi
           )}
 
           {/* Passwords */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-graphite-700 mb-1">Password *</label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-graphite-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <div className="space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-graphite-700 mb-1">Password * (Min 8 chars)</label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-graphite-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="Enter password"
+                    className="w-full pl-9 pr-10 py-2 text-sm border border-graphite-200 rounded-xl focus:border-mint-500 focus:ring-1 focus:ring-mint-500 outline-hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-graphite-400 hover:text-graphite-700"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-graphite-700 mb-1">Confirm Password *</label>
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="Min 6 characters"
-                  className="w-full pl-9 pr-3 py-2 text-sm border border-graphite-200 rounded-xl focus:border-mint-500 focus:ring-1 focus:ring-mint-500 outline-hidden"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm password"
+                  className="w-full px-3 py-2 text-sm border border-graphite-200 rounded-xl focus:border-mint-500 focus:ring-1 focus:ring-mint-500 outline-hidden"
                 />
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-graphite-700 mb-1">Confirm Password *</label>
-              <input
-                type="password"
-                required
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-                placeholder="Confirm password"
-                className="w-full px-3 py-2 text-sm border border-graphite-200 rounded-xl focus:border-mint-500 focus:ring-1 focus:ring-mint-500 outline-hidden"
-              />
-            </div>
+            {/* Strength Meter */}
+            {password.length > 0 && (
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600 font-semibold">Strength:</span>
+                  <span className={`font-bold uppercase ${
+                    regStrength.level === 'strong' ? 'text-emerald-700' :
+                    regStrength.level === 'good' ? 'text-blue-700' :
+                    regStrength.level === 'fair' ? 'text-amber-700' : 'text-rose-700'
+                  }`}>
+                    {regStrength.level}
+                  </span>
+                </div>
+                <div className="grid grid-cols-4 gap-1 h-1.5">
+                  <div className={`h-full rounded-full ${regStrength.score >= 1 ? 'bg-amber-500' : 'bg-slate-200'}`} />
+                  <div className={`h-full rounded-full ${regStrength.score >= 2 ? 'bg-amber-500' : 'bg-slate-200'}`} />
+                  <div className={`h-full rounded-full ${regStrength.score >= 3 ? 'bg-blue-500' : 'bg-slate-200'}`} />
+                  <div className={`h-full rounded-full ${regStrength.score >= 4 ? 'bg-emerald-500' : 'bg-slate-200'}`} />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Account Recovery Security Question */}
@@ -411,9 +512,10 @@ export const RegisterModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSwi
 
           <button
             type="submit"
-            className="w-full py-2.5 bg-mint-400 hover:bg-mint-300 text-forest-950 text-sm font-black rounded-xl transition shadow-xs active:scale-98"
+            disabled={isLoading}
+            className="w-full py-2.5 bg-mint-400 hover:bg-mint-300 text-forest-950 text-sm font-black rounded-xl transition shadow-xs active:scale-98 disabled:opacity-60 cursor-pointer"
           >
-            Submit Account Application
+            {isLoading ? 'Encrypting & Registering...' : 'Submit Account Application'}
           </button>
 
           <div className="text-center text-xs text-graphite-500">
@@ -440,6 +542,7 @@ export const ForgotPasswordModal: React.FC<AuthModalProps> = ({ isOpen, onClose,
   const [securityQuestion, setSecurityQuestion] = useState('');
   const [securityAnswer, setSecurityAnswer] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [msg, setMsg] = useState<{ type: 'err' | 'ok'; text: string } | null>(null);
 
   if (!isOpen) return null;
@@ -450,22 +553,29 @@ export const ForgotPasswordModal: React.FC<AuthModalProps> = ({ isOpen, onClose,
       setSecurityQuestion(u.securityQuestion);
       setMsg(null);
     } else {
-      setMsg({ type: 'err', text: 'Username not found.' });
+      setMsg({ type: 'err', text: 'Username not found in system directory.' });
       setSecurityQuestion('');
     }
   };
 
-  const handleReset = (e: React.FormEvent) => {
+  const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = recoverAccount(username, securityAnswer, newPassword);
-    if (res.success) {
-      setMsg({ type: 'ok', text: res.message });
-      setTimeout(() => {
-        if (onSwitchToLogin) onSwitchToLogin();
-        else onClose();
-      }, 2000);
-    } else {
-      setMsg({ type: 'err', text: res.message });
+    setIsLoading(true);
+    try {
+      const res = await recoverAccount(username, securityAnswer, newPassword);
+      setIsLoading(false);
+      if (res.success) {
+        setMsg({ type: 'ok', text: res.message });
+        setTimeout(() => {
+          if (onSwitchToLogin) onSwitchToLogin();
+          else onClose();
+        }, 2000);
+      } else {
+        setMsg({ type: 'err', text: res.message });
+      }
+    } catch (err: any) {
+      setIsLoading(false);
+      setMsg({ type: 'err', text: err?.message || 'Password reset failed.' });
     }
   };
 

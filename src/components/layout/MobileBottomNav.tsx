@@ -59,7 +59,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   return (
     <nav 
       aria-label="Mobile Navigation Bar"
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-forest-950/95 backdrop-blur-lg border-t border-forest-800/60 pb-[env(safe-area-inset-bottom,0px)] print:hidden shadow-2xl transition-all"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-forest-950/85 backdrop-blur-xl border-t border-forest-700/50 pb-[env(safe-area-inset-bottom,0px)] print:hidden shadow-2xl transition-all"
     >
       <div className="flex items-center justify-around px-2 py-1.5 max-w-lg mx-auto">
         {navItems.filter(item => item.show).map((item) => {
@@ -71,11 +71,11 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               onClick={() => handleNavClick(item.id)}
               className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-2xl transition-all cursor-pointer ${
                 isActive
-                  ? 'text-mint-400 font-extrabold scale-105'
+                  ? 'text-mint-300 font-extrabold scale-105'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <div className={`p-1.5 rounded-xl transition ${isActive ? 'bg-mint-400/15 text-mint-300' : ''}`}>
+              <div className={`p-1.5 rounded-xl transition ${isActive ? 'bg-mint-400/20 text-mint-300 border border-mint-400/30 shadow-xs' : ''}`}>
                 <Icon className={`w-5 h-5 ${isActive ? 'text-mint-400' : 'text-slate-400'}`} />
               </div>
               <span className="text-[10px] tracking-tight mt-0.5 leading-none">

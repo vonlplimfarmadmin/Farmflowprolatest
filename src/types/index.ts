@@ -25,12 +25,21 @@ export interface UserAccount {
   lastLogin?: string;
   securityQuestion: string;
   securityAnswer: string;
+  securityAnswerHash?: string;
+  securityAnswerSalt?: string;
   contactNumber?: string;
+  // Enhanced Password & Account Security
+  passwordHash?: string;
+  passwordSalt?: string;
+  failedLoginAttempts?: number;
+  lockedUntil?: string | null;
+  requirePasswordChange?: boolean;
+  passwordChangedAt?: string;
 }
 
 export type User = UserAccount;
 
-export type BreedType = 'Ross' | 'Cobb' | 'Ross 308' | 'Cobb 500';
+export type BreedType = 'Ross' | 'Cobb' | 'Ross 308' | 'Cobb 500' | 'Hubbard' | 'Arbor Acres' | 'All Breeds' | string;
 
 export interface PenConfig {
   id: string;
@@ -217,11 +226,14 @@ export interface StandardMedProgramItem {
 
 export interface StandardFeedGuideItem {
   id: string;
+  breedType?: string; // e.g. 'Cobb 500' | 'Ross 308' | 'Hubbard' | 'Arbor Acres' | 'All Breeds'
   ageWeek: number;
   productionPhase: string;
-  maleGramsPerBird: number;
+  femaleFeedType?: FeedType; // Feed type for female birds
   femaleGramsPerBird: number;
-  recommendedFeedType: FeedType;
+  maleFeedType?: FeedType; // Feed type for male birds
+  maleGramsPerBird: number;
+  recommendedFeedType?: FeedType; // Standard / general feed type
 }
 
 export interface StandardHendayItem {
@@ -536,6 +548,28 @@ export interface DeliveryRecord {
 
   notes?: string;
   loggedBy: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface HatchingSummaryRecord {
+  id: string;
+  settingDate: string; // Setting Date (YYYY-MM-DD)
+  houseNumber: string; // House (e.g. "1", "2", "3", "4", "5", "6" or "House 1")
+  breed: string; // Breed (e.g. "Cobb 500", "Ross 308")
+  eggsSet: number; // # of Eggs set
+  pullOutDate: string; // Pull-out Date (YYYY-MM-DD)
+  standardChicks: number; // Standard Chicks
+  gradeOut: number; // Grade out
+  totalChicksPulled: number; // Total Chicks Pulled = standardChicks + gradeOut
+  totalHatchPct: number; // Total Hatch % = (totalChicksPulled / eggsSet) * 100
+  saleableHatchPct: number; // Saleable Hatch % = (standardChicks / eggsSet) * 100
+  gradeOutPct?: number; // (gradeOut / eggsSet) * 100
+  hatcheryName?: string; // e.g. "MJBJ Hatchery"
+  deliveryId?: string; // Reference to ESRRR delivery batch
+  esrrrNumber?: string; // Reference to ESRRR voucher number
+  notes?: string;
+  loggedBy?: string;
   createdAt: string;
   updatedAt?: string;
 }

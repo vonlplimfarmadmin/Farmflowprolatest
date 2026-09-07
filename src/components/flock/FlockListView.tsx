@@ -11,16 +11,20 @@ import {
   Trash2, 
   TrendingUp, 
   ShieldCheck, 
-  Layers,
-  Edit3,
-  Clock,
-  Sparkles
+  Layers, 
+  Edit3, 
+  Clock, 
+  Sparkles,
+  Download,
+  FileText
 } from 'lucide-react';
 import { calculateFlockAgeFromLoadingDate } from '../../utils/dateCalculations';
+import { DataExportModal } from '../common/DataExportModal';
 
 export const FlockListView: React.FC = () => {
   const { flocks, addFlock, updateFlock, deleteFlock, getFlockStats, permissions } = useFarm();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [editingFlock, setEditingFlock] = useState<Flock | null>(null);
 
   // New Flock Form State
@@ -100,16 +104,28 @@ export const FlockListView: React.FC = () => {
           </p>
         </div>
 
-        {permissions.canAddFlock && (
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            id="add-new-flock-btn"
-            onClick={() => setShowAddModal(true)}
-            className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs self-start"
+            id="export-flock-report-btn"
+            onClick={() => setShowExportModal(true)}
+            className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer active:scale-95"
+            title="Export Flock Data to CSV, PDF or Excel"
           >
-            <Plus className="w-4 h-4" />
-            <span>Add New Flock</span>
+            <Download className="w-4 h-4 text-teal-400" />
+            <span>Export Flock Data</span>
           </button>
-        )}
+
+          {permissions.canAddFlock && (
+            <button
+              id="add-new-flock-btn"
+              onClick={() => setShowAddModal(true)}
+              className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add New Flock</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Flock Cards Grid */}
@@ -497,6 +513,14 @@ export const FlockListView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Flock Data Export Modal */}
+      <DataExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        defaultCategory="flock_population"
+        defaultHouse="All"
+      />
     </div>
   );
 };

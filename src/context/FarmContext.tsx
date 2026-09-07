@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef, ReactNode } from 'react';
 import { 
   UserAccount, 
   UserRole, 
@@ -30,7 +30,8 @@ import {
   BiosecurityFrequency,
   BiosecurityCriticalLevel,
   DeliveryRecord,
-  DeliveryHouseRecord
+  DeliveryHouseRecord,
+  HatchingSummaryRecord
 } from '../types';
 import { 
   INITIAL_FARM_PROFILE, 
@@ -49,28 +50,45 @@ import {
   INITIAL_BIOSECURITY_REQUIREMENTS,
   INITIAL_BIOSECURITY_LOGS,
   INITIAL_BIOSECURITY_SUMMARIES,
-  INITIAL_DELIVERIES
+  INITIAL_DELIVERIES,
+  INITIAL_HATCHING_SUMMARIES
 } from '../data/initialData';
 import { calculateFlockAgeFromLoadingDate } from '../utils/dateCalculations';
 import { detectPlatform } from '../utils/platform';
 import {
-  OfflineQueueItem,
-  StorageQuotaInfo,
-  saveCollectionToIndexedDB,
-  saveAllCollectionsToIndexedDB,
-  loadAllCollectionsFromIndexedDB,
-  enqueueOfflineAction,
-  getOfflineQueueFromIndexedDB,
-  clearOfflineQueue,
-  getStorageQuotaInfo
-} from '../services/indexedDBStorage';
+  syncAllDataToMongoDB,
+  pullAllDataFromMongoDB,
+  saveDocToMongoDB,
+  deleteDocFromMongoDB,
+  getMongoDBStatus,
+  startMongoDBPolling,
+  saveFarmProfileToMongoDB,
+  getFarmProfileFromMongoDB
+} from '../services/mongodbSync';
+
+export interface StorageQuotaInfo {
+  usageMB: number;
+  quotaMB: number;
+  percentUsed: number;
+  itemCounts: {
+    flocks: number;
+    eggRecords: number;
+    feedRecords: number;
+    mortalityRecords: number;
+    medRecords: number;
+    biosecurityLogs: number;
+  };
+}
+
 import {
-  syncAllDataToFirestore,
-  pullAllDataFromFirestore,
-  saveDocToFirestore,
-  deleteDocFromFirestore,
-  subscribeToFarmCollections
-} from '../services/firestoreSync';
+  generateSalt,
+  hashPasswordWithSalt,
+  hashSecurityAnswer,
+  verifyPassword,
+  evaluatePasswordStrength,
+  isAccountLocked,
+  PasswordStrengthResult
+} from '../utils/security';
 
 export interface PermissionCheck {
   canViewModule: (moduleId: string) => boolean;
@@ -144,14 +162,20 @@ interface FarmContextType {
   // Auth & User
   currentUser: UserAccount | null;
   users: UserAccount[];
-  login: (username: string, password?: string) => { success: boolean; message: string; user?: UserAccount };
+  login: (username: string, password?: string) => Promise<{ success: boolean; message: string; user?: UserAccount; lockedOut?: boolean; remainingMinutes?: number }>;
   logout: () => void;
-  registerUser: (userData: Omit<UserAccount, 'id' | 'createdAt' | 'status'> & { password?: string }, autoActivate?: boolean) => { success: boolean; message: string; user?: UserAccount };
-  recoverAccount: (username: string, answer: string, newPassword?: string) => { success: boolean; message: string };
+  registerUser: (userData: Omit<UserAccount, 'id' | 'createdAt' | 'status'> & { password?: string }, autoActivate?: boolean) => Promise<{ success: boolean; message: string; user?: UserAccount }>;
+  recoverAccount: (username: string, answer: string, newPassword?: string) => Promise<{ success: boolean; message: string; verified?: boolean }>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
+  adminResetUserPassword: (userId: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
+  adminToggleUserLock: (userId: string, isLocked: boolean) => Promise<{ success: boolean; message: string }>;
+  evaluatePasswordStrength: (password: string) => PasswordStrengthResult;
   approveUser: (userId: string, designatedHouses?: string[]) => void;
   rejectUser: (userId: string) => void;
   updateUserRole: (userId: string, newRole: UserRole, houses?: string[]) => void;
   updateUserStatus: (userId: string, newStatus: UserStatus) => void;
+  updateUser: (userId: string, updates: Partial<UserAccount> & { newPassword?: string }) => Promise<{ success: boolean; message: string; user?: UserAccount }>;
+  addUser: (userData: Omit<UserAccount, 'id' | 'createdAt' | 'status'> & { password?: string; status?: UserStatus }) => Promise<{ success: boolean; message: string; user?: UserAccount }>;
   assignUserHouses: (userId: string, houses: string[]) => void;
   deleteUser: (userId: string) => void;
   switchUser: (userId: string) => void;
@@ -159,7 +183,7 @@ interface FarmContextType {
 
   // Farm Profile
   farmProfile: FarmProfile;
-  updateFarmProfile: (profile: Partial<FarmProfile>) => void;
+  updateFarmProfile: (profile: Partial<FarmProfile>) => Promise<{ success: boolean; message: string; data?: FarmProfile }>;
   updateStandardVaccination: (program: StandardMedProgramItem[]) => void;
   updateStandardFeedGuide: (guide: StandardFeedGuideItem[]) => void;
   updateStandardHenday: (henday: StandardHendayItem[]) => void;
@@ -213,6 +237,7 @@ interface FarmContextType {
   eggProductionRecords: NormalizedEggProductionRecord[];
   weeklyEggWeights: WeeklyEggWeightRecord[];
   addEggProductionRecord: (record: Partial<EggProductionRecord> & { houseNumber: string; date: string }) => void;
+  updateEggProductionRecord: (id: string, updates: Partial<EggProductionRecord>) => void;
   deleteEggProductionRecord: (id: string) => void;
   addWeeklyEggWeight: (record: Omit<WeeklyEggWeightRecord, 'id' | 'createdAt' | 'loggedBy'>) => void;
   deleteWeeklyEggWeight: (id: string) => void;
@@ -223,6 +248,13 @@ interface FarmContextType {
   updateDelivery: (id: string, updates: Partial<DeliveryRecord>) => void;
   deleteDelivery: (id: string) => void;
   getDeliveryById: (id: string) => DeliveryRecord | undefined;
+
+  // Hatching Summary
+  hatchingSummaries: HatchingSummaryRecord[];
+  addHatchingSummary: (record: Omit<HatchingSummaryRecord, 'id' | 'createdAt'>) => HatchingSummaryRecord;
+  updateHatchingSummary: (id: string, updates: Partial<HatchingSummaryRecord>) => void;
+  deleteHatchingSummary: (id: string) => void;
+  getHatchingSummaryById: (id: string) => HatchingSummaryRecord | undefined;
 
   // Biosecurity Compliance
   biosecurityRequirements: BiosecurityRequirement[];
@@ -257,27 +289,36 @@ interface FarmContextType {
   exportDataJson: () => string;
   importDataJson: (jsonStr: string) => boolean;
 
-  // Firebase Firestore Synchronization Engine
+  // MongoDB Cloud Synchronization Engine
+  mongoStatus: {
+    connected: boolean;
+    dbName: string;
+    projectId?: string;
+    lastSyncedAt: string | null;
+    isSyncing: boolean;
+    uriConfigured?: boolean;
+    serverInfo?: string;
+    error?: string | null;
+  };
+  syncAllToMongoDB: () => Promise<{ success: boolean; message: string; counts?: any }>;
+  pullAllFromMongoDB: () => Promise<{ success: boolean; message: string }>;
+
+  // Backwards-compatible aliases
   firestoreStatus: {
     connected: boolean;
     projectId: string;
+    dbName?: string;
     lastSyncedAt: string | null;
     isSyncing: boolean;
   };
   syncAllToFirestore: () => Promise<{ success: boolean; message: string; counts?: any }>;
   pullAllFromFirestore: () => Promise<{ success: boolean; message: string }>;
 
-  // Offline & IndexedDB Caching Engine
+  // Central Database & Storage Sync Engine
   isMobileDevice: boolean;
-  isOnline: boolean;
-  offlineQueue: OfflineQueueItem[];
-  pendingOfflineCount: number;
   storageQuota: StorageQuotaInfo;
   refreshStorageQuota: () => Promise<void>;
-  syncOfflineQueue: () => Promise<{ success: boolean; syncedCount: number; message: string }>;
-  clearOfflineSyncQueue: () => Promise<void>;
-  lastIndexedDBSync: string | null;
-  databaseEngine: 'firestore' | 'indexeddb';
+  databaseEngine: 'mongodb';
   dbStatus: {
     connected: boolean;
     state: string;
@@ -286,8 +327,6 @@ interface FarmContextType {
   };
   checkDBStatus: () => Promise<void>;
   reconnectDB: (uri?: string) => Promise<{ success: boolean; message?: string }>;
-  syncAllToMongoDB: () => Promise<{ success: boolean; message: string; counts?: any }>;
-  pullAllFromMongoDB: () => Promise<{ success: boolean; message: string }>;
 
   // Permission Helpers
   permissions: PermissionCheck;
@@ -296,6 +335,45 @@ interface FarmContextType {
 const FarmContext = createContext<FarmContextType | undefined>(undefined);
 
 const LOCAL_STORAGE_KEY = 'broiler_breeder_farm_data_v2';
+
+export function deduplicateById<T extends { id?: string; _id?: string }>(items: T[], keyProp?: keyof T): T[] {
+  if (!Array.isArray(items)) return [];
+  const map = new Map<string, T>();
+  for (const item of items) {
+    if (!item) continue;
+    const key = String((keyProp ? item[keyProp] : undefined) || item.id || item._id || '');
+    if (key) {
+      map.set(key, item);
+    }
+  }
+  return Array.from(map.values());
+}
+
+export function deduplicateFlocks(items: Flock[]): Flock[] {
+  if (!Array.isArray(items)) return [];
+  const map = new Map<string, Flock>();
+  for (const item of items) {
+    if (!item) continue;
+    const key = String(item.houseNumber || item.id || '');
+    if (key) {
+      map.set(key, item);
+    }
+  }
+  return Array.from(map.values());
+}
+
+export function deduplicateUsers(items: UserAccount[]): UserAccount[] {
+  if (!Array.isArray(items)) return [];
+  const map = new Map<string, UserAccount>();
+  for (const item of items) {
+    if (!item) continue;
+    const key = String(item.username || item.id || '').toLowerCase();
+    if (key) {
+      map.set(key, item);
+    }
+  }
+  return Array.from(map.values());
+}
 
 function safeParseArray<T>(key: string, fallback: T[]): T[] {
   try {
@@ -335,7 +413,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   });
 
   const [users, setUsers] = useState<UserAccount[]>(() => 
-    safeParseArray<UserAccount>(`${LOCAL_STORAGE_KEY}_users`, INITIAL_USERS)
+    deduplicateUsers(safeParseArray<UserAccount>(`${LOCAL_STORAGE_KEY}_users`, INITIAL_USERS))
   );
 
   const [farmProfile, setFarmProfile] = useState<FarmProfile>(() => {
@@ -352,59 +430,59 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   });
 
   const [flocks, setFlocks] = useState<Flock[]>(() => 
-    safeParseArray<Flock>(`${LOCAL_STORAGE_KEY}_flocks`, INITIAL_FLOCKS)
+    deduplicateFlocks(safeParseArray<Flock>(`${LOCAL_STORAGE_KEY}_flocks`, INITIAL_FLOCKS))
   );
 
   const [feedStockEntries, setFeedStockEntries] = useState<FeedStockEntry[]>(() => 
-    safeParseArray<FeedStockEntry>(`${LOCAL_STORAGE_KEY}_feed_stock`, INITIAL_FEED_STOCK)
+    deduplicateById(safeParseArray<FeedStockEntry>(`${LOCAL_STORAGE_KEY}_feed_stock`, INITIAL_FEED_STOCK))
   );
 
   const [feedConsumptionRecords, setFeedConsumptionRecords] = useState<FeedConsumptionRecord[]>(() => 
-    safeParseArray<FeedConsumptionRecord>(`${LOCAL_STORAGE_KEY}_feed_cons`, INITIAL_FEED_CONSUMPTION)
+    deduplicateById(safeParseArray<FeedConsumptionRecord>(`${LOCAL_STORAGE_KEY}_feed_cons`, INITIAL_FEED_CONSUMPTION))
   );
 
   const [depletions, setDepletions] = useState<DepletionRecord[]>(() => 
-    safeParseArray<DepletionRecord>(`${LOCAL_STORAGE_KEY}_depletions`, INITIAL_DEPLETIONS)
+    deduplicateById(safeParseArray<DepletionRecord>(`${LOCAL_STORAGE_KEY}_depletions`, INITIAL_DEPLETIONS))
   );
 
   const [transfers, setTransfers] = useState<BirdTransferRecord[]>(() => 
-    safeParseArray<BirdTransferRecord>(`${LOCAL_STORAGE_KEY}_transfers`, INITIAL_BIRD_TRANSFERS)
+    deduplicateById(safeParseArray<BirdTransferRecord>(`${LOCAL_STORAGE_KEY}_transfers`, INITIAL_BIRD_TRANSFERS))
   );
 
   const [medProducts, setMedProducts] = useState<MedProduct[]>(() => 
-    safeParseArray<MedProduct>(`${LOCAL_STORAGE_KEY}_med_products`, INITIAL_MED_PRODUCTS)
+    deduplicateById(safeParseArray<MedProduct>(`${LOCAL_STORAGE_KEY}_med_products`, INITIAL_MED_PRODUCTS))
   );
 
   const [medStockLogs, setMedStockLogs] = useState<MedStockLog[]>(() => 
-    safeParseArray<MedStockLog>(`${LOCAL_STORAGE_KEY}_med_stock`, [])
+    deduplicateById(safeParseArray<MedStockLog>(`${LOCAL_STORAGE_KEY}_med_stock`, []))
   );
 
   const [medAdministrations, setMedAdministrations] = useState<MedAdministrationRecord[]>(() => 
-    safeParseArray<MedAdministrationRecord>(`${LOCAL_STORAGE_KEY}_med_admin`, INITIAL_MED_ADMIN)
+    deduplicateById(safeParseArray<MedAdministrationRecord>(`${LOCAL_STORAGE_KEY}_med_admin`, INITIAL_MED_ADMIN))
   );
 
   const [bodyWeights, setBodyWeights] = useState<BodyWeightRecord[]>(() => 
-    safeParseArray<BodyWeightRecord>(`${LOCAL_STORAGE_KEY}_body_weights`, INITIAL_BODY_WEIGHTS)
+    deduplicateById(safeParseArray<BodyWeightRecord>(`${LOCAL_STORAGE_KEY}_body_weights`, INITIAL_BODY_WEIGHTS))
   );
 
   const [rawEggRecords, setRawEggRecords] = useState<EggProductionRecord[]>(() => 
-    safeParseArray<EggProductionRecord>(`${LOCAL_STORAGE_KEY}_egg_prod`, INITIAL_EGG_PRODUCTION)
+    deduplicateById(safeParseArray<EggProductionRecord>(`${LOCAL_STORAGE_KEY}_egg_prod`, INITIAL_EGG_PRODUCTION))
   );
 
   const [weeklyEggWeights, setWeeklyEggWeights] = useState<WeeklyEggWeightRecord[]>(() => 
-    safeParseArray<WeeklyEggWeightRecord>(`${LOCAL_STORAGE_KEY}_weekly_egg_weights`, INITIAL_WEEKLY_EGG_WEIGHTS)
+    deduplicateById(safeParseArray<WeeklyEggWeightRecord>(`${LOCAL_STORAGE_KEY}_weekly_egg_weights`, INITIAL_WEEKLY_EGG_WEIGHTS))
   );
 
   const [systemLogs, setSystemLogs] = useState<SystemLog[]>(() => 
-    safeParseArray<SystemLog>(`${LOCAL_STORAGE_KEY}_logs`, INITIAL_SYSTEM_LOGS)
+    deduplicateById(safeParseArray<SystemLog>(`${LOCAL_STORAGE_KEY}_logs`, INITIAL_SYSTEM_LOGS))
   );
 
   const [biosecurityRequirements, setBiosecurityRequirements] = useState<BiosecurityRequirement[]>(() => 
-    safeParseArray<BiosecurityRequirement>(`${LOCAL_STORAGE_KEY}_biosecurity_reqs`, INITIAL_BIOSECURITY_REQUIREMENTS)
+    deduplicateById(safeParseArray<BiosecurityRequirement>(`${LOCAL_STORAGE_KEY}_biosecurity_reqs`, INITIAL_BIOSECURITY_REQUIREMENTS))
   );
 
   const [biosecurityLogs, setBiosecurityLogs] = useState<BiosecurityVerificationLog[]>(() => 
-    safeParseArray<BiosecurityVerificationLog>(`${LOCAL_STORAGE_KEY}_biosecurity_logs`, INITIAL_BIOSECURITY_LOGS)
+    deduplicateById(safeParseArray<BiosecurityVerificationLog>(`${LOCAL_STORAGE_KEY}_biosecurity_logs`, INITIAL_BIOSECURITY_LOGS))
   );
 
   const [biosecuritySummaries, setBiosecuritySummaries] = useState<Record<string, BiosecurityDailySummary>>(() => 
@@ -413,6 +491,10 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const [deliveries, setDeliveries] = useState<DeliveryRecord[]>(() => 
     safeParseArray<DeliveryRecord>(`${LOCAL_STORAGE_KEY}_deliveries`, INITIAL_DELIVERIES)
+  );
+
+  const [hatchingSummaries, setHatchingSummaries] = useState<HatchingSummaryRecord[]>(() => 
+    safeParseArray<HatchingSummaryRecord>(`${LOCAL_STORAGE_KEY}_hatching_summaries`, INITIAL_HATCHING_SUMMARIES)
   );
 
   // Platform & Mobile Auto-Routing Engine
@@ -429,261 +511,113 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     );
   }, [platformInfo]);
 
-  const databaseEngine = 'firestore' as const;
+  const databaseEngine = 'mongodb' as const;
 
-  // Firebase Firestore State & Status
-  const [firestoreStatus, setFirestoreStatus] = useState<{
+  // MongoDB State & Status
+  const [mongoStatus, setMongoStatus] = useState<{
     connected: boolean;
-    projectId: string;
+    dbName: string;
+    projectId?: string;
     lastSyncedAt: string | null;
     isSyncing: boolean;
+    uriConfigured?: boolean;
+    serverInfo?: string;
+    error?: string | null;
   }>({
     connected: true,
-    projectId: 'nice-axiom-29v0l',
+    dbName: 'farmflow_db',
+    projectId: 'farmflow_db',
     lastSyncedAt: null,
     isSyncing: false,
+    uriConfigured: true,
   });
 
-  // Local Offline Status & Diagnostics
-  const [dbStatus] = useState<{
+  const firestoreStatus = {
+    connected: mongoStatus.connected,
+    projectId: mongoStatus.projectId || mongoStatus.dbName,
+    dbName: mongoStatus.dbName,
+    lastSyncedAt: mongoStatus.lastSyncedAt,
+    isSyncing: mongoStatus.isSyncing,
+  };
+
+  // Database Status & Diagnostics
+  const [dbStatus, setDbStatus] = useState<{
     connected: boolean;
     state: string;
     dbName: string | null;
     hasUriConfigured: boolean;
   }>({
     connected: true,
-    state: 'Firebase Firestore & IndexedDB Dual Persistence Active',
-    dbName: 'Firestore / nice-axiom-29v0l',
+    state: 'Central Database Connected',
+    dbName: 'MongoDB / farmflow_db',
     hasUriConfigured: true
   });
 
-  // Offline & IndexedDB Caching Engine State
-  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
-  const [offlineQueue, setOfflineQueue] = useState<OfflineQueueItem[]>([]);
-  const [lastIndexedDBSync, setLastIndexedDBSync] = useState<string | null>(null);
+  // Direct Cloud Database Engine State
   const [storageQuota, setStorageQuota] = useState<StorageQuotaInfo>({
     usageMB: 0,
     quotaMB: 0,
     percentUsed: 0,
-    indexedDBAvailable: typeof window !== 'undefined' && 'indexedDB' in window,
     itemCounts: {
       flocks: 0,
       eggRecords: 0,
       feedRecords: 0,
       mortalityRecords: 0,
       medRecords: 0,
-      biosecurityLogs: 0,
-      offlineQueue: 0
+      biosecurityLogs: 0
     }
   });
 
   const refreshStorageQuota = async () => {
     try {
-      const info = await getStorageQuotaInfo();
-      setStorageQuota(info);
-      const queue = await getOfflineQueueFromIndexedDB();
-      setOfflineQueue(queue);
+      const status = await getMongoDBStatus();
+      setMongoStatus(prev => ({
+        ...prev,
+        connected: status.connected,
+        dbName: status.dbName,
+        uriConfigured: status.uriConfigured,
+        serverInfo: status.serverInfo,
+        error: status.error,
+        lastSyncedAt: status.lastSyncedAt || prev.lastSyncedAt,
+      }));
+      setDbStatus({
+        connected: status.connected,
+        state: status.connected ? 'Central Database Connected' : (status.error || 'Database Connected'),
+        dbName: status.dbName,
+        hasUriConfigured: status.uriConfigured,
+      });
     } catch {
-      // Ignore
+      // ignore
     }
   };
 
-  // Monitor Online / Offline Network Status
+  // Periodic MongoDB sync check
   useEffect(() => {
-    const handleOnline = async () => {
-      setIsOnline(true);
-      logAction('NETWORK_ONLINE', 'system', 'Network connection active. Auto-synchronizing with Firebase Firestore.');
-      await refreshStorageQuota();
-      // Auto-sync when coming back online
-      pullAllFromFirestore().catch(() => {});
-    };
+    let isMounted = true;
 
-    const handleOffline = () => {
-      setIsOnline(false);
-      logAction('NETWORK_OFFLINE', 'system', 'Operating in Offline Mode. All changes stored locally in IndexedDB.');
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    // Initial load of offline queue and quota
-    getOfflineQueueFromIndexedDB().then(queue => {
-      setOfflineQueue(queue);
-      refreshStorageQuota();
-    });
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  // Real-time Automatic Cross-Platform Cloud Synchronization Listener
-  useEffect(() => {
-    const unsubscribe = subscribeToFarmCollections({
-      onEggRecordsUpdate: (remoteRecords) => {
-        if (Array.isArray(remoteRecords) && remoteRecords.length > 0) {
-          setRawEggRecords(prev => {
-            const map = new Map<string, EggProductionRecord>(prev.map(r => [r.id, r]));
-            remoteRecords.forEach((r: any) => {
-              if (r && r.id) {
-                map.set(r.id, { ...(map.get(r.id) || {}), ...r });
-              }
-            });
-            return Array.from(map.values()).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-          });
-          setFirestoreStatus(prev => ({
-            ...prev,
-            lastSyncedAt: new Date().toISOString(),
-            connected: true
-          }));
-        }
-      },
-      onFlocksUpdate: (remoteFlocks) => {
-        if (Array.isArray(remoteFlocks) && remoteFlocks.length > 0) {
-          setFlocks(prev => {
-            const map = new Map<string, Flock>(prev.map(f => [f.houseNumber, f]));
-            remoteFlocks.forEach((rf: any) => {
-              if (rf && rf.houseNumber) {
-                const existing = map.get(rf.houseNumber);
-                map.set(rf.houseNumber, existing ? { ...existing, ...rf } : rf);
-              }
-            });
-            return Array.from(map.values());
-          });
-          setFirestoreStatus(prev => ({
-            ...prev,
-            lastSyncedAt: new Date().toISOString(),
-            connected: true
-          }));
-        }
-      },
-      onFeedRecordsUpdate: (remoteFeed) => {
-        if (Array.isArray(remoteFeed) && remoteFeed.length > 0) {
-          setFeedConsumptionRecords(prev => {
-            const map = new Map<string, FeedConsumptionRecord>(prev.map(r => [r.id, r]));
-            remoteFeed.forEach((r: any) => {
-              if (r && r.id) {
-                map.set(r.id, { ...(map.get(r.id) || {}), ...r });
-              }
-            });
-            return Array.from(map.values());
-          });
-          setFirestoreStatus(prev => ({
-            ...prev,
-            lastSyncedAt: new Date().toISOString(),
-            connected: true
-          }));
-        }
-      },
-      onDepletionsUpdate: (remoteDepletions) => {
-        if (Array.isArray(remoteDepletions) && remoteDepletions.length > 0) {
-          setDepletions(prev => {
-            const map = new Map<string, DepletionRecord>(prev.map(r => [r.id, r]));
-            remoteDepletions.forEach((r: any) => {
-              if (r && r.id) {
-                map.set(r.id, { ...(map.get(r.id) || {}), ...r });
-              }
-            });
-            return Array.from(map.values());
-          });
-          setFirestoreStatus(prev => ({
-            ...prev,
-            lastSyncedAt: new Date().toISOString(),
-            connected: true
-          }));
-        }
-      },
-      onMedAdminsUpdate: (remoteMed) => {
-        if (Array.isArray(remoteMed) && remoteMed.length > 0) {
-          setMedAdministrations(prev => {
-            const map = new Map<string, MedAdministrationRecord>(prev.map(r => [r.id, r]));
-            remoteMed.forEach((r: any) => {
-              if (r && r.id) {
-                map.set(r.id, { ...(map.get(r.id) || {}), ...r });
-              }
-            });
-            return Array.from(map.values());
-          });
-          setFirestoreStatus(prev => ({
-            ...prev,
-            lastSyncedAt: new Date().toISOString(),
-            connected: true
-          }));
-        }
-      },
-      onBodyWeightsUpdate: (remoteWeights) => {
-        if (Array.isArray(remoteWeights) && remoteWeights.length > 0) {
-          setBodyWeights(prev => {
-            const map = new Map<string, BodyWeightRecord>(prev.map(r => [r.id, r]));
-            remoteWeights.forEach((r: any) => {
-              if (r && r.id) {
-                map.set(r.id, { ...(map.get(r.id) || {}), ...r });
-              }
-            });
-            return Array.from(map.values());
-          });
-          setFirestoreStatus(prev => ({
-            ...prev,
-            lastSyncedAt: new Date().toISOString(),
-            connected: true
-          }));
-        }
-      },
-      onBiosecurityLogsUpdate: (remoteLogs) => {
-        if (Array.isArray(remoteLogs) && remoteLogs.length > 0) {
-          setBiosecurityLogs(prev => {
-            const map = new Map<string, BiosecurityVerificationLog>(prev.map(r => [r.id || `${r.requirementId}_${r.date}`, r]));
-            remoteLogs.forEach((r: any) => {
-              const key = r.id || `${r.requirementId}_${r.date}`;
-              map.set(key, { ...(map.get(key) || {}), ...r });
-            });
-            return Array.from(map.values());
-          });
-          setFirestoreStatus(prev => ({
-            ...prev,
-            lastSyncedAt: new Date().toISOString(),
-            connected: true
-          }));
-        }
-      },
-      onUsersUpdate: (remoteUsers) => {
-        if (Array.isArray(remoteUsers) && remoteUsers.length > 0) {
-          setUsers(prev => {
-            const map = new Map<string, UserAccount>(prev.map(u => [u.username.toLowerCase(), u]));
-            remoteUsers.forEach((ru: any) => {
-              if (ru && ru.username) {
-                const key = ru.username.toLowerCase();
-                const existing = map.get(key);
-                map.set(key, existing ? { ...existing, ...ru } : ru);
-              }
-            });
-            return Array.from(map.values());
-          });
-          setFirestoreStatus(prev => ({
-            ...prev,
-            lastSyncedAt: new Date().toISOString(),
-            connected: true
-          }));
-        }
-      },
-      onFarmProfileUpdate: (remoteProfile) => {
-        if (remoteProfile && typeof remoteProfile === 'object') {
-          setFarmProfile(prev => ({ ...prev, ...remoteProfile }));
-          setFirestoreStatus(prev => ({
-            ...prev,
-            lastSyncedAt: new Date().toISOString(),
-            connected: true
-          }));
-        }
-      },
-      onError: (err) => {
-        console.warn('Firestore live listener notice:', err);
+    const pullUpdates = async () => {
+      if (!isMounted) return;
+      try {
+        await pullAllFromMongoDB();
+      } catch {
+        // quiet fallback
       }
-    });
+    };
+
+    // Initial background hydration
+    pullUpdates().catch(() => {});
+
+    // Periodic polling every 30 seconds
+    const stopPolling = startMongoDBPolling(() => {
+      if (isMounted) {
+        pullUpdates().catch(() => {});
+        refreshStorageQuota().catch(() => {});
+      }
+    }, 30000);
 
     return () => {
-      unsubscribe();
+      isMounted = false;
+      stopPolling();
     };
   }, []);
 
@@ -693,247 +627,297 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const reconnectDB = async (_uri?: string) => {
     await refreshStorageQuota();
-    return { success: true, message: 'Using Firebase Firestore & local IndexedDB storage.' };
+    return { success: true, message: 'Connected to MongoDB cloud database.' };
   };
 
-  // Push all local farm collections to Firebase Firestore
-  const syncAllToFirestore = async (): Promise<{ success: boolean; message: string; counts?: any }> => {
-    setFirestoreStatus(prev => ({ ...prev, isSyncing: true }));
+  // Push all local farm collections to MongoDB
+  const syncAllToMongoDB = async (): Promise<{ success: boolean; message: string; counts?: any }> => {
+    setMongoStatus(prev => ({ ...prev, isSyncing: true }));
     try {
-      const res = await syncAllDataToFirestore({
+      const res = await syncAllDataToMongoDB({
         eggRecords: rawEggRecords,
         flocks,
         feedRecords: feedConsumptionRecords,
+        feedStock: feedStockEntries,
         farmProfile,
+        standards: {
+          standardVaccinationProgram: farmProfile.standardVaccinationProgram,
+          standardFeedGuide: farmProfile.standardFeedGuide,
+          standardHenday: farmProfile.standardHenday,
+          standardBodyWeights: farmProfile.standardBodyWeights,
+          standardEggWeights: farmProfile.standardEggWeights,
+        },
+        settings: {
+          currency: farmProfile.currency,
+          facilityHousesCount: farmProfile.facilityHousesCount,
+          totalBirdCapacity: farmProfile.totalBirdCapacity,
+          dailyEggCapacity: farmProfile.dailyEggCapacity,
+          farmOverviewNotes: farmProfile.farmOverviewNotes,
+        },
         depletions,
+        transfers,
+        medProducts,
+        medStockLogs,
         medAdmins: medAdministrations,
         bodyWeights,
         biosecurityLogs,
+        biosecurityRequirements,
+        biosecuritySummaries,
+        weeklyEggWeights,
+        deliveries,
+        hatchingSummaries,
         users,
+        auditLogs: systemLogs,
+        systemLogs,
       });
 
       if (res.success) {
-        setFirestoreStatus(prev => ({
+        setMongoStatus(prev => ({
           ...prev,
           lastSyncedAt: new Date().toISOString(),
           connected: true,
         }));
-        logAction('FIRESTORE_SYNC', 'system', 'Successfully synchronized all collections to Firebase Firestore.');
+        logAction('MONGODB_SAVE', 'system', 'Successfully saved all collections, profile, standards, and audit logs to MongoDB database.');
       }
       return res;
     } catch (e: any) {
       return {
         success: false,
-        message: e?.message || 'Error syncing data to Firebase Firestore.',
+        message: e?.message || 'Error saving data to MongoDB.',
       };
     } finally {
-      setFirestoreStatus(prev => ({ ...prev, isSyncing: false }));
+      setMongoStatus(prev => ({ ...prev, isSyncing: false }));
     }
   };
 
-  // Pull all farm collections from Firebase Firestore
-  const pullAllFromFirestore = async (): Promise<{ success: boolean; message: string }> => {
-    setFirestoreStatus(prev => ({ ...prev, isSyncing: true }));
+  // Pull all farm collections from MongoDB
+  const pullAllFromMongoDB = async (): Promise<{ success: boolean; message: string }> => {
+    setMongoStatus(prev => ({ ...prev, isSyncing: true }));
     try {
-      const res = await pullAllDataFromFirestore();
+      const res = await pullAllDataFromMongoDB();
       if (res.success && res.data) {
         const {
           eggRecords: remoteEgg,
           flocks: remoteFlocks,
           feedRecords: remoteFeed,
+          feedStock: remoteStock,
           depletions: remoteDepletions,
+          transfers: remoteTransfers,
+          medProducts: remoteProducts,
+          medStockLogs: remoteMedStock,
           medAdmins: remoteMed,
           bodyWeights: remoteWeights,
           biosecurityLogs: remoteBio,
+          biosecurityRequirements: remoteBioReqs,
+          biosecuritySummaries: remoteBioSummaries,
+          weeklyEggWeights: remoteWeeklyWeights,
+          deliveries: remoteDeliveries,
+          hatchingSummaries: remoteHatching,
           users: remoteUsers,
           farmProfile: remoteProfile,
+          auditLogs: remoteAuditLogs,
+          systemLogs: remoteSystemLogs,
+          standards: remoteStandards,
+          settings: remoteSettings,
         } = res.data;
 
-        if (Array.isArray(remoteEgg) && remoteEgg.length > 0) {
-          setRawEggRecords(prev => {
-            const existingIds = new Set(prev.map(r => r.id));
-            const newRecords = remoteEgg.filter((r: any) => !existingIds.has(r.id));
-            return [...newRecords, ...prev];
-          });
+        // Authoritative Direct Hydration from Server Database
+        if (Array.isArray(remoteEgg)) {
+          const unique = deduplicateById(remoteEgg);
+          setRawEggRecords(unique);
+          localStorage.setItem(`${LOCAL_STORAGE_KEY}_egg_prod`, JSON.stringify(unique));
         }
 
         if (Array.isArray(remoteFlocks) && remoteFlocks.length > 0) {
-          setFlocks(prev => {
-            const map = new Map<string, Flock>(prev.map(f => [f.houseNumber, f]));
-            remoteFlocks.forEach((rf: any) => {
-              const existing = map.get(rf.houseNumber);
-              map.set(rf.houseNumber, existing ? { ...existing, ...rf } : rf);
+          const unique = deduplicateFlocks(remoteFlocks);
+          setFlocks(unique);
+          localStorage.setItem(`${LOCAL_STORAGE_KEY}_flocks`, JSON.stringify(unique));
+        }
+
+        if (Array.isArray(remoteFeed)) {
+          const unique = deduplicateById(remoteFeed);
+          setFeedConsumptionRecords(unique);
+          localStorage.setItem(`${LOCAL_STORAGE_KEY}_feed_cons`, JSON.stringify(unique));
+        }
+
+        if (Array.isArray(remoteStock)) {
+          const unique = deduplicateById(remoteStock);
+          setFeedStockEntries(unique);
+          localStorage.setItem(`${LOCAL_STORAGE_KEY}_feed_stock`, JSON.stringify(unique));
+        }
+
+        if (Array.isArray(remoteDepletions)) {
+          const unique = deduplicateById(remoteDepletions);
+          setDepletions(unique);
+          localStorage.setItem(`${LOCAL_STORAGE_KEY}_depletions`, JSON.stringify(unique));
+        }
+
+        if (Array.isArray(remoteTransfers)) {
+          const unique = deduplicateById(remoteTransfers);
+          setTransfers(unique);
+          localStorage.setItem(`${LOCAL_STORAGE_KEY}_transfers`, JSON.stringify(unique));
+        }
+
+        if (Array.isArray(remoteProducts) && remoteProducts.length > 0) {
+          const unique = deduplicateById(remoteProducts);
+          setMedProducts(unique);
+          localStorage.setItem(`${LOCAL_STORAGE_KEY}_med_products`, JSON.stringify(unique));
+        }
+
+        if (Array.isArray(remoteMedStock)) {
+          const unique = deduplicateById(remoteMedStock);
+          setMedStockLogs(unique);
+          localStorage.setItem(`${LOCAL_STORAGE_KEY}_med_stock`, JSON.stringify(unique));
+        }
+
+        if (Array.isArray(remoteMed)) {
+          const unique = deduplicateById(remoteMed);
+          setMedAdministrations(unique);
+          localStorage.setItem(`${LOCAL_STORAGE_KEY}_med_admin`, JSON.stringify(unique));
+        }
+
+        if (Array.isArray(remoteWeights)) {
+          const unique = deduplicateById(remoteWeights);
+          setBodyWeights(unique);
+          localStorage.setItem(`${LOCAL_STORAGE_KEY}_body_weights`, JSON.stringify(unique));
+        }
+
+        if (Array.isArray(remoteBio)) {
+          const unique = deduplicateById(remoteBio);
+          setBiosecurityLogs(unique);
+          localStorage.setItem(`${LOCAL_STORAGE_KEY}_bio_logs`, JSON.stringify(unique));
+        }
+
+        if (Array.isArray(remoteBioReqs) && remoteBioReqs.length > 0) {
+          const unique = deduplicateById(remoteBioReqs);
+          setBiosecurityRequirements(unique);
+          localStorage.setItem(`${LOCAL_STORAGE_KEY}_bio_reqs`, JSON.stringify(unique));
+        }
+
+        if (remoteBioSummaries) {
+          if (Array.isArray(remoteBioSummaries)) {
+            const next: Record<string, BiosecurityDailySummary> = {};
+            remoteBioSummaries.forEach((s: any) => {
+              if (s && (s.date || s.id)) {
+                const d = String(s.date || s.id);
+                next[d] = { ...s, date: d };
+              }
             });
-            return Array.from(map.values());
-          });
+            setBiosecuritySummaries(next);
+            localStorage.setItem(`${LOCAL_STORAGE_KEY}_bio_summaries`, JSON.stringify(next));
+          } else if (typeof remoteBioSummaries === 'object') {
+            setBiosecuritySummaries(remoteBioSummaries as Record<string, BiosecurityDailySummary>);
+            localStorage.setItem(`${LOCAL_STORAGE_KEY}_bio_summaries`, JSON.stringify(remoteBioSummaries));
+          }
         }
 
-        if (Array.isArray(remoteFeed) && remoteFeed.length > 0) {
-          setFeedConsumptionRecords(prev => {
-            const existingIds = new Set(prev.map(r => r.id));
-            const newRecords = remoteFeed.filter((r: any) => !existingIds.has(r.id));
-            return [...newRecords, ...prev];
-          });
+        if (Array.isArray(remoteWeeklyWeights)) {
+          const unique = deduplicateById(remoteWeeklyWeights);
+          setWeeklyEggWeights(unique);
+          localStorage.setItem(`${LOCAL_STORAGE_KEY}_weekly_egg_weights`, JSON.stringify(unique));
         }
 
-        if (Array.isArray(remoteDepletions) && remoteDepletions.length > 0) {
-          setDepletions(prev => {
-            const existingIds = new Set(prev.map(r => r.id));
-            const newRecords = remoteDepletions.filter((r: any) => !existingIds.has(r.id));
-            return [...newRecords, ...prev];
-          });
+        if (Array.isArray(remoteDeliveries)) {
+          const unique = deduplicateById(remoteDeliveries);
+          setDeliveries(unique);
+          localStorage.setItem(`${LOCAL_STORAGE_KEY}_deliveries`, JSON.stringify(unique));
         }
 
-        if (Array.isArray(remoteMed) && remoteMed.length > 0) {
-          setMedAdministrations(prev => {
-            const existingIds = new Set(prev.map(r => r.id));
-            const newRecords = remoteMed.filter((r: any) => !existingIds.has(r.id));
-            return [...newRecords, ...prev];
-          });
-        }
-
-        if (Array.isArray(remoteWeights) && remoteWeights.length > 0) {
-          setBodyWeights(prev => {
-            const existingIds = new Set(prev.map(r => r.id));
-            const newRecords = remoteWeights.filter((r: any) => !existingIds.has(r.id));
-            return [...newRecords, ...prev];
-          });
-        }
-
-        if (Array.isArray(remoteBio) && remoteBio.length > 0) {
-          setBiosecurityLogs(prev => {
-            const existingIds = new Set(prev.map(r => `${r.requirementId}_${r.date}`));
-            const newRecords = remoteBio.filter((r: any) => !existingIds.has(`${r.requirementId}_${r.date}`));
-            return [...newRecords, ...prev];
-          });
+        if (Array.isArray(remoteHatching)) {
+          const unique = deduplicateById(remoteHatching);
+          setHatchingSummaries(unique);
+          localStorage.setItem(`${LOCAL_STORAGE_KEY}_hatching_summaries`, JSON.stringify(unique));
         }
 
         if (Array.isArray(remoteUsers) && remoteUsers.length > 0) {
-          setUsers(prev => {
-            const map = new Map<string, UserAccount>(prev.map(u => [u.username.toLowerCase(), u]));
-            remoteUsers.forEach((ru: any) => {
-              if (ru && ru.username) {
-                const key = ru.username.toLowerCase();
-                const existing = map.get(key);
-                map.set(key, existing ? { ...existing, ...ru } : ru);
-              }
-            });
-            return Array.from(map.values());
+          const unique = deduplicateUsers(remoteUsers);
+          setUsers(unique);
+          localStorage.setItem(`${LOCAL_STORAGE_KEY}_users`, JSON.stringify(unique));
+        }
+
+        // Hydrate and merge Farm Profile and Standards
+        const profileSource = remoteProfile || res.farmProfile;
+        if (profileSource && typeof profileSource === 'object' && ('name' in profileSource || 'address' in profileSource)) {
+          setFarmProfile(prev => {
+            const updated = {
+              ...prev,
+              ...profileSource,
+              standardVaccinationProgram: Array.isArray(profileSource.standardVaccinationProgram) && profileSource.standardVaccinationProgram.length > 0
+                ? profileSource.standardVaccinationProgram
+                : prev.standardVaccinationProgram,
+              standardFeedGuide: Array.isArray(profileSource.standardFeedGuide) && profileSource.standardFeedGuide.length > 0
+                ? profileSource.standardFeedGuide
+                : prev.standardFeedGuide,
+              standardHenday: Array.isArray(profileSource.standardHenday) && profileSource.standardHenday.length > 0
+                ? profileSource.standardHenday
+                : prev.standardHenday,
+              standardBodyWeights: Array.isArray(profileSource.standardBodyWeights) && profileSource.standardBodyWeights.length > 0
+                ? profileSource.standardBodyWeights
+                : prev.standardBodyWeights,
+              standardEggWeights: Array.isArray(profileSource.standardEggWeights) && profileSource.standardEggWeights.length > 0
+                ? profileSource.standardEggWeights
+                : prev.standardEggWeights,
+            };
+            localStorage.setItem(`${LOCAL_STORAGE_KEY}_profile`, JSON.stringify(updated));
+            return updated;
           });
         }
 
-        if (remoteProfile && typeof remoteProfile === 'object' && 'name' in remoteProfile) {
-          setFarmProfile(prev => ({ ...prev, ...(remoteProfile as Partial<FarmProfile>) }));
+        const standardsSource = remoteStandards || res.standards;
+        if (standardsSource && typeof standardsSource === 'object') {
+          setFarmProfile(prev => ({
+            ...prev,
+            standardVaccinationProgram: Array.isArray(standardsSource.standardVaccinationProgram) ? standardsSource.standardVaccinationProgram : prev.standardVaccinationProgram,
+            standardFeedGuide: Array.isArray(standardsSource.standardFeedGuide) ? standardsSource.standardFeedGuide : prev.standardFeedGuide,
+            standardHenday: Array.isArray(standardsSource.standardHenday) ? standardsSource.standardHenday : prev.standardHenday,
+            standardBodyWeights: Array.isArray(standardsSource.standardBodyWeights) ? standardsSource.standardBodyWeights : prev.standardBodyWeights,
+            standardEggWeights: Array.isArray(standardsSource.standardEggWeights) ? standardsSource.standardEggWeights : prev.standardEggWeights,
+          }));
         }
 
-        setFirestoreStatus(prev => ({
+        const settingsSource = remoteSettings || res.settings;
+        if (settingsSource && typeof settingsSource === 'object') {
+          setFarmProfile(prev => ({
+            ...prev,
+            ...settingsSource,
+          }));
+        }
+
+        // Hydrate Audit Logs / System Logs
+        const logsSource = (Array.isArray(remoteAuditLogs) && remoteAuditLogs.length > 0)
+          ? remoteAuditLogs
+          : (Array.isArray(remoteSystemLogs) && remoteSystemLogs.length > 0)
+          ? remoteSystemLogs
+          : null;
+
+        if (logsSource) {
+          setSystemLogs(prev => {
+            const existingIds = new Set(prev.map(l => l.id));
+            const newLogs = logsSource.filter((l: any) => !existingIds.has(l.id));
+            return [...newLogs, ...prev].slice(0, 500);
+          });
+        }
+
+        setMongoStatus(prev => ({
           ...prev,
           lastSyncedAt: new Date().toISOString(),
           connected: true,
         }));
-        logAction('FIRESTORE_PULL', 'system', 'Hydrated latest farm data from Firebase Firestore.');
+        logAction('MONGODB_PULL', 'system', 'Loaded latest farm data, profile, standards, and logs from MongoDB database.');
       }
-      return { success: true, message: 'Hydrated latest farm records from Firebase Firestore.' };
+      return { success: true, message: 'Loaded latest farm records, standards, and audit logs from MongoDB.' };
     } catch (e: any) {
-      return { success: false, message: e?.message || 'Error pulling data from Firebase Firestore.' };
+      return { success: false, message: e?.message || 'Error loading data from MongoDB.' };
     } finally {
-      setFirestoreStatus(prev => ({ ...prev, isSyncing: false }));
+      setMongoStatus(prev => ({ ...prev, isSyncing: false }));
     }
   };
 
-  const pullAllFromMongoDB = async (): Promise<{ success: boolean; message: string }> => {
-    return pullAllFromFirestore();
-  };
-
-  // Synchronize Offline Queue
-  const syncOfflineQueue = async (): Promise<{ success: boolean; syncedCount: number; message: string }> => {
-    try {
-      const queue = await getOfflineQueueFromIndexedDB();
-      const count = queue.length;
-
-      if (count === 0) {
-        return { success: true, syncedCount: 0, message: 'All records are already saved in local storage.' };
-      }
-
-      await clearOfflineQueue();
-      setOfflineQueue([]);
-      await refreshStorageQuota();
-
-      logAction('SYNC_OFFLINE_QUEUE', 'system', `Successfully processed ${count} queued offline operations to IndexedDB.`);
-      return { 
-        success: true, 
-        syncedCount: count, 
-        message: `Successfully processed ${count} offline farm record${count > 1 ? 's' : ''}.` 
-      };
-    } catch (err: any) {
-      return { success: false, syncedCount: 0, message: err?.message || 'Error processing offline queue.' };
-    }
-  };
-
-  const clearOfflineSyncQueue = async () => {
-    await clearOfflineQueue();
-    setOfflineQueue([]);
-    await refreshStorageQuota();
-    logAction('CLEAR_OFFLINE_QUEUE', 'system', 'Cleared pending offline log queue.');
-  };
-
-  const syncAllToMongoDB = async () => {
-    await refreshStorageQuota();
-    return { success: true, message: 'Farm data saved to local IndexedDB.' };
-  };
-
-  // Dual-tier asynchronous persistence to IndexedDB
-  useEffect(() => {
-    const saveStateToIndexedDB = async () => {
-      try {
-        await saveAllCollectionsToIndexedDB({
-          users,
-          farmProfile,
-          flocks,
-          feedStockEntries,
-          feedConsumptionRecords,
-          depletions,
-          transfers,
-          medProducts,
-          medStockLogs,
-          medAdministrations,
-          bodyWeights,
-          rawEggRecords,
-          weeklyEggWeights,
-          systemLogs,
-          biosecurityRequirements,
-          biosecurityLogs,
-          biosecuritySummaries,
-          deliveries
-        });
-        setLastIndexedDBSync(new Date().toISOString());
-      } catch (err) {
-        console.warn('IndexedDB auto-save non-fatal warning:', err);
-      }
-    };
-
-    // Trigger IndexedDB sync
-    saveStateToIndexedDB();
-  }, [
-    users,
-    farmProfile,
-    flocks,
-    feedStockEntries,
-    feedConsumptionRecords,
-    depletions,
-    transfers,
-    medProducts,
-    medStockLogs,
-    medAdministrations,
-    bodyWeights,
-    rawEggRecords,
-    weeklyEggWeights,
-    systemLogs,
-    biosecurityRequirements,
-    biosecurityLogs,
-    biosecuritySummaries,
-    deliveries
-  ]);
+  // Backwards-compatible aliases
+  const syncAllToFirestore = syncAllToMongoDB;
+  const pullAllFromFirestore = pullAllFromMongoDB;
+  const saveDocToFirestore = saveDocToMongoDB;
+  const deleteDocFromFirestore = deleteDocFromMongoDB;
 
   // Save changes to localStorage
   useEffect(() => {
@@ -1025,11 +1009,12 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       details,
       houseNumber
     };
-    setSystemLogs(prev => [newLog, ...prev]);
+    setSystemLogs(prev => [newLog, ...prev.slice(0, 499)]);
+    saveDocToFirestore('auditLogs', newLog.id, newLog);
   };
 
-  // Auth Functions
-  const login = (identifier: string, _password?: string) => {
+  // Auth Functions with Cryptographic Security & Lockout Protection
+  const login = async (identifier: string, password?: string): Promise<{ success: boolean; message: string; user?: UserAccount; lockedOut?: boolean; remainingMinutes?: number }> => {
     if (!identifier) {
       return { success: false, message: 'Please enter your username, email address, or staff ID.' };
     }
@@ -1058,20 +1043,135 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     }
 
-    if (!user) {
-      return { success: false, message: 'User account not found. You can sign in with your email (e.g. von.lplimfarm@gmail.com) or username (e.g. admin).' };
+    // If not found in local memory, attempt a fast targeted lookup for this user from server (with 2s timeout)
+    if (!user && typeof navigator !== 'undefined' && navigator.onLine) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const res = await fetch(`/api/mongodb/doc/users/${encodeURIComponent(clean)}`, {
+          signal: controller.signal,
+          headers: { 'Cache-Control': 'no-cache' }
+        });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          const docData = await res.json();
+          if (docData && docData.data && docData.data.username) {
+            user = docData.data;
+            setUsers(prev => deduplicateUsers([user!, ...prev]));
+          }
+        }
+      } catch {
+        // Fallback continues
+      }
     }
+
+    if (!user) {
+      return { success: false, message: 'User account not found. Please verify your username or registered email.' };
+    }
+
+    // Check brute-force lockout status
+    const lockStatus = isAccountLocked(user.lockedUntil);
+    if (lockStatus.isLocked) {
+      logAction('ACCOUNT_LOCKED_ATTEMPT', 'auth', `Blocked login attempt for locked account ${user.username}. ${lockStatus.remainingMinutes} min remaining.`);
+      return { 
+        success: false, 
+        message: `Account is temporarily locked for security due to multiple failed login attempts. Please try again in ${lockStatus.remainingMinutes} minute(s) or contact your Administrator.`,
+        lockedOut: true,
+        remainingMinutes: lockStatus.remainingMinutes
+      };
+    }
+
     if (user.status === 'pending') {
       return { success: false, message: 'Your account registration is pending approval by the System Administrator.' };
     }
     if (user.status === 'rejected' || user.status === 'suspended' || user.status === 'disabled') {
       return { success: false, message: 'Account has been deactivated. Please contact your farm administrator.' };
     }
+
+    const enteredPassword = password || '';
+
+    // Password Cryptographic Verification
+    let passwordValid = false;
+    let newSalt = user.passwordSalt;
+    let newHash = user.passwordHash;
+
+    if (user.passwordHash && user.passwordSalt) {
+      // Standard verification against cryptographic hash
+      passwordValid = await verifyPassword(enteredPassword, user.passwordHash, user.passwordSalt);
+    } else {
+      // Initial migration / first-boot accounts without stored hashes
+      // Accepts password provided or fallback initial default, then generates salt and hash on-the-fly
+      if (enteredPassword.length > 0) {
+        newSalt = generateSalt();
+        newHash = await hashPasswordWithSalt(enteredPassword, newSalt);
+        passwordValid = true;
+      }
+    }
+
+    if (!passwordValid) {
+      const failedAttempts = (user.failedLoginAttempts || 0) + 1;
+      let lockoutDate: string | null = null;
+      let isLocked = false;
+      let remainingAttempts = Math.max(0, 5 - failedAttempts);
+
+      if (failedAttempts >= 5) {
+        lockoutDate = new Date(Date.now() + 15 * 60000).toISOString();
+        isLocked = true;
+      }
+
+      const updatedUserWithFailures: UserAccount = {
+        ...user,
+        failedLoginAttempts: failedAttempts,
+        lockedUntil: lockoutDate
+      };
+
+      setUsers(prev => prev.map(u => u.id === user.id ? updatedUserWithFailures : u));
+      syncUserToBackend(updatedUserWithFailures);
+
+      if (isLocked) {
+        logAction('ACCOUNT_LOCKED', 'auth', `Account [${user.username}] locked for 15 minutes after 5 consecutive failed login attempts.`);
+        return {
+          success: false,
+          message: 'Account locked for 15 minutes due to 5 consecutive failed password attempts. Contact Farm Admin if needed.',
+          lockedOut: true,
+          remainingMinutes: 15
+        };
+      }
+
+      logAction('LOGIN_FAILED', 'auth', `Failed password login attempt for ${user.username}. (${remainingAttempts} attempts remaining)`);
+      return {
+        success: false,
+        message: `Invalid password. ${remainingAttempts} attempt(s) remaining before account lockout.`
+      };
+    }
     
-    const updated = { ...user, lastLogin: new Date().toISOString() };
+    // Successful login: reset failed counters and update lastLogin
+    const updated: UserAccount = { 
+      ...user, 
+      passwordHash: newHash || user.passwordHash,
+      passwordSalt: newSalt || user.passwordSalt,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      lastLogin: new Date().toISOString() 
+    };
+
     setCurrentUser(updated);
+    try {
+      localStorage.setItem('broiler_breeder_active_user', JSON.stringify(updated));
+    } catch {
+      // LocalStorage fallback
+    }
     setUsers(prev => prev.map(u => u.id === user.id ? updated : u));
+    syncUserToBackend(updated);
     logAction('USER_LOGIN', 'auth', `User ${user.fullName} logged in successfully as [${user.role}].`);
+
+    // Non-blocking async background hydration so dashboard is immediately ready without delays
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      setTimeout(() => {
+        pullAllFromMongoDB().catch(() => {});
+      }, 50);
+    }
+
     return { success: true, message: `Welcome back, ${user.fullName}!`, user: updated };
   };
 
@@ -1083,7 +1183,10 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.removeItem('broiler_breeder_active_user');
   };
 
-  const registerUser = (userData: Omit<UserAccount, 'id' | 'createdAt' | 'status'> & { password?: string }, autoActivate = false) => {
+  const registerUser = async (
+    userData: Omit<UserAccount, 'id' | 'createdAt' | 'status'> & { password?: string }, 
+    autoActivate = false
+  ): Promise<{ success: boolean; message: string; user?: UserAccount }> => {
     const exists = users.some(u => 
       u.username.toLowerCase() === userData.username.toLowerCase().trim() ||
       (userData.email && u.email && u.email.toLowerCase() === userData.email.toLowerCase().trim())
@@ -1092,25 +1195,47 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return { success: false, message: 'Username or email already exists. Please choose another.' };
     }
 
+    const rawPassword = userData.password || 'Farm@2026!';
+    if (rawPassword.length < 8) {
+      return { 
+        success: false, 
+        message: 'Password must be at least 8 characters long and include numbers and letters for security.' 
+      };
+    }
+
+    // Cryptographic Salt & Hash for Password and Security Answer
+    const pSalt = generateSalt();
+    const pHash = await hashPasswordWithSalt(rawPassword, pSalt);
+    const aSalt = generateSalt();
+    const aHash = await hashSecurityAnswer(userData.securityAnswer || 'Farm 1', aSalt);
+
     const newUser: UserAccount = {
       ...userData,
       id: 'usr_' + Date.now(),
       status: autoActivate ? 'active' : 'pending',
       createdAt: new Date().toISOString(),
       registeredAt: new Date().toISOString().split('T')[0],
+      passwordHash: pHash,
+      passwordSalt: pSalt,
+      securityAnswerHash: aHash,
+      securityAnswerSalt: aSalt,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      passwordChangedAt: new Date().toISOString(),
       designatedHouses: userData.designatedHouses && userData.designatedHouses.length > 0 
         ? userData.designatedHouses 
         : ['House 1', 'House 2']
     };
 
     setUsers(prev => [...prev, newUser]);
+    syncUserToBackend(newUser);
 
     if (autoActivate) {
       setCurrentUser(newUser);
       logAction('USER_REGISTRATION', 'auth', `New user registered and active: ${newUser.fullName} (${newUser.username}) as [${newUser.role}].`);
       return { 
         success: true, 
-        message: `Welcome, ${newUser.fullName}! Your staff account is activated.`,
+        message: `Welcome, ${newUser.fullName}! Your staff account is active.`,
         user: newUser
       };
     }
@@ -1122,20 +1247,155 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   };
 
-  const recoverAccount = (username: string, answer: string, _newPassword?: string) => {
-    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase().trim());
+  const recoverAccount = async (
+    username: string, 
+    answer: string, 
+    newPassword?: string
+  ): Promise<{ success: boolean; message: string; verified?: boolean }> => {
+    const cleanUsername = username.toLowerCase().trim();
+    const user = users.find(u => u.username.toLowerCase() === cleanUsername || (u.email && u.email.toLowerCase() === cleanUsername));
     if (!user) {
-      return { success: false, message: 'Account not found with this username.' };
+      return { success: false, message: 'Account not found with this username or email.' };
     }
-    if (user.securityAnswer.toLowerCase().trim() !== answer.toLowerCase().trim()) {
+
+    // Verify security answer (either hashed or normalized fallback)
+    let answerValid = false;
+    if (user.securityAnswerHash && user.securityAnswerSalt) {
+      const computedHash = await hashSecurityAnswer(answer, user.securityAnswerSalt);
+      answerValid = computedHash === user.securityAnswerHash;
+    } else {
+      answerValid = user.securityAnswer.toLowerCase().trim() === answer.toLowerCase().trim();
+    }
+
+    if (!answerValid) {
+      logAction('SECURITY_ANSWER_FAILED', 'auth', `Failed security question attempt for account ${user.username}.`);
       return { success: false, message: 'Security answer does not match our records.' };
     }
 
-    logAction('ACCOUNT_RECOVERY', 'auth', `Account password reset successfully for ${user.username}.`);
+    // If new password is provided, validate and update
+    if (newPassword) {
+      if (newPassword.length < 8) {
+        return { success: false, message: 'New password must be at least 8 characters long.' };
+      }
+      const salt = generateSalt();
+      const hash = await hashPasswordWithSalt(newPassword, salt);
+      const updatedUser: UserAccount = {
+        ...user,
+        passwordHash: hash,
+        passwordSalt: salt,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+        passwordChangedAt: new Date().toISOString()
+      };
+      setUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+      syncUserToBackend(updatedUser);
+      logAction('PASSWORD_RESET', 'auth', `Account password reset successfully for ${user.username}.`);
+      return { 
+        success: true, 
+        verified: true, 
+        message: `Identity verified for ${user.fullName}. Password updated successfully! You may now sign in.` 
+      };
+    }
+
     return { 
       success: true, 
-      message: `Identity verified for ${user.fullName}. Password has been reset. You may now log in.` 
+      verified: true, 
+      message: `Identity verified for ${user.fullName}. You may now enter a new password.` 
     };
+  };
+
+  const changePassword = async (currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> => {
+    if (!currentUser) {
+      return { success: false, message: 'You must be signed in to change your password.' };
+    }
+    const user = users.find(u => u.id === currentUser.id);
+    if (!user) {
+      return { success: false, message: 'Active user profile not found.' };
+    }
+
+    // Verify current password
+    if (user.passwordHash && user.passwordSalt) {
+      const isValid = await verifyPassword(currentPassword, user.passwordHash, user.passwordSalt);
+      if (!isValid) {
+        return { success: false, message: 'Current password is incorrect.' };
+      }
+    }
+
+    if (newPassword.length < 8) {
+      return { success: false, message: 'New password must be at least 8 characters long.' };
+    }
+
+    const salt = generateSalt();
+    const hash = await hashPasswordWithSalt(newPassword, salt);
+    const updatedUser: UserAccount = {
+      ...user,
+      passwordHash: hash,
+      passwordSalt: salt,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      passwordChangedAt: new Date().toISOString()
+    };
+
+    setCurrentUser(updatedUser);
+    setUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+    syncUserToBackend(updatedUser);
+    logAction('PASSWORD_CHANGED', 'auth', `User ${user.fullName} changed their password securely.`);
+    return { success: true, message: 'Your password has been changed successfully!' };
+  };
+
+  const adminResetUserPassword = async (userId: string, newPassword: string): Promise<{ success: boolean; message: string }> => {
+    if (!currentUser || !['admin', 'System Administrator'].includes(currentUser.role)) {
+      return { success: false, message: 'Only Administrators have permission to reset user passwords.' };
+    }
+
+    const user = users.find(u => u.id === userId);
+    if (!user) {
+      return { success: false, message: 'Target user account not found.' };
+    }
+
+    if (newPassword.length < 8) {
+      return { success: false, message: 'New password must be at least 8 characters long.' };
+    }
+
+    const salt = generateSalt();
+    const hash = await hashPasswordWithSalt(newPassword, salt);
+    const updatedUser: UserAccount = {
+      ...user,
+      passwordHash: hash,
+      passwordSalt: salt,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      passwordChangedAt: new Date().toISOString()
+    };
+
+    setUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+    syncUserToBackend(updatedUser);
+    logAction('ADMIN_PASSWORD_RESET', 'admin', `Administrator reset password and unlocked account for ${user.fullName} (@${user.username}).`);
+    return { success: true, message: `Password for ${user.fullName} has been reset successfully.` };
+  };
+
+  const adminToggleUserLock = async (userId: string, isLocked: boolean): Promise<{ success: boolean; message: string }> => {
+    if (!currentUser || !['admin', 'System Administrator'].includes(currentUser.role)) {
+      return { success: false, message: 'Only Administrators have permission to lock/unlock user accounts.' };
+    }
+
+    const user = users.find(u => u.id === userId);
+    if (!user) {
+      return { success: false, message: 'Target user account not found.' };
+    }
+
+    const lockedUntil = isLocked ? new Date(Date.now() + 24 * 60 * 60000).toISOString() : null;
+    const updatedUser: UserAccount = {
+      ...user,
+      lockedUntil,
+      failedLoginAttempts: isLocked ? 5 : 0
+    };
+
+    setUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+    syncUserToBackend(updatedUser);
+    const actionDesc = isLocked ? 'locked' : 'unlocked';
+    logAction('ADMIN_ACCOUNT_LOCK_TOGGLED', 'admin', `Administrator ${actionDesc} account for ${user.fullName} (@${user.username}).`);
+    return { success: true, message: `Account for ${user.fullName} is now ${actionDesc}.` };
   };
 
   const syncUserToBackend = (userToSync: UserAccount) => {
@@ -1211,6 +1471,117 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const updateUser = async (
+    userId: string, 
+    updates: Partial<UserAccount> & { newPassword?: string }
+  ): Promise<{ success: boolean; message: string; user?: UserAccount }> => {
+    const existing = users.find(u => u.id === userId);
+    if (!existing) {
+      return { success: false, message: 'Staff profile not found.' };
+    }
+
+    // Check username collision if changed
+    if (updates.username && updates.username.toLowerCase().trim() !== existing.username.toLowerCase().trim()) {
+      const conflict = users.some(u => u.id !== userId && u.username.toLowerCase().trim() === updates.username!.toLowerCase().trim());
+      if (conflict) {
+        return { success: false, message: `Username "@${updates.username}" is already taken.` };
+      }
+    }
+
+    // Check email collision if changed
+    if (updates.email && updates.email.trim() && updates.email.toLowerCase().trim() !== (existing.email || '').toLowerCase().trim()) {
+      const conflict = users.some(u => u.id !== userId && u.email && u.email.toLowerCase().trim() === updates.email!.toLowerCase().trim());
+      if (conflict) {
+        return { success: false, message: `Email "${updates.email}" is already registered to another staff.` };
+      }
+    }
+
+    let updatedUser: UserAccount = {
+      ...existing,
+      ...updates,
+      username: updates.username !== undefined ? updates.username.trim() : existing.username,
+      fullName: updates.fullName !== undefined ? updates.fullName.trim() : existing.fullName,
+      email: updates.email !== undefined ? updates.email.trim() : existing.email,
+      contactNumber: updates.contactNumber !== undefined ? updates.contactNumber.trim() : existing.contactNumber,
+      role: updates.role || existing.role,
+      status: updates.status || existing.status,
+      designatedHouses: updates.designatedHouses !== undefined ? updates.designatedHouses : existing.designatedHouses
+    };
+
+    // If new password is provided
+    if (updates.newPassword && updates.newPassword.trim().length > 0) {
+      if (updates.newPassword.length < 8) {
+        return { success: false, message: 'Password must be at least 8 characters long.' };
+      }
+      const salt = generateSalt();
+      const hash = await hashPasswordWithSalt(updates.newPassword, salt);
+      updatedUser.passwordHash = hash;
+      updatedUser.passwordSalt = salt;
+      updatedUser.passwordChangedAt = new Date().toISOString();
+      updatedUser.failedLoginAttempts = 0;
+      updatedUser.lockedUntil = null;
+    }
+
+    // If security answer is updated
+    if (updates.securityAnswer && updates.securityAnswer.trim().length > 0) {
+      const aSalt = generateSalt();
+      const aHash = await hashSecurityAnswer(updates.securityAnswer.trim(), aSalt);
+      updatedUser.securityAnswerHash = aHash;
+      updatedUser.securityAnswerSalt = aSalt;
+      updatedUser.securityAnswer = updates.securityAnswer.trim();
+    }
+
+    setUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
+
+    // If updating currently logged in user
+    if (currentUser?.id === userId) {
+      setCurrentUser(updatedUser);
+      try {
+        localStorage.setItem('broiler_breeder_active_user', JSON.stringify(updatedUser));
+      } catch {
+        // storage fallback
+      }
+    }
+
+    syncUserToBackend(updatedUser);
+    logAction('STAFF_PROFILE_UPDATED', 'admin', `Updated staff profile for ${updatedUser.fullName} (@${updatedUser.username}) [${updatedUser.role}].`);
+
+    return { 
+      success: true, 
+      message: `Staff profile for ${updatedUser.fullName} has been updated successfully.`,
+      user: updatedUser 
+    };
+  };
+
+  const addUser = async (
+    userData: Omit<UserAccount, 'id' | 'createdAt' | 'status'> & { password?: string; status?: UserStatus }
+  ): Promise<{ success: boolean; message: string; user?: UserAccount }> => {
+    const rawPassword = userData.password || 'Farm@2026!';
+    const desiredStatus = userData.status || 'active';
+
+    const res = await registerUser(
+      {
+        ...userData,
+        password: rawPassword,
+      },
+      desiredStatus === 'active'
+    );
+
+    if (!res.success) {
+      return res;
+    }
+
+    // Ensure status is explicitly set to desiredStatus
+    if (res.user && res.user.status !== desiredStatus) {
+      const updatedUser = { ...res.user, status: desiredStatus };
+      setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+      syncUserToBackend(updatedUser);
+      return { success: true, message: `Staff account for ${updatedUser.fullName} created successfully.`, user: updatedUser };
+    }
+
+    return res;
+  };
+
   const assignUserHouses = (userId: string, houses: string[]) => {
     let updatedUser: UserAccount | null = null;
     setUsers(prev => prev.map(u => {
@@ -1256,38 +1627,92 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Farm Profile Methods
-  const updateFarmProfile = (profile: Partial<FarmProfile>) => {
+  // Farm Profile & Standard Requirements Methods (Live Sync)
+  const updateFarmProfile = async (profile: Partial<FarmProfile>): Promise<{ success: boolean; message: string; data?: FarmProfile }> => {
+    let nextProfile: FarmProfile = { ...farmProfile, ...profile };
     setFarmProfile(prev => {
       const next = { ...prev, ...profile };
-      saveDocToFirestore('farm_config', 'profile', next);
+      nextProfile = next;
+      try {
+        localStorage.setItem(`${LOCAL_STORAGE_KEY}_profile`, JSON.stringify(next));
+      } catch {}
       return next;
     });
+
+    try {
+      // Direct live persistence to dedicated farm-profile MongoDB endpoint
+      const result = await saveFarmProfileToMongoDB(nextProfile);
+      if (result.success) {
+        logAction('UPDATE_FARM_PROFILE', 'admin', `Directly saved farm profile & overview to central database.`);
+        setMongoStatus(prev => ({ ...prev, lastSyncedAt: new Date().toISOString(), connected: true }));
+        return {
+          success: true,
+          message: 'Farm Profile & Overview saved directly to database!',
+          data: nextProfile,
+        };
+      }
+    } catch (err: any) {
+      console.warn('Direct database sync notice for farm profile:', err);
+    }
+
+    // Fallback direct document save
+    await saveDocToFirestore('farmProfile', 'profile', nextProfile);
+    await saveDocToFirestore('settings', 'global_settings', nextProfile);
     logAction('UPDATE_FARM_PROFILE', 'admin', `Updated farm profile information (${profile.name || 'details'}).`);
+    return {
+      success: true,
+      message: 'Farm profile & overview updated successfully.',
+      data: nextProfile,
+    };
   };
 
   const updateStandardVaccination = (program: StandardMedProgramItem[]) => {
-    setFarmProfile(prev => ({ ...prev, standardVaccinationProgram: program }));
+    setFarmProfile(prev => {
+      const next = { ...prev, standardVaccinationProgram: program };
+      saveDocToFirestore('farmProfile', 'profile', next);
+      saveDocToFirestore('standards', 'vaccination', { items: program });
+      return next;
+    });
     logAction('UPDATE_STANDARD_VACCINATION', 'admin', `Updated standard vaccination schedule (${program.length} items).`);
   };
 
   const updateStandardFeedGuide = (guide: StandardFeedGuideItem[]) => {
-    setFarmProfile(prev => ({ ...prev, standardFeedGuide: guide }));
+    setFarmProfile(prev => {
+      const next = { ...prev, standardFeedGuide: guide };
+      saveDocToFirestore('farmProfile', 'profile', next);
+      saveDocToFirestore('standards', 'feedGuide', { items: guide });
+      return next;
+    });
     logAction('UPDATE_STANDARD_FEED_GUIDE', 'admin', `Updated standard feed guide (${guide.length} items).`);
   };
 
   const updateStandardHenday = (henday: StandardHendayItem[]) => {
-    setFarmProfile(prev => ({ ...prev, standardHenday: henday }));
+    setFarmProfile(prev => {
+      const next = { ...prev, standardHenday: henday };
+      saveDocToFirestore('farmProfile', 'profile', next);
+      saveDocToFirestore('standards', 'henday', { items: henday });
+      return next;
+    });
     logAction('UPDATE_STANDARD_HENDAY', 'admin', `Updated standard Henday% production curve.`);
   };
 
   const updateStandardBodyWeights = (weights: StandardBodyWeightItem[]) => {
-    setFarmProfile(prev => ({ ...prev, standardBodyWeights: weights }));
+    setFarmProfile(prev => {
+      const next = { ...prev, standardBodyWeights: weights };
+      saveDocToFirestore('farmProfile', 'profile', next);
+      saveDocToFirestore('standards', 'bodyWeights', { items: weights });
+      return next;
+    });
     logAction('UPDATE_STANDARD_BODY_WEIGHTS', 'admin', `Updated standard body weight curves.`);
   };
 
   const updateStandardEggWeights = (eggWeights: StandardEggWeightItem[]) => {
-    setFarmProfile(prev => ({ ...prev, standardEggWeights: eggWeights }));
+    setFarmProfile(prev => {
+      const next = { ...prev, standardEggWeights: eggWeights };
+      saveDocToFirestore('farmProfile', 'profile', next);
+      saveDocToFirestore('standards', 'eggWeights', { items: eggWeights });
+      return next;
+    });
     logAction('UPDATE_STANDARD_EGG_WEIGHTS', 'admin', `Updated standard egg weight progression.`);
   };
 
@@ -1432,12 +1857,14 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           return p;
         });
 
-        return {
+        const updated = {
           ...f,
           currentMales: Math.max(0, f.currentMales - maleCount),
           currentFemales: Math.max(0, f.currentFemales - femaleCount),
           pens: updatedPens || f.pens
         };
+        saveDocToFirestore('flocks', f.id, updated);
+        return updated;
       }
 
       if (f.houseNumber === destHouse) {
@@ -1452,12 +1879,14 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           return p;
         });
 
-        return {
+        const updated = {
           ...f,
           currentMales: f.currentMales + maleCount,
           currentFemales: f.currentFemales + femaleCount,
           pens: updatedPens || f.pens
         };
+        saveDocToFirestore('flocks', f.id, updated);
+        return updated;
       }
 
       return f;
@@ -1471,6 +1900,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     setTransfers(prev => [newTransfer, ...prev]);
+    saveDocToFirestore('transfers', newTransfer.id, newTransfer);
 
     logAction(
       'LOG_TRANSFER',
@@ -1492,24 +1922,29 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (revertCounts) {
       setFlocks(prev => prev.map(f => {
         if (f.houseNumber === target.sourceHouse) {
-          return {
+          const updated = {
             ...f,
             currentMales: f.currentMales + target.maleCount,
             currentFemales: f.currentFemales + target.femaleCount
           };
+          saveDocToFirestore('flocks', f.id, updated);
+          return updated;
         }
         if (f.houseNumber === target.destHouse) {
-          return {
+          const updated = {
             ...f,
             currentMales: Math.max(0, f.currentMales - target.maleCount),
             currentFemales: Math.max(0, f.currentFemales - target.femaleCount)
           };
+          saveDocToFirestore('flocks', f.id, updated);
+          return updated;
         }
         return f;
       }));
     }
 
     setTransfers(prev => prev.filter(t => t.id !== id));
+    deleteDocFromFirestore('transfers', id);
     logAction('DELETE_TRANSFER', 'flock', `Deleted transfer record ${target.sourceHouse} -> ${target.destHouse} (${target.maleCount}M, ${target.femaleCount}F).`);
   };
 
@@ -1525,11 +1960,13 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       createdAt: new Date().toISOString()
     };
     setFeedStockEntries(prev => [newEntry, ...prev]);
+    saveDocToFirestore('feedStock', newEntry.id, newEntry);
     logAction('ADD_FEED_STOCK', 'feed', `Received ${entry.bags} bags (${totalKg} kg) of ${entry.feedType}.`);
   };
 
   const deleteFeedStock = (id: string) => {
     setFeedStockEntries(prev => prev.filter(e => e.id !== id));
+    deleteDocFromFirestore('feedStock', id);
     logAction('DELETE_FEED_STOCK', 'feed', `Deleted feed stock entry ID ${id}.`);
   };
 
@@ -1559,25 +1996,12 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (record.maleQuantityKg) descParts.push(`Males: ${record.maleQuantityKg}kg (${record.maleFeedType || primaryFeedType})`);
     const desc = descParts.length > 0 ? descParts.join(', ') : `${totalKg}kg of ${primaryFeedType}`;
 
-    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
     logAction(
       'LOG_FEED_CONSUMPTION', 
       'feed', 
-      `Logged feed in ${record.houseNumber} [Total ${totalKg} kg] - ${desc}${isOffline ? ' (Stored Offline in IndexedDB)' : ''}.`, 
+      `Logged feed in ${record.houseNumber} [Total ${totalKg} kg] - ${desc}.`, 
       record.houseNumber
     );
-
-    if (isOffline) {
-      enqueueOfflineAction(
-        'feed',
-        'LOG_FEED_CONSUMPTION',
-        newRecord,
-        currentUser?.fullName || 'Staff',
-        record.houseNumber
-      ).then(() => {
-        getOfflineQueueFromIndexedDB().then(setOfflineQueue);
-      });
-    }
   };
 
   const deleteFeedConsumption = (id: string) => {
@@ -1643,39 +2067,43 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     setFlocks(prev => prev.map(f => {
       if (f.houseNumber === record.houseNumber) {
-        return {
+        const updated = {
           ...f,
           currentMales: Math.max(0, f.currentMales - record.maleCount),
           currentFemales: Math.max(0, f.currentFemales - record.femaleCount)
         };
+        saveDocToFirestore('flocks', f.id, updated);
+        return updated;
       }
       return f;
     }));
 
-    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
     logAction(
       'LOG_DEPLETION', 
       'mortality', 
-      `Depletion (${record.category}): ${record.maleCount}M, ${record.femaleCount}F in ${record.houseNumber} (${record.side} side)${isOffline ? ' (Stored Offline in IndexedDB)' : ''}.`, 
+      `Depletion (${record.category}): ${record.maleCount}M, ${record.femaleCount}F in ${record.houseNumber} (${record.side} side).`, 
       record.houseNumber
     );
-
-    if (isOffline) {
-      enqueueOfflineAction(
-        'mortality',
-        'LOG_DEPLETION',
-        newRecord,
-        currentUser?.fullName || 'Staff',
-        record.houseNumber
-      ).then(() => {
-        getOfflineQueueFromIndexedDB().then(setOfflineQueue);
-      });
-    }
   };
 
   const deleteDepletion = (id: string) => {
+    const target = depletions.find(d => d.id === id);
     setDepletions(prev => prev.filter(d => d.id !== id));
     deleteDocFromFirestore('depletions', id);
+    if (target) {
+      setFlocks(prev => prev.map(f => {
+        if (f.houseNumber === target.houseNumber) {
+          const updated = {
+            ...f,
+            currentMales: f.currentMales + (target.maleCount || 0),
+            currentFemales: f.currentFemales + (target.femaleCount || 0)
+          };
+          saveDocToFirestore('flocks', f.id, updated);
+          return updated;
+        }
+        return f;
+      }));
+    }
     logAction('DELETE_DEPLETION', 'mortality', `Deleted depletion record ID ${id}.`);
   };
 
@@ -1688,17 +2116,26 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       currentStock: product.currentStockUnits || product.currentStock || 0
     };
     setMedProducts(prev => [...prev, newProduct]);
+    saveDocToFirestore('medProducts', newProduct.id, newProduct);
     logAction('ADD_MED_PRODUCT', 'medicine', `Registered new health product: ${product.name} (${product.type}).`);
   };
 
   const updateMedProduct = (id: string, updates: Partial<MedProduct>) => {
-    setMedProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+    setMedProducts(prev => prev.map(p => {
+      if (p.id === id) {
+        const next = { ...p, ...updates };
+        saveDocToFirestore('medProducts', id, next);
+        return next;
+      }
+      return p;
+    }));
     logAction('UPDATE_MED_PRODUCT', 'medicine', `Updated medicine product details for ID ${id}.`);
   };
 
   const deleteMedProduct = (id: string) => {
     const target = medProducts.find(p => p.id === id);
     setMedProducts(prev => prev.filter(p => p.id !== id));
+    deleteDocFromFirestore('medProducts', id);
     logAction('DELETE_MED_PRODUCT', 'medicine', `Deleted product ${target?.name || id}.`);
   };
 
@@ -1717,11 +2154,14 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       createdAt: new Date().toISOString()
     };
     setMedStockLogs(prev => [newLog, ...prev]);
+    saveDocToFirestore('medStockLogs', newLog.id, newLog);
 
     setMedProducts(prev => prev.map(p => {
       if (p.id === productId) {
         const nextUnits = p.currentStockUnits + unitsAdded;
-        return { ...p, currentStockUnits: nextUnits, currentStock: nextUnits };
+        const updated = { ...p, currentStockUnits: nextUnits, currentStock: nextUnits };
+        saveDocToFirestore('medProducts', productId, updated);
+        return updated;
       }
       return p;
     }));
@@ -1742,35 +2182,36 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setMedProducts(prev => prev.map(p => {
       if (p.id === record.productId) {
         const remaining = Math.max(0, p.currentStockUnits - record.unitsUsed);
-        return { ...p, currentStockUnits: remaining, currentStock: remaining };
+        const updated = { ...p, currentStockUnits: remaining, currentStock: remaining };
+        saveDocToFirestore('medProducts', p.id, updated);
+        return updated;
       }
       return p;
     }));
 
-    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
     logAction(
       'LOG_MED_ADMINISTRATION', 
       'medicine', 
-      `Administered ${record.unitsUsed} units of ${record.productName} in ${record.houseNumber} via ${record.method}${isOffline ? ' (Stored Offline in IndexedDB)' : ''}.`, 
+      `Administered ${record.unitsUsed} units of ${record.productName} in ${record.houseNumber} via ${record.method}.`, 
       record.houseNumber
     );
-
-    if (isOffline) {
-      enqueueOfflineAction(
-        'medicine',
-        'LOG_MED_ADMINISTRATION',
-        newRecord,
-        currentUser?.fullName || 'Staff',
-        record.houseNumber
-      ).then(() => {
-        getOfflineQueueFromIndexedDB().then(setOfflineQueue);
-      });
-    }
   };
 
   const deleteMedAdministration = (id: string) => {
+    const target = medAdministrations.find(a => a.id === id);
     setMedAdministrations(prev => prev.filter(a => a.id !== id));
     deleteDocFromFirestore('medAdmins', id);
+    if (target) {
+      setMedProducts(prev => prev.map(p => {
+        if (p.id === target.productId) {
+          const restored = p.currentStockUnits + (target.unitsUsed || 0);
+          const updated = { ...p, currentStockUnits: restored, currentStock: restored };
+          saveDocToFirestore('medProducts', p.id, updated);
+          return updated;
+        }
+        return p;
+      }));
+    }
     logAction('DELETE_MED_ADMINISTRATION', 'medicine', `Deleted medication administration record ID ${id}.`);
   };
 
@@ -1821,25 +2262,12 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setBodyWeights(prev => [newRecord, ...prev]);
     saveDocToFirestore('bodyWeights', newRecord.id, newRecord);
 
-    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
     logAction(
       'LOG_BODY_WEIGHT', 
       'bodyweight', 
-      `Logged Week ${record.week} weight in ${record.houseNumber} (M: ${record.maleAvgWeightGrams}g, F: ${record.femaleAvgWeightGrams}g)${isOffline ? ' (Stored Offline in IndexedDB)' : ''}.`, 
+      `Logged Week ${record.week} weight in ${record.houseNumber} (M: ${record.maleAvgWeightGrams}g, F: ${record.femaleAvgWeightGrams}g).`, 
       record.houseNumber
     );
-
-    if (isOffline) {
-      enqueueOfflineAction(
-        'flock',
-        'LOG_BODY_WEIGHT',
-        newRecord,
-        currentUser?.fullName || 'Staff',
-        record.houseNumber
-      ).then(() => {
-        getOfflineQueueFromIndexedDB().then(setOfflineQueue);
-      });
-    }
   };
 
   const deleteBodyWeightRecord = (id: string) => {
@@ -1965,35 +2393,27 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setRawEggRecords(prev => [newRecord, ...prev]);
     saveDocToFirestore('eggRecords', newRecord.id, newRecord);
 
-    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
     logAction(
       'LOG_EGG_PRODUCTION', 
       'egg_prod', 
-      `Recorded Egg Production in ${record.houseNumber} on ${record.date} (TEP: ${tep}, HE: ${he}, NHE: ${nhe})${isOffline ? ' (Stored Offline in IndexedDB)' : ''}.`, 
+      `Recorded Egg Production in ${record.houseNumber} on ${record.date} (TEP: ${tep}, HE: ${he}, NHE: ${nhe}).`, 
       record.houseNumber
     );
+  };
 
-    if (isOffline) {
-      enqueueOfflineAction(
-        'egg_production',
-        'CREATE_EGG_RECORD',
-        newRecord,
-        currentUser?.fullName || 'Staff',
-        record.houseNumber
-      ).then(() => {
-        getOfflineQueueFromIndexedDB().then(setOfflineQueue);
-      });
-    }
-
-    // Asynchronously sync to MongoDB if backend is connected
-    if (!isOffline) {
-      fetch('/api/egg-records', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newRecord)
-      }).catch(err => {
-        console.warn('Could not sync egg record to MongoDB endpoint:', err);
-      });
+  const updateEggProductionRecord = (id: string, updates: Partial<EggProductionRecord>) => {
+    let updatedDoc: EggProductionRecord | undefined;
+    setRawEggRecords(prev => prev.map(r => {
+      if (r.id === id) {
+        const next = { ...r, ...updates, updatedAt: new Date().toISOString() };
+        updatedDoc = next;
+        return next;
+      }
+      return r;
+    }));
+    if (updatedDoc) {
+      saveDocToFirestore('eggRecords', id, updatedDoc);
+      logAction('UPDATE_EGG_PRODUCTION', 'egg_prod', `Updated egg production record ID ${id}.`);
     }
   };
 
@@ -2001,12 +2421,6 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setRawEggRecords(prev => prev.filter(r => r.id !== id));
     deleteDocFromFirestore('eggRecords', id);
     logAction('DELETE_EGG_PRODUCTION', 'egg_prod', `Deleted egg production record ID ${id}.`);
-
-    fetch(`/api/egg-records/${id}`, {
-      method: 'DELETE'
-    }).catch(err => {
-      console.warn('Could not sync delete to MongoDB endpoint:', err);
-    });
   };
 
   const addWeeklyEggWeight = (record: Omit<WeeklyEggWeightRecord, 'id' | 'createdAt' | 'loggedBy'>) => {
@@ -2017,11 +2431,13 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       createdAt: new Date().toISOString()
     };
     setWeeklyEggWeights(prev => [newRecord, ...prev]);
+    saveDocToFirestore('weeklyEggWeights', newRecord.id, newRecord);
     logAction('LOG_EGG_WEIGHT', 'egg_prod', `Recorded weekly egg weight for ${record.houseNumber}: ${record.weightGrams}g at Prod Wk ${record.ageInProductionWeeks}.`, record.houseNumber);
   };
 
   const deleteWeeklyEggWeight = (id: string) => {
     setWeeklyEggWeights(prev => prev.filter(w => w.id !== id));
+    deleteDocFromFirestore('weeklyEggWeights', id);
     logAction('DELETE_EGG_WEIGHT', 'egg_prod', `Deleted weekly egg weight record ID ${id}.`);
   };
 
@@ -2034,29 +2450,46 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       createdAt: new Date().toISOString()
     };
     setBiosecurityRequirements(prev => [newReq, ...prev]);
+    saveDocToFirestore('biosecurityRequirements', newReq.id, newReq);
     logAction('ADD_BIOSECURITY_REQ', 'biosecurity', `Added biosecurity protocol: "${req.title}" (${req.category}, ${req.criticalLevel}).`);
   };
 
   const updateBiosecurityRequirement = (id: string, updates: Partial<BiosecurityRequirement>) => {
-    setBiosecurityRequirements(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+    let updated: BiosecurityRequirement | undefined;
+    setBiosecurityRequirements(prev => prev.map(r => {
+      if (r.id === id) {
+        updated = { ...r, ...updates };
+        return updated;
+      }
+      return r;
+    }));
+    if (updated) {
+      saveDocToFirestore('biosecurityRequirements', id, updated);
+    }
     logAction('UPDATE_BIOSECURITY_REQ', 'biosecurity', `Updated biosecurity protocol ID ${id}.`);
   };
 
   const deleteBiosecurityRequirement = (id: string) => {
     const target = biosecurityRequirements.find(r => r.id === id);
     setBiosecurityRequirements(prev => prev.filter(r => r.id !== id));
+    deleteDocFromFirestore('biosecurityRequirements', id);
     logAction('DELETE_BIOSECURITY_REQ', 'biosecurity', `Deleted biosecurity protocol: "${target?.title || id}".`);
   };
 
   const toggleBiosecurityRequirementActive = (id: string) => {
+    let updated: BiosecurityRequirement | undefined;
     setBiosecurityRequirements(prev => prev.map(r => {
       if (r.id === id) {
         const nextActive = !r.active;
         logAction('TOGGLE_BIOSECURITY_REQ', 'biosecurity', `${nextActive ? 'Activated' : 'Deactivated'} biosecurity protocol: "${r.title}".`);
-        return { ...r, active: nextActive };
+        updated = { ...r, active: nextActive };
+        return updated;
       }
       return r;
     }));
+    if (updated) {
+      saveDocToFirestore('biosecurityRequirements', id, updated);
+    }
   };
 
   const calculateAndUpdateDailySummary = (date: string, updatedLogs: BiosecurityVerificationLog[], currentRequirements: BiosecurityRequirement[]) => {
@@ -2146,23 +2579,11 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       saveDocToFirestore('biosecurityLogs', logToSave.id || `${requirementId}_${date}`, logToSave);
     }
 
-    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
     logAction(
       'BIOSECURITY_VERIFICATION', 
       'biosecurity', 
-      `Verified biosecurity item: "${req.title}" as [${(status || 'pass').toUpperCase()}] for date ${date}${isOffline ? ' (Stored Offline in IndexedDB)' : ''}.`
+      `Verified biosecurity item: "${req.title}" as [${(status || 'pass').toUpperCase()}] for date ${date}.`
     );
-
-    if (isOffline) {
-      enqueueOfflineAction(
-        'biosecurity',
-        'VERIFY_BIOSECURITY',
-        { requirementId, date, status: status || 'pass', notes, correctiveAction },
-        currentUser?.fullName || 'Staff'
-      ).then(() => {
-        getOfflineQueueFromIndexedDB().then(setOfflineQueue);
-      });
-    }
   };
 
   const batchVerifyAllBiosecurity = (date: string, status: BiosecurityStatus = 'pass') => {
@@ -2191,6 +2612,9 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const newLogs = [...batchLogs, ...existingOtherLogs];
     setBiosecurityLogs(newLogs);
     calculateAndUpdateDailySummary(date, newLogs, biosecurityRequirements);
+    batchLogs.forEach(blog => {
+      saveDocToFirestore('biosecurityLogs', blog.id || `${blog.requirementId}_${blog.date}`, blog);
+    });
     logAction('BIOSECURITY_BATCH_VERIFY', 'biosecurity', `Batch-verified all ${activeReqs.length} active biosecurity requirements as [${status.toUpperCase()}] for date ${date}.`);
   };
 
@@ -2218,6 +2642,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       ...prev,
       [date]: updatedSummary
     }));
+    saveDocToFirestore('biosecuritySummaries', date, updatedSummary);
 
     logAction('BIOSECURITY_SUPERVISOR_SIGNOFF', 'biosecurity', `Manager supervisor sign-off approved for ${date} with ${score}% compliance score.`);
   };
@@ -2257,6 +2682,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       createdAt: new Date().toISOString()
     };
     setDeliveries(prev => [newDelivery, ...prev]);
+    saveDocToFirestore('deliveries', newDelivery.id, newDelivery);
     logAction('ADD_DELIVERY', 'egg_prod', `Created ESRRR delivery record #${newDelivery.esrrrNumber} for date ${newDelivery.productionDate} (${newDelivery.totalEggsReceived.toLocaleString()} total eggs).`);
     return newDelivery;
   };
@@ -2265,6 +2691,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setDeliveries(prev => prev.map(d => {
       if (d.id === id) {
         const updated = { ...d, ...updates, updatedAt: new Date().toISOString() };
+        saveDocToFirestore('deliveries', id, updated);
         logAction('UPDATE_DELIVERY', 'egg_prod', `Updated ESRRR delivery #${updated.esrrrNumber}.`);
         return updated;
       }
@@ -2275,11 +2702,87 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const deleteDelivery = (id: string) => {
     const target = deliveries.find(d => d.id === id);
     setDeliveries(prev => prev.filter(d => d.id !== id));
+    deleteDocFromFirestore('deliveries', id);
     logAction('DELETE_DELIVERY', 'egg_prod', `Deleted ESRRR delivery record #${target?.esrrrNumber || id}.`);
   };
 
   const getDeliveryById = (id: string): DeliveryRecord | undefined => {
     return deliveries.find(d => d.id === id);
+  };
+
+  // Hatching Summary Management
+  const addHatchingSummary = (record: Omit<HatchingSummaryRecord, 'id' | 'createdAt'>): HatchingSummaryRecord => {
+    const id = 'hatch_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+    const eggsSet = Number(record.eggsSet) || 0;
+    const standardChicks = Number(record.standardChicks) || 0;
+    const gradeOut = Number(record.gradeOut) || 0;
+    const totalChicksPulled = standardChicks + gradeOut;
+    const totalHatchPct = eggsSet > 0 ? (totalChicksPulled / eggsSet) * 100 : 0;
+    const saleableHatchPct = eggsSet > 0 ? (standardChicks / eggsSet) * 100 : 0;
+    const gradeOutPct = eggsSet > 0 ? (gradeOut / eggsSet) * 100 : 0;
+
+    const newRecord: HatchingSummaryRecord = {
+      ...record,
+      id,
+      eggsSet,
+      standardChicks,
+      gradeOut,
+      totalChicksPulled,
+      totalHatchPct: Number(totalHatchPct.toFixed(2)),
+      saleableHatchPct: Number(saleableHatchPct.toFixed(2)),
+      gradeOutPct: Number(gradeOutPct.toFixed(2)),
+      createdAt: new Date().toISOString()
+    };
+
+    setHatchingSummaries(prev => [newRecord, ...prev]);
+    saveDocToFirestore('hatchingSummaries', newRecord.id, newRecord);
+    saveDocToMongoDB('hatchingSummaries', newRecord.id, newRecord);
+    logAction('ADD_HATCHING_SUMMARY', 'egg_prod', `Created Hatching Summary for House ${newRecord.houseNumber} (${eggsSet.toLocaleString()} eggs set, ${newRecord.saleableHatchPct}% saleable hatch).`);
+    return newRecord;
+  };
+
+  const updateHatchingSummary = (id: string, updates: Partial<HatchingSummaryRecord>) => {
+    setHatchingSummaries(prev => prev.map(h => {
+      if (h.id === id) {
+        const merged = { ...h, ...updates };
+        const eggsSet = Number(merged.eggsSet) || 0;
+        const standardChicks = Number(merged.standardChicks) || 0;
+        const gradeOut = Number(merged.gradeOut) || 0;
+        const totalChicksPulled = standardChicks + gradeOut;
+        const totalHatchPct = eggsSet > 0 ? (totalChicksPulled / eggsSet) * 100 : 0;
+        const saleableHatchPct = eggsSet > 0 ? (standardChicks / eggsSet) * 100 : 0;
+        const gradeOutPct = eggsSet > 0 ? (gradeOut / eggsSet) * 100 : 0;
+
+        const updated: HatchingSummaryRecord = {
+          ...merged,
+          eggsSet,
+          standardChicks,
+          gradeOut,
+          totalChicksPulled,
+          totalHatchPct: Number(totalHatchPct.toFixed(2)),
+          saleableHatchPct: Number(saleableHatchPct.toFixed(2)),
+          gradeOutPct: Number(gradeOutPct.toFixed(2)),
+          updatedAt: new Date().toISOString()
+        };
+        saveDocToFirestore('hatchingSummaries', id, updated);
+        saveDocToMongoDB('hatchingSummaries', id, updated);
+        logAction('UPDATE_HATCHING_SUMMARY', 'egg_prod', `Updated Hatching Summary for House ${updated.houseNumber}.`);
+        return updated;
+      }
+      return h;
+    }));
+  };
+
+  const deleteHatchingSummary = (id: string) => {
+    const target = hatchingSummaries.find(h => h.id === id);
+    setHatchingSummaries(prev => prev.filter(h => h.id !== id));
+    deleteDocFromFirestore('hatchingSummaries', id);
+    deleteDocFromMongoDB('hatchingSummaries', id);
+    logAction('DELETE_HATCHING_SUMMARY', 'egg_prod', `Deleted Hatching Summary for House ${target?.houseNumber || id} (Setting Date: ${target?.settingDate || 'N/A'}).`);
+  };
+
+  const getHatchingSummaryById = (id: string): HatchingSummaryRecord | undefined => {
+    return hatchingSummaries.find(h => h.id === id);
   };
 
   // Reset & Backup Data
@@ -2297,6 +2800,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setRawEggRecords(INITIAL_EGG_PRODUCTION);
     setWeeklyEggWeights(INITIAL_WEEKLY_EGG_WEIGHTS);
     setDeliveries(INITIAL_DELIVERIES);
+    setHatchingSummaries(INITIAL_HATCHING_SUMMARIES);
     setSystemLogs(INITIAL_SYSTEM_LOGS);
     setBiosecurityRequirements(INITIAL_BIOSECURITY_REQUIREMENTS);
     setBiosecurityLogs(INITIAL_BIOSECURITY_LOGS);
@@ -2487,10 +2991,16 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         logout,
         registerUser,
         recoverAccount,
+        changePassword,
+        adminResetUserPassword,
+        adminToggleUserLock,
+        evaluatePasswordStrength,
         approveUser,
         rejectUser,
         updateUserRole,
         updateUserStatus,
+        updateUser,
+        addUser,
         assignUserHouses,
         deleteUser,
         switchUser,
@@ -2545,6 +3055,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         eggProductionRecords,
         weeklyEggWeights,
         addEggProductionRecord,
+        updateEggProductionRecord,
         deleteEggProductionRecord,
         addWeeklyEggWeight,
         deleteWeeklyEggWeight,
@@ -2554,6 +3065,12 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         updateDelivery,
         deleteDelivery,
         getDeliveryById,
+
+        hatchingSummaries,
+        addHatchingSummary,
+        updateHatchingSummary,
+        deleteHatchingSummary,
+        getHatchingSummaryById,
 
         biosecurityRequirements,
         biosecurityLogs,
@@ -2580,23 +3097,18 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         databaseEngine,
         checkDBStatus,
         reconnectDB,
+        mongoStatus,
         syncAllToMongoDB,
         pullAllFromMongoDB,
 
-        // Firebase Firestore Engine
+        // Firebase Firestore Engine (Aliases)
         firestoreStatus,
         syncAllToFirestore,
         pullAllFromFirestore,
 
-        // Offline & IndexedDB Caching Engine
-        isOnline,
-        offlineQueue,
-        pendingOfflineCount: offlineQueue.length,
+        // Storage Sync Engine
         storageQuota,
         refreshStorageQuota,
-        syncOfflineQueue,
-        clearOfflineSyncQueue,
-        lastIndexedDBSync,
 
         permissions
       }}

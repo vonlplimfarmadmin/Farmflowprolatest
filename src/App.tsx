@@ -29,7 +29,6 @@ import { DeliveryView } from './components/delivery/DeliveryView';
 import { DynamicReportsView } from './components/reports/DynamicReportsView';
 import { SettingsView } from './components/settings/SettingsView';
 import { RoleBadge } from './components/common/RoleBadge';
-import { OfflineBanner } from './components/common/OfflineBanner';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Shield, Sparkles, UserCheck, AlertCircle } from 'lucide-react';
 
@@ -111,27 +110,32 @@ const FarmAppContent: React.FC = () => {
   const isDisabled = currentUser.status === 'disabled';
 
   return (
-    <div className="min-h-screen bg-graphite-50 flex flex-col font-sans text-graphite-900 antialiased selection:bg-mint-400 selection:text-forest-950">
+    <div className="min-h-screen bg-glass-ambient flex flex-col font-sans text-graphite-900 antialiased selection:bg-mint-400 selection:text-forest-950 relative overflow-x-hidden">
+      {/* Ambient background soft light blurs for glass refraction */}
+      <div className="fixed top-0 right-1/4 w-96 h-96 bg-emerald-300/15 rounded-full blur-3xl pointer-events-none -z-10 animate-pulse" style={{ animationDuration: '8s' }} />
+      <div className="fixed bottom-10 left-10 w-[28rem] h-[28rem] bg-teal-200/20 rounded-full blur-3xl pointer-events-none -z-10" />
+      <div className="fixed top-1/2 right-10 w-72 h-72 bg-mint-200/20 rounded-full blur-3xl pointer-events-none -z-10" />
+
       {/* Top Demo Helper Bar: Sleek Fast Role Switching (Hidden during printing) */}
-      <div className="bg-forest-950/95 backdrop-blur-md text-graphite-300 border-b border-forest-900/60 text-xs py-1 px-4 sm:px-6 flex flex-wrap items-center justify-between gap-2 shrink-0 z-50 print:hidden">
+      <div className="glass-card-dark text-graphite-300 border-b border-forest-800/50 text-xs py-1.5 px-4 sm:px-6 flex flex-wrap items-center justify-between gap-2 shrink-0 z-50 print:hidden shadow-xs">
         <div className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-mint-400 animate-pulse" />
-          <span className="text-mint-400 font-semibold text-[11px] uppercase tracking-wider">Active Role:</span>
+          <div className="w-2 h-2 rounded-full bg-mint-400 animate-pulse shadow-xs shadow-mint-400/80" />
+          <span className="text-mint-300 font-semibold text-[11px] uppercase tracking-wider">Active Role:</span>
           <span className="font-bold text-white flex items-center gap-1.5 text-xs">
             {currentUser && <RoleBadge role={currentUser.role} size="sm" />}
           </span>
         </div>
 
         <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
-          <span className="text-[10px] text-mint-400/80 font-bold uppercase tracking-wider hidden md:inline">Quick Switch:</span>
+          <span className="text-[10px] text-mint-400/90 font-bold uppercase tracking-wider hidden md:inline">Quick Switch:</span>
           {(['System Administrator', 'Farm Manager', 'Flockman', 'Leadman', 'Egg Collector'] as UserRole[]).map((role) => (
             <button
               key={role}
               onClick={() => switchUserRole(role)}
               className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition-all duration-200 whitespace-nowrap cursor-pointer ${
                 currentUser?.role === role
-                  ? 'bg-mint-400 text-forest-950 font-bold shadow-sm shadow-mint-400/30'
-                  : 'bg-forest-900/60 hover:bg-forest-900 text-graphite-200 hover:text-white border border-forest-800/80'
+                  ? 'bg-gradient-to-r from-mint-400 to-emerald-400 text-forest-950 font-bold shadow-xs shadow-mint-400/40'
+                  : 'glass-pill-dark text-graphite-200 hover:text-white hover:border-mint-400/40'
               }`}
             >
               {role.replace('System ', '')}
@@ -261,9 +265,6 @@ const FarmAppContent: React.FC = () => {
         onClose={() => setAuthModalMode(null)}
         onSwitchMode={setAuthModalMode}
       />
-
-      {/* Floating Offline Notification & Queue Sync Banner */}
-      <OfflineBanner />
 
       {/* Mobile Add to Home Screen Floating Smart Banner */}
       <MobileInstallBanner />

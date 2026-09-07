@@ -115,7 +115,7 @@ export const CrossPlatformModal: React.FC<CrossPlatformModalProps> = ({
     triggerHaptic('light');
     await shareAppData({
       title: `${farmProfile.name || 'FarmFlow Pro'} - Multi-Platform Farm Management`,
-      text: 'Access FarmFlow Pro on Android, iOS, or PC desktop for offline poultry house logging and inventory management.',
+      text: 'Access FarmFlow Pro on Android, iOS, or PC desktop for poultry house logging and inventory management.',
       url: appUrl
     });
   };
@@ -248,8 +248,8 @@ export const CrossPlatformModal: React.FC<CrossPlatformModalProps> = ({
                     <Sparkles className="w-4 h-4 text-forest-700" />
                     <span>Single Codebase, Seamless Everywhere</span>
                   </span>
-                  <span className="text-[11px] font-bold text-forest-700 bg-white px-2.5 py-1 rounded-full border border-forest-200 shadow-2xs">
-                    Offline First
+                  <span className="text-[11px] font-bold text-orange-700 bg-white px-2.5 py-1 rounded-full border border-orange-200 shadow-2xs">
+                    Cloud Connected
                   </span>
                 </div>
                 <p className="text-slate-700 leading-relaxed text-xs">
@@ -292,7 +292,7 @@ export const CrossPlatformModal: React.FC<CrossPlatformModalProps> = ({
                       <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-forest-900" />
                     </h4>
                     <p className="text-[11px] text-slate-500 mt-0.5">
-                      Safari Add to Home Screen, Safe Area Insets, Full Offline IndexedDB.
+                      Safari Add to Home Screen, Safe Area Insets, Direct MongoDB Cloud Storage.
                     </p>
                   </div>
                 </div>
@@ -327,9 +327,9 @@ export const CrossPlatformModal: React.FC<CrossPlatformModalProps> = ({
                   <div className="p-2.5 bg-white rounded-xl border border-slate-200">
                     <p className="font-bold text-slate-900 flex items-center gap-1.5">
                       <Database className="w-3.5 h-3.5 text-forest-700" />
-                      <span>IndexedDB Offline</span>
+                      <span>MongoDB Cloud DB</span>
                     </p>
-                    <p className="text-[10px] text-emerald-700 font-semibold mt-0.5">✓ Android, iOS, PC</p>
+                    <p className="text-[10px] text-emerald-700 font-semibold mt-0.5">✓ Direct Connected</p>
                   </div>
 
                   <div className="p-2.5 bg-white rounded-xl border border-slate-200">
@@ -396,7 +396,7 @@ export const CrossPlatformModal: React.FC<CrossPlatformModalProps> = ({
                 <div>
                   <h4 className="font-bold text-emerald-950 text-sm">Android Installation & Native APK Experience</h4>
                   <p className="text-slate-700 text-xs mt-1">
-                    Installs directly to your Android home screen and app drawer as an independent app icon with standalone full-screen view, offline synchronization, and hardware haptics.
+                    Installs directly to your Android home screen and app drawer as an independent app icon with standalone full-screen view, direct MongoDB cloud database access, and hardware haptics.
                   </p>
                 </div>
               </div>
@@ -512,7 +512,7 @@ export const CrossPlatformModal: React.FC<CrossPlatformModalProps> = ({
                     <div>
                       <p className="font-bold text-slate-900">Tap "Add" in Top Right</p>
                       <p className="text-[11px] text-slate-600">
-                        FarmFlow Pro is now installed on your iOS home screen with offline capability!
+                        FarmFlow Pro is now installed on your iOS home screen for instant access!
                       </p>
                     </div>
                   </div>

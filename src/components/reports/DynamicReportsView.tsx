@@ -2,9 +2,18 @@ import React, { useState, useMemo } from 'react';
 import { useFarm } from '../../context/FarmContext';
 import { CompanyReportHeader, CompanyReportSignatures } from './CompanyReportHeader';
 import { EggProductionReportSection } from './EggProductionReportSection';
+import { FlockReportSection } from './FlockReportSection';
 import { MortalityReportSection } from './MortalityReportSection';
 import { VaccinesMedicineReportSection } from './VaccinesMedicineReportSection';
-import { exportReportToExcel, exportReportToCsv, ReportMetadata, SheetData } from '../../utils/reportExportUtils';
+import { 
+  exportReportToPdf, 
+  exportReportToExcel, 
+  exportReportToCsv, 
+  ReportMetadata, 
+  SheetData 
+} from '../../utils/reportExportUtils';
+import { calculateFlockAgeFromLoadingDate } from '../../utils/dateCalculations';
+import { DataExportModal, ExportCategoryType } from '../common/DataExportModal';
 import { useToast } from '../common/ToastContainer';
 import { 
   Printer, 
@@ -14,6 +23,7 @@ import {
   Filter, 
   Building2, 
   Egg, 
+  Bird,
   Skull, 
   Syringe, 
   Layers, 
@@ -22,10 +32,12 @@ import {
   Check, 
   X,
   Sparkles,
-  RefreshCw
+  RefreshCw,
+  FileText,
+  SlidersHorizontal
 } from 'lucide-react';
 
-export type ReportTabType = 'egg_production' | 'mortality' | 'medicine' | 'master';
+export type ReportTabType = 'egg_production' | 'flock' | 'mortality' | 'medicine' | 'master';
 export type DatePresetType = 'today' | '7days' | '30days' | 'this_month' | 'all' | 'custom';
 
 export const DynamicReportsView: React.FC = () => {
@@ -58,6 +70,10 @@ export const DynamicReportsView: React.FC = () => {
   // House Filter
   const [selectedHouse, setSelectedHouse] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Export Modal State
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportModalCategory, setExportModalCategory] = useState<ExportCategoryType>('egg_production');
 
   // Company Info Edit Modal State
   const [showEditCompanyModal, setShowEditCompanyModal] = useState(false);
@@ -92,7 +108,21 @@ export const DynamicReportsView: React.FC = () => {
     }
   };
 
-  // 1. Filter Egg Production Records
+  // 1. Filter Flock Records
+  const filteredFlocks = useMemo(() => {
+    const safeFlocks = Array.isArray(flocks) ? flocks : [];
+    return safeFlocks.filter(f => {
+      if (!f) return false;
+      const inHouse = selectedHouse === 'All' || f.houseNumber === selectedHouse;
+      const inSearch = !searchQuery || 
+        (f.houseNumber && f.houseNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (f.breed && f.breed.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (f.notes && f.notes.toLowerCase().includes(searchQuery.toLowerCase()));
+      return inHouse && inSearch;
+    });
+  }, [flocks, selectedHouse, searchQuery]);
+
+  // 2. Filter Egg Production Records
   const filteredEggRecords = useMemo(() => {
     const safeRecords = Array.isArray(eggProductionRecords) ? eggProductionRecords : [];
     return safeRecords.filter(r => {
@@ -107,7 +137,7 @@ export const DynamicReportsView: React.FC = () => {
     }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   }, [eggProductionRecords, startDate, endDate, selectedHouse, searchQuery]);
 
-  // 2. Filter Mortality Records
+  // 3. Filter Mortality Records
   const filteredDepletions = useMemo(() => {
     const safeDepletions = Array.isArray(depletions) ? depletions : [];
     return safeDepletions.filter(d => {
@@ -123,7 +153,7 @@ export const DynamicReportsView: React.FC = () => {
     }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   }, [depletions, startDate, endDate, selectedHouse, searchQuery]);
 
-  // 3. Filter Medicine Administrations
+  // 4. Filter Medicine Administrations
   const filteredAdministrations = useMemo(() => {
     const safeAdmins = Array.isArray(medAdministrations) ? medAdministrations : [];
     return safeAdmins.filter(a => {
@@ -142,13 +172,14 @@ export const DynamicReportsView: React.FC = () => {
 
   // Date Range Text for Report Header
   const dateRangeText = useMemo(() => {
+    if (activeTab === 'flock') return 'Current Active Production Cycle';
     if (datePreset === 'today') return `Today (${endDate})`;
     if (datePreset === '7days') return `Last 7 Days (${startDate} to ${endDate})`;
     if (datePreset === '30days') return `Last 30 Days (${startDate} to ${endDate})`;
     if (datePreset === 'this_month') return `Current Month (${startDate} to ${endDate})`;
     if (datePreset === 'all') return `Complete Production Cycle`;
     return `${startDate} to ${endDate}`;
-  }, [datePreset, startDate, endDate]);
+  }, [activeTab, datePreset, startDate, endDate]);
 
   const reportMetadata: ReportMetadata = {
     companyName: farmProfile.name || 'L.P. LIM CITY FAMILY FARM INC',
@@ -158,6 +189,8 @@ export const DynamicReportsView: React.FC = () => {
     email: farmProfile.email,
     reportTitle: activeTab === 'egg_production'
       ? 'Daily Egg Production & Hatching Performance Report'
+      : activeTab === 'flock'
+      ? 'Flock Demographics & Pen Allocation Master Report'
       : activeTab === 'mortality'
       ? 'Flock Mortality, Culling & Depletion Incident Report'
       : activeTab === 'medicine'
@@ -169,15 +202,78 @@ export const DynamicReportsView: React.FC = () => {
     generatedAt: new Date().toLocaleString()
   };
 
-  // Handle Print Action
-  const handlePrint = () => {
-    window.print();
-  };
-
-  // Handle Excel (.xlsx) Export
-  const handleExportExcel = () => {
+  // Build Sheet Data Helper for Excel & PDF
+  const generateReportSheets = (): SheetData[] => {
     const sheets: SheetData[] = [];
 
+    // Flock Demographics Sheet
+    if (activeTab === 'flock' || activeTab === 'master') {
+      const flockData = filteredFlocks.map(f => {
+        const stats = getFlockStats(f.houseNumber);
+        const currMales = stats ? stats.currentMales : f.currentMales || 0;
+        const currFemales = stats ? stats.currentFemales : f.currentFemales || 0;
+        const totalLive = currMales + currFemales;
+        const initTotal = (f.initialMales || 0) + (f.initialFemales || 0);
+        const livability = initTotal > 0 ? (totalLive / initTotal) * 100 : 100;
+        const ratio = currMales > 0 ? (currFemales / currMales) : 0;
+        const age = calculateFlockAgeFromLoadingDate(f.loadingDateFemale || f.loadingDateMale);
+
+        return {
+          houseNumber: f.houseNumber,
+          breed: f.breed,
+          loadingDate: f.loadingDateFemale || f.loadingDateMale || 'N/A',
+          age: age ? `${age.ageWeeks}w + ${age.ageDays}d` : 'N/A',
+          initialMales: f.initialMales || 0,
+          initialFemales: f.initialFemales || 0,
+          currentMales: currMales,
+          currentFemales: currFemales,
+          totalLive,
+          livabilityPct: Number(livability.toFixed(1)),
+          matingRatio: Number(ratio.toFixed(1)),
+          status: f.status || 'Active'
+        };
+      });
+
+      const totalInitM = filteredFlocks.reduce((a, f) => a + (f.initialMales || 0), 0);
+      const totalInitF = filteredFlocks.reduce((a, f) => a + (f.initialFemales || 0), 0);
+      const totalCurrM = flockData.reduce((a, f) => a + f.currentMales, 0);
+      const totalCurrF = flockData.reduce((a, f) => a + f.currentFemales, 0);
+      const totalLive = totalCurrM + totalCurrF;
+      const totalInit = totalInitM + totalInitF;
+
+      sheets.push({
+        sheetName: 'Flock Demographics',
+        title: 'Flock Demographics & Pen Housing Master Report',
+        columns: [
+          { header: 'House', key: 'houseNumber', width: 10 },
+          { header: 'Breed', key: 'breed', width: 12 },
+          { header: 'Loading Date', key: 'loadingDate', width: 12 },
+          { header: 'Age', key: 'age', width: 10 },
+          { header: 'Init ♂', key: 'initialMales', width: 8, align: 'right' },
+          { header: 'Init ♀', key: 'initialFemales', width: 8, align: 'right' },
+          { header: 'Current ♂', key: 'currentMales', width: 10, align: 'right' },
+          { header: 'Current ♀', key: 'currentFemales', width: 10, align: 'right' },
+          { header: 'Total Live', key: 'totalLive', width: 12, align: 'right' },
+          { header: 'Livability %', key: 'livabilityPct', width: 12, align: 'right' },
+          { header: 'Ratio (1:X)', key: 'matingRatio', width: 10, align: 'right' },
+          { header: 'Status', key: 'status', width: 10 }
+        ],
+        data: flockData,
+        summaryRow: {
+          houseNumber: 'TOTALS',
+          breed: `${filteredFlocks.length} Houses`,
+          initialMales: totalInitM,
+          initialFemales: totalInitF,
+          currentMales: totalCurrM,
+          currentFemales: totalCurrF,
+          totalLive,
+          livabilityPct: totalInit > 0 ? Number(((totalLive / totalInit) * 100).toFixed(1)) : 100,
+          matingRatio: totalCurrM > 0 ? Number((totalCurrF / totalCurrM).toFixed(1)) : 0
+        }
+      });
+    }
+
+    // Egg Production Sheet
     if (activeTab === 'egg_production' || activeTab === 'master') {
       const eggData = filteredEggRecords.map(r => {
         const hePct = r.tep && r.tep > 0 ? ((r.totalHE || 0) / r.tep) * 100 : 0;
@@ -215,23 +311,21 @@ export const DynamicReportsView: React.FC = () => {
         columns: [
           { header: 'Date', key: 'date', width: 12 },
           { header: 'House', key: 'houseNumber', width: 10 },
-          { header: 'Female Birds', key: 'femalePop', width: 12 },
-          { header: 'HE Nest', key: 'heNest', width: 10 },
-          { header: 'HE Floor', key: 'heFloor', width: 10 },
-          { header: 'Total HE', key: 'totalHE', width: 12 },
-          { header: 'HE %', key: 'hePct', width: 10 },
-          { header: 'Small', key: 'small', width: 8 },
-          { header: 'Thin Shell', key: 'thinShell', width: 10 },
-          { header: 'Misshape', key: 'misshape', width: 10 },
-          { header: 'Double Yolk', key: 'doubleYolk', width: 12 },
-          { header: 'Broken', key: 'broken', width: 8 },
-          { header: 'Spoiled', key: 'spoiled', width: 8 },
-          { header: 'Total NHE', key: 'totalNHE', width: 12 },
-          { header: 'NHE %', key: 'nhePct', width: 10 },
-          { header: 'Total Eggs (TEP)', key: 'tep', width: 15 },
-          { header: 'Hen-Day %', key: 'hendayPct', width: 12 },
-          { header: 'Egg Wt (g)', key: 'sampleEggWeight', width: 12 },
-          { header: 'Logged By', key: 'loggedBy', width: 18 }
+          { header: 'HE Nest', key: 'heNest', width: 9, align: 'right' },
+          { header: 'HE Floor', key: 'heFloor', width: 9, align: 'right' },
+          { header: 'Total HE', key: 'totalHE', width: 11, align: 'right' },
+          { header: 'HE %', key: 'hePct', width: 9, align: 'right' },
+          { header: 'Small', key: 'small', width: 7, align: 'right' },
+          { header: 'Thin Shell', key: 'thinShell', width: 9, align: 'right' },
+          { header: 'Misshape', key: 'misshape', width: 9, align: 'right' },
+          { header: 'Double Yolk', key: 'doubleYolk', width: 10, align: 'right' },
+          { header: 'Broken', key: 'broken', width: 7, align: 'right' },
+          { header: 'Spoiled', key: 'spoiled', width: 7, align: 'right' },
+          { header: 'Total NHE', key: 'totalNHE', width: 11, align: 'right' },
+          { header: 'Total Eggs (TEP)', key: 'tep', width: 14, align: 'right' },
+          { header: 'Hen-Day %', key: 'hendayPct', width: 11, align: 'right' },
+          { header: 'Egg Wt (g)', key: 'sampleEggWeight', width: 10, align: 'right' },
+          { header: 'Logged By', key: 'loggedBy', width: 16 }
         ],
         data: eggData,
         summaryRow: {
@@ -246,6 +340,7 @@ export const DynamicReportsView: React.FC = () => {
       });
     }
 
+    // Mortality Sheet
     if (activeTab === 'mortality' || activeTab === 'master') {
       const mortData = filteredDepletions.map(d => ({
         date: d.date,
@@ -270,12 +365,11 @@ export const DynamicReportsView: React.FC = () => {
           { header: 'Date', key: 'date', width: 12 },
           { header: 'House', key: 'houseNumber', width: 10 },
           { header: 'Side / Pen', key: 'penName', width: 12 },
-          { header: 'Depletion Category', key: 'category', width: 18 },
-          { header: 'Males Lost', key: 'males', width: 12 },
-          { header: 'Females Lost', key: 'females', width: 14 },
-          { header: 'Total Birds Lost', key: 'totalLost', width: 16 },
-          { header: 'Reason / Post-Mortem Diagnosis', key: 'reasonDetails', width: 35 },
-          { header: 'Source Module', key: 'source', width: 14 },
+          { header: 'Category', key: 'category', width: 15 },
+          { header: 'Males Lost', key: 'males', width: 10, align: 'right' },
+          { header: 'Females Lost', key: 'females', width: 10, align: 'right' },
+          { header: 'Total Lost', key: 'totalLost', width: 12, align: 'right' },
+          { header: 'Clinical Reason', key: 'reasonDetails', width: 35 },
           { header: 'Logged By', key: 'loggedBy', width: 18 }
         ],
         data: mortData,
@@ -289,6 +383,7 @@ export const DynamicReportsView: React.FC = () => {
       });
     }
 
+    // Medicine Sheet
     if (activeTab === 'medicine' || activeTab === 'master') {
       const medData = filteredAdministrations.map(a => ({
         date: a.date,
@@ -312,14 +407,13 @@ export const DynamicReportsView: React.FC = () => {
         columns: [
           { header: 'Admin Date', key: 'date', width: 12 },
           { header: 'House', key: 'houseNumber', width: 10 },
-          { header: 'Product Name', key: 'productName', width: 25 },
+          { header: 'Product Name', key: 'productName', width: 24 },
           { header: 'Product Type', key: 'productType', width: 14 },
-          { header: 'Route / Method', key: 'method', width: 20 },
-          { header: 'Units Consumed', key: 'unitsUsed', width: 15 },
-          { header: 'Total Doses Administered', key: 'totalDoses', width: 22 },
-          { header: 'Peripherals / Equipment', key: 'peripherals', width: 25 },
-          { header: 'Administered By', key: 'administeredBy', width: 20 },
-          { header: 'Status', key: 'status', width: 12 }
+          { header: 'Route / Method', key: 'method', width: 18 },
+          { header: 'Units Used', key: 'unitsUsed', width: 12, align: 'right' },
+          { header: 'Total Doses', key: 'totalDoses', width: 14, align: 'right' },
+          { header: 'Administered By', key: 'administeredBy', width: 18 },
+          { header: 'Status', key: 'status', width: 10 }
         ],
         data: medData,
         summaryRow: {
@@ -331,37 +425,111 @@ export const DynamicReportsView: React.FC = () => {
       });
     }
 
-    const filename = `${farmProfile.name ? farmProfile.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Farm'}_${activeTab.toUpperCase()}_REPORT_${startDate}_to_${endDate}.xlsx`;
+    return sheets;
+  };
+
+  // Handle PDF Export
+  const handleExportPdf = () => {
+    const sheets = generateReportSheets();
+    const sanitizedName = farmProfile.name ? farmProfile.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Farm';
+    const filename = `${sanitizedName}_${activeTab.toUpperCase()}_REPORT_${startDate}_to_${endDate}.pdf`;
+    
+    exportReportToPdf(reportMetadata, sheets, filename, { orientation: 'landscape' });
+    toast.success('Official PDF Generated', `Downloaded vector PDF record with corporate letterhead for ${activeTab.toUpperCase()}`);
+  };
+
+  // Handle Excel (.xlsx) Export
+  const handleExportExcel = () => {
+    const sheets = generateReportSheets();
+    const sanitizedName = farmProfile.name ? farmProfile.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Farm';
+    const filename = `${sanitizedName}_${activeTab.toUpperCase()}_REPORT_${startDate}_to_${endDate}.xlsx`;
+    
     exportReportToExcel(reportMetadata, sheets, filename);
     toast.success('Excel Workbook Generated', `Downloaded official report with company letterhead for ${activeTab.toUpperCase()}`);
   };
 
   // Handle CSV Export
   const handleExportCsv = () => {
-    if (activeTab === 'egg_production') {
+    const sanitizedName = farmProfile.name ? farmProfile.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Farm';
+
+    if (activeTab === 'flock') {
+      const flockRows = filteredFlocks.map(f => {
+        const stats = getFlockStats(f.houseNumber);
+        const currMales = stats ? stats.currentMales : f.currentMales || 0;
+        const currFemales = stats ? stats.currentFemales : f.currentFemales || 0;
+        const age = calculateFlockAgeFromLoadingDate(f.loadingDateFemale || f.loadingDateMale);
+        const initTotal = (f.initialMales || 0) + (f.initialFemales || 0);
+        const totalLive = currMales + currFemales;
+        const livability = initTotal > 0 ? (totalLive / initTotal) * 100 : 100;
+        const ratio = currMales > 0 ? (currFemales / currMales) : 0;
+
+        return {
+          houseNumber: f.houseNumber,
+          breed: f.breed,
+          loadingDate: f.loadingDateFemale || f.loadingDateMale || 'N/A',
+          age: age ? `${age.ageWeeks}w + ${age.ageDays}d` : 'N/A',
+          initialMales: f.initialMales || 0,
+          initialFemales: f.initialFemales || 0,
+          currentMales: currMales,
+          currentFemales: currFemales,
+          totalLive,
+          livabilityPct: Number(livability.toFixed(1)),
+          matingRatio: Number(ratio.toFixed(1)),
+          status: f.status || 'Active',
+          notes: f.notes || ''
+        };
+      });
+
+      const columns = [
+        { header: 'House', key: 'houseNumber' },
+        { header: 'Breed', key: 'breed' },
+        { header: 'Loading Date', key: 'loadingDate' },
+        { header: 'Age', key: 'age' },
+        { header: 'Initial Males', key: 'initialMales' },
+        { header: 'Initial Females', key: 'initialFemales' },
+        { header: 'Current Males', key: 'currentMales' },
+        { header: 'Current Females', key: 'currentFemales' },
+        { header: 'Total Live Birds', key: 'totalLive' },
+        { header: 'Livability %', key: 'livabilityPct' },
+        { header: 'Mating Ratio (1:X)', key: 'matingRatio' },
+        { header: 'Status', key: 'status' },
+        { header: 'Notes', key: 'notes' }
+      ];
+
+      exportReportToCsv(`${sanitizedName}_Flock_Demographics_${new Date().toISOString().split('T')[0]}.csv`, columns, flockRows);
+    } else if (activeTab === 'egg_production') {
       const columns = [
         { header: 'Date', key: 'date' },
         { header: 'House', key: 'houseNumber' },
+        { header: 'Female Population', key: 'femalePopulationAtDate' },
         { header: 'HE Nest', key: 'heNest' },
         { header: 'HE Floor', key: 'heFloor' },
         { header: 'Total HE', key: 'totalHE' },
+        { header: 'Small', key: 'small' },
+        { header: 'Thin Shell', key: 'thinShell' },
+        { header: 'Misshape', key: 'misshape' },
+        { header: 'Double Yolk', key: 'doubleYolk' },
+        { header: 'Broken', key: 'broken' },
+        { header: 'Spoiled', key: 'spoiled' },
         { header: 'Total NHE', key: 'totalNHE' },
         { header: 'Total Eggs TEP', key: 'tep' },
         { header: 'Hen-Day %', key: 'hendayPct' },
+        { header: 'Sample Egg Weight (g)', key: 'sampleEggWeightGrams' },
         { header: 'Logged By', key: 'loggedBy' }
       ];
-      exportReportToCsv(`Egg_Production_${startDate}_${endDate}.csv`, columns, filteredEggRecords);
+      exportReportToCsv(`${sanitizedName}_Egg_Production_${startDate}_${endDate}.csv`, columns, filteredEggRecords);
     } else if (activeTab === 'mortality') {
       const columns = [
         { header: 'Date', key: 'date' },
         { header: 'House', key: 'houseNumber' },
+        { header: 'Pen / Side', key: 'penName' },
         { header: 'Category', key: 'category' },
         { header: 'Males Lost', key: 'maleCount' },
         { header: 'Females Lost', key: 'femaleCount' },
-        { header: 'Reason', key: 'reasonDetails' },
+        { header: 'Reason Details', key: 'reasonDetails' },
         { header: 'Logged By', key: 'loggedBy' }
       ];
-      exportReportToCsv(`Mortality_Report_${startDate}_${endDate}.csv`, columns, filteredDepletions);
+      exportReportToCsv(`${sanitizedName}_Mortality_Report_${startDate}_${endDate}.csv`, columns, filteredDepletions);
     } else {
       const columns = [
         { header: 'Date', key: 'date' },
@@ -369,12 +537,14 @@ export const DynamicReportsView: React.FC = () => {
         { header: 'Product Name', key: 'productName' },
         { header: 'Type', key: 'productType' },
         { header: 'Method', key: 'method' },
-        { header: 'Units', key: 'unitsUsed' },
-        { header: 'Administered By', key: 'administeredBy' }
+        { header: 'Units Used', key: 'unitsUsed' },
+        { header: 'Total Doses', key: 'totalDosesAdministered' },
+        { header: 'Administered By', key: 'administeredBy' },
+        { header: 'Logged By', key: 'loggedBy' }
       ];
-      exportReportToCsv(`Vaccine_Medicine_${startDate}_${endDate}.csv`, columns, filteredAdministrations);
+      exportReportToCsv(`${sanitizedName}_Vaccine_Medicine_${startDate}_${endDate}.csv`, columns, filteredAdministrations);
     }
-    toast.success('CSV Exported', 'Raw dataset downloaded successfully.');
+    toast.success('CSV Exported', 'Raw dataset downloaded successfully with UTF-8 encoding.');
   };
 
   // Save updated company info & logo
@@ -403,16 +573,16 @@ export const DynamicReportsView: React.FC = () => {
               </span>
               <div>
                 <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                  Dynamic Farm Reports Hub
+                  Dynamic Farm Reports & Export Hub
                 </h1>
                 <p className="text-xs text-slate-500">
-                  Generate, print, and export official reports for Egg Production, Mortality, Vaccines & Medicine
+                  Export official CSV or PDF records for Flock Demographics, Egg Production, Mortality & Treatments
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Top Primary Actions: Print, Export Excel, Edit Company Info */}
+          {/* Top Primary Actions: Export PDF, Export CSV, Export Excel, Company Info, Print */}
           <div className="flex flex-wrap items-center gap-2.5">
             <button
               id="edit-company-branding-btn"
@@ -424,41 +594,75 @@ export const DynamicReportsView: React.FC = () => {
                 setCompanyEmail(farmProfile.email || '');
                 setShowEditCompanyModal(true);
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-2xl text-xs font-bold transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-2xl text-xs font-bold transition cursor-pointer"
               title="Edit Company Name & Logo for Report Headers"
             >
               <Building2 className="w-4 h-4 text-slate-600" />
-              <span>Company & Logo</span>
+              <span className="hidden sm:inline">Letterhead</span>
             </button>
 
+            {/* Universal Export Modal Trigger */}
+            <button
+              id="open-custom-export-wizard-btn"
+              onClick={() => {
+                setExportModalCategory(
+                  activeTab === 'flock' ? 'flock_population' :
+                  activeTab === 'mortality' ? 'mortality' :
+                  activeTab === 'medicine' ? 'medicine' :
+                  activeTab === 'master' ? 'master_operations' :
+                  'egg_production'
+                );
+                setShowExportModal(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-2xl text-xs font-bold transition cursor-pointer"
+              title="Open Custom Export Wizard with advanced options"
+            >
+              <SlidersHorizontal className="w-4 h-4 text-slate-600" />
+              <span>Export Wizard</span>
+            </button>
+
+            {/* 1-Click CSV Export */}
             <button
               id="export-csv-btn"
               onClick={handleExportCsv}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-2xl text-xs font-bold transition cursor-pointer"
-              title="Export lightweight CSV format"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-800 hover:bg-slate-900 active:scale-95 text-white rounded-2xl text-xs font-bold transition cursor-pointer shadow-xs"
+              title="Export lightweight CSV dataset for external record keeping"
             >
-              <Download className="w-4 h-4 text-slate-600" />
-              <span>CSV</span>
+              <Download className="w-4 h-4 text-teal-400" />
+              <span>Export CSV</span>
             </button>
 
+            {/* 1-Click PDF Export */}
+            <button
+              id="export-pdf-btn"
+              onClick={handleExportPdf}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-forest-900 hover:bg-forest-800 active:scale-95 text-mint-300 rounded-2xl text-xs font-black shadow-xs transition cursor-pointer"
+              title="Export official vector PDF document with farm letterhead & signature lines"
+            >
+              <FileText className="w-4 h-4 text-mint-400" />
+              <span>Export PDF</span>
+            </button>
+
+            {/* 1-Click Excel Export */}
             <button
               id="export-excel-btn"
               onClick={handleExportExcel}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-2xl text-xs font-black shadow-xs transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-2xl text-xs font-bold shadow-xs transition cursor-pointer"
               title="Export full multi-sheet formatted Excel workbook (.xlsx)"
             >
               <FileSpreadsheet className="w-4 h-4" />
-              <span>Export to Excel (.xlsx)</span>
+              <span className="hidden md:inline">Excel (.xlsx)</span>
             </button>
 
+            {/* Print Direct */}
             <button
               id="print-report-btn"
-              onClick={handlePrint}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-forest-900 hover:bg-forest-800 active:scale-95 text-mint-300 rounded-2xl text-xs font-black shadow-xs transition cursor-pointer"
-              title="Print official letterhead document or save as PDF"
+              onClick={() => window.print()}
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-bold transition cursor-pointer"
+              title="Print document on physical printer"
             >
-              <Printer className="w-4 h-4 text-mint-400" />
-              <span>Print Report</span>
+              <Printer className="w-4 h-4" />
+              <span className="hidden lg:inline">Print</span>
             </button>
           </div>
         </div>
@@ -475,9 +679,25 @@ export const DynamicReportsView: React.FC = () => {
             }`}
           >
             <Egg className="w-4 h-4" />
-            <span>Egg Production Report</span>
+            <span>Egg Production</span>
             <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-black/15 font-mono">
               {filteredEggRecords.length}
+            </span>
+          </button>
+
+          <button
+            id="tab-flock-report"
+            onClick={() => setActiveTab('flock')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+              activeTab === 'flock'
+                ? 'bg-teal-700 text-white shadow-xs'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+            }`}
+          >
+            <Bird className="w-4 h-4" />
+            <span>Flock Demographics</span>
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-black/15 font-mono">
+              {filteredFlocks.length}
             </span>
           </button>
 
@@ -491,7 +711,7 @@ export const DynamicReportsView: React.FC = () => {
             }`}
           >
             <Skull className="w-4 h-4" />
-            <span>Mortality & Depletion Report</span>
+            <span>Mortality & Culls</span>
             <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-black/15 font-mono">
               {filteredDepletions.length}
             </span>
@@ -502,12 +722,12 @@ export const DynamicReportsView: React.FC = () => {
             onClick={() => setActiveTab('medicine')}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
               activeTab === 'medicine'
-                ? 'bg-teal-600 text-white shadow-xs'
+                ? 'bg-cyan-700 text-white shadow-xs'
                 : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
             }`}
           >
             <Syringe className="w-4 h-4" />
-            <span>Vaccines & Medicine Report</span>
+            <span>Vaccines & Medicine</span>
             <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-black/15 font-mono">
               {filteredAdministrations.length}
             </span>
@@ -615,7 +835,7 @@ export const DynamicReportsView: React.FC = () => {
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search staff, notes, diseases..."
+                placeholder="Search house, staff, notes..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-teal-500 bg-slate-50 text-slate-800"
@@ -640,6 +860,8 @@ export const DynamicReportsView: React.FC = () => {
           title={
             activeTab === 'egg_production'
               ? 'Daily Egg Production & Hatching Quality Report'
+              : activeTab === 'flock'
+              ? 'Flock Demographics & Pen Housing Master Report'
               : activeTab === 'mortality'
               ? 'Flock Mortality, Culling & Depletion Incident Report'
               : activeTab === 'medicine'
@@ -649,11 +871,13 @@ export const DynamicReportsView: React.FC = () => {
           subtitle={
             activeTab === 'egg_production'
               ? 'Daily breakdown of Hatching Eggs (Nest/Floor), Non-Hatching, TEP, and Hen-Day %'
+              : activeTab === 'flock'
+              ? 'Parent stock population, age in weeks/days, livability %, and male-to-female mating ratios'
               : activeTab === 'mortality'
               ? 'Comprehensive tracking of natural deaths, spot culls, missex, and cumulative livability'
               : activeTab === 'medicine'
               ? 'Official administration history and standard vaccination protocol compliance'
-              : 'Consolidated summary of egg production, flock mortality, and medical treatments'
+              : 'Consolidated summary of flock demographics, egg production, mortality, and treatments'
           }
           dateRangeText={dateRangeText}
           houseFilterText={selectedHouse === 'All' ? 'All Houses (Farm-wide)' : selectedHouse}
@@ -666,6 +890,14 @@ export const DynamicReportsView: React.FC = () => {
             records={filteredEggRecords}
             standardHenday={farmProfile.standardHenday}
             flocks={flocks}
+          />
+        )}
+
+        {activeTab === 'flock' && (
+          <FlockReportSection
+            flocks={filteredFlocks}
+            getFlockStats={getFlockStats}
+            selectedHouse={selectedHouse}
           />
         )}
 
@@ -690,8 +922,20 @@ export const DynamicReportsView: React.FC = () => {
           <div className="space-y-10">
             <div>
               <h3 className="text-base font-black text-slate-900 mb-4 pb-2 border-b border-slate-200 flex items-center gap-2">
+                <Bird className="w-5 h-5 text-teal-600" />
+                1. Flock Demographics & Housing Overview
+              </h3>
+              <FlockReportSection
+                flocks={filteredFlocks}
+                getFlockStats={getFlockStats}
+                selectedHouse={selectedHouse}
+              />
+            </div>
+
+            <div className="pt-6">
+              <h3 className="text-base font-black text-slate-900 mb-4 pb-2 border-b border-slate-200 flex items-center gap-2">
                 <Egg className="w-5 h-5 text-amber-600" />
-                1. Egg Production & Hatching Performance
+                2. Egg Production & Hatching Performance
               </h3>
               <EggProductionReportSection
                 records={filteredEggRecords}
@@ -703,7 +947,7 @@ export const DynamicReportsView: React.FC = () => {
             <div className="pt-6">
               <h3 className="text-base font-black text-slate-900 mb-4 pb-2 border-b border-slate-200 flex items-center gap-2">
                 <Skull className="w-5 h-5 text-rose-600" />
-                2. Mortality, Culls & Depletion Tracking
+                3. Mortality, Culls & Depletion Tracking
               </h3>
               <MortalityReportSection
                 depletions={filteredDepletions}
@@ -715,7 +959,7 @@ export const DynamicReportsView: React.FC = () => {
             <div className="pt-6">
               <h3 className="text-base font-black text-slate-900 mb-4 pb-2 border-b border-slate-200 flex items-center gap-2">
                 <Syringe className="w-5 h-5 text-teal-600" />
-                3. Vaccination & Medication Administration
+                4. Vaccination & Medication Administration
               </h3>
               <VaccinesMedicineReportSection
                 administrations={filteredAdministrations}
@@ -730,6 +974,14 @@ export const DynamicReportsView: React.FC = () => {
         {/* Formal Report Verification & Sign-off Block */}
         <CompanyReportSignatures />
       </div>
+
+      {/* Universal Data Export Modal */}
+      <DataExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        defaultCategory={exportModalCategory}
+        defaultHouse={selectedHouse}
+      />
 
       {/* Edit Company Branding & Logo Modal */}
       {showEditCompanyModal && (

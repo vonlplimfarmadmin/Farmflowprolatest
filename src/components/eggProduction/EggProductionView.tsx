@@ -18,9 +18,10 @@ import {
   Sparkles,
   Scale,
   FileSpreadsheet,
-  Search
+  Search,
+  Download
 } from 'lucide-react';
-import { exportReportToExcel, ReportMetadata, SheetData } from '../../utils/reportExportUtils';
+import { exportReportToExcel, exportReportToPdf, exportReportToCsv, ReportMetadata, SheetData } from '../../utils/reportExportUtils';
 import { useToast } from '../common/ToastContainer';
 import { HouseQuickBar } from '../common/HouseQuickBar';
 
@@ -368,6 +369,103 @@ export const EggProductionView: React.FC = () => {
     toast.success('Excel Generated', `Downloaded official workbook for ${selectedHouse}`);
   };
 
+  // Handle PDF Export
+  const handleExportEggPdf = () => {
+    const recordsToExport = selectedHouse === 'All' ? (eggProductionRecords || []) : (activeHouseRecords || []);
+    const eggData = recordsToExport.map(r => {
+      const hePct = r.tep && r.tep > 0 ? ((r.totalHE || 0) / r.tep) * 100 : 0;
+      const nhePct = r.tep && r.tep > 0 ? ((r.totalNHE || 0) / r.tep) * 100 : 0;
+      return {
+        date: r.date,
+        houseNumber: r.houseNumber,
+        femalePop: r.femalePopulationAtDate || '',
+        heNest: r.heNest || 0,
+        heFloor: r.heFloor || 0,
+        totalHE: r.totalHE || 0,
+        hePct: Number(hePct.toFixed(1)),
+        small: r.small || 0,
+        thinShell: r.thinShell || 0,
+        misshape: r.misshape || 0,
+        doubleYolk: r.doubleYolk || 0,
+        broken: r.broken || 0,
+        spoiled: r.spoiled || 0,
+        totalNHE: r.totalNHE || 0,
+        nhePct: Number(nhePct.toFixed(1)),
+        tep: r.tep || 0,
+        hendayPct: r.hendayPct ? Number(r.hendayPct.toFixed(1)) : '',
+        sampleEggWeight: r.sampleEggWeightGrams ? Number(r.sampleEggWeightGrams.toFixed(1)) : '',
+        loggedBy: r.loggedBy || ''
+      };
+    });
+
+    const meta: ReportMetadata = {
+      companyName: farmProfile?.name || 'L.P. LIM CITY FAMILY FARM INC',
+      logoUrl: farmProfile?.logoUrl,
+      address: farmProfile?.address,
+      contactNumber: farmProfile?.contactNumber,
+      email: farmProfile?.email,
+      reportTitle: `Egg Production & Hatching Performance Report (${selectedHouse})`,
+      dateRange: `All Recorded Cycles`,
+      houseFilter: selectedHouse,
+      generatedBy: currentUser?.fullName || 'Authorized Staff',
+      generatedAt: new Date().toLocaleString()
+    };
+
+    const sheet: SheetData = {
+      sheetName: 'Egg Production',
+      title: 'Egg Production & Hatching Performance Report',
+      columns: [
+        { header: 'Date', key: 'date', width: 12 },
+        { header: 'House', key: 'houseNumber', width: 10 },
+        { header: 'HE Nest', key: 'heNest', width: 9, align: 'right' },
+        { header: 'HE Floor', key: 'heFloor', width: 9, align: 'right' },
+        { header: 'Total HE', key: 'totalHE', width: 11, align: 'right' },
+        { header: 'HE %', key: 'hePct', width: 9, align: 'right' },
+        { header: 'Small', key: 'small', width: 7, align: 'right' },
+        { header: 'Thin Shell', key: 'thinShell', width: 9, align: 'right' },
+        { header: 'Misshape', key: 'misshape', width: 9, align: 'right' },
+        { header: 'Double Yolk', key: 'doubleYolk', width: 10, align: 'right' },
+        { header: 'Broken', key: 'broken', width: 7, align: 'right' },
+        { header: 'Spoiled', key: 'spoiled', width: 7, align: 'right' },
+        { header: 'Total NHE', key: 'totalNHE', width: 11, align: 'right' },
+        { header: 'Total Eggs (TEP)', key: 'tep', width: 14, align: 'right' },
+        { header: 'Hen-Day %', key: 'hendayPct', width: 11, align: 'right' },
+        { header: 'Egg Wt (g)', key: 'sampleEggWeight', width: 10, align: 'right' },
+        { header: 'Logged By', key: 'loggedBy', width: 16 }
+      ],
+      data: eggData
+    };
+
+    exportReportToPdf(meta, [sheet], `${farmProfile?.name ? farmProfile.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Farm'}_Egg_Production_${selectedHouse}.pdf`, { orientation: 'landscape' });
+    toast.success('Official PDF Generated', `Downloaded official report for ${selectedHouse}`);
+  };
+
+  // Handle CSV Export
+  const handleExportEggCsv = () => {
+    const recordsToExport = selectedHouse === 'All' ? (eggProductionRecords || []) : (activeHouseRecords || []);
+    const columns = [
+      { header: 'Date', key: 'date' },
+      { header: 'House', key: 'houseNumber' },
+      { header: 'Female Pop', key: 'femalePopulationAtDate' },
+      { header: 'HE Nest', key: 'heNest' },
+      { header: 'HE Floor', key: 'heFloor' },
+      { header: 'Total HE', key: 'totalHE' },
+      { header: 'Small', key: 'small' },
+      { header: 'Thin Shell', key: 'thinShell' },
+      { header: 'Misshape', key: 'misshape' },
+      { header: 'Double Yolk', key: 'doubleYolk' },
+      { header: 'Broken', key: 'broken' },
+      { header: 'Spoiled', key: 'spoiled' },
+      { header: 'Total NHE', key: 'totalNHE' },
+      { header: 'Total Eggs TEP', key: 'tep' },
+      { header: 'Hen-Day %', key: 'hendayPct' },
+      { header: 'Sample Egg Wt (g)', key: 'sampleEggWeightGrams' },
+      { header: 'Logged By', key: 'loggedBy' }
+    ];
+    exportReportToCsv(`Egg_Production_${selectedHouse}_${new Date().toISOString().split('T')[0]}.csv`, columns, recordsToExport);
+    toast.success('CSV Exported', `Downloaded CSV dataset for ${selectedHouse}`);
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Banner */}
@@ -383,16 +481,38 @@ export const EggProductionView: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Action 1: Export Excel Report */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Action: Export CSV */}
+          <button
+            id="export-egg-csv-btn"
+            onClick={handleExportEggCsv}
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95"
+            title="Export CSV raw dataset for external record keeping"
+          >
+            <Download className="w-3.5 h-3.5 text-teal-400" />
+            <span>CSV</span>
+          </button>
+
+          {/* Action: Export PDF */}
+          <button
+            id="export-egg-pdf-btn"
+            onClick={handleExportEggPdf}
+            className="px-3.5 py-2 bg-forest-900 hover:bg-forest-800 text-mint-300 rounded-xl text-xs font-black flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95"
+            title="Export official vector PDF with company letterhead & signatures"
+          >
+            <FileText className="w-3.5 h-3.5 text-mint-400" />
+            <span>PDF</span>
+          </button>
+
+          {/* Action: Export Excel */}
           <button
             id="export-egg-excel-btn"
             onClick={handleExportEggExcel}
-            className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer active:scale-95"
-            title="Export Excel with Company Header & Official Farm Logo"
+            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95"
+            title="Export Excel workbook (.xlsx)"
           >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>Export Excel</span>
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Excel</span>
           </button>
 
           <div className="hidden sm:block w-px h-6 bg-slate-200" />
@@ -401,11 +521,11 @@ export const EggProductionView: React.FC = () => {
           <button
             id="open-messenger-report-btn"
             onClick={() => setShowMessengerReportModal(true)}
-            className="px-4 py-2.5 bg-teal-950 hover:bg-teal-900 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer active:scale-95"
+            className="px-3.5 py-2 bg-teal-950 hover:bg-teal-900 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer active:scale-95"
             title="Generate & Copy Daily Text Summary for Messenger"
           >
-            <Share2 className="w-4 h-4 text-teal-400" />
-            <span>Messenger Daily Report</span>
+            <Share2 className="w-3.5 h-3.5 text-teal-400" />
+            <span>Messenger Daily</span>
           </button>
 
           {/* Action 3: Record Egg Production Entry */}

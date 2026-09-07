@@ -28,11 +28,14 @@ import {
   Layers,
   Globe,
   Apple,
-  Share2
+  Share2,
+  ShieldAlert,
+  Clock
 } from 'lucide-react';
 import { AppAccessQRModal } from '../common/AppAccessQRModal';
 import { CrossPlatformModal } from '../common/CrossPlatformModal';
 import { detectPlatform, triggerHaptic } from '../../utils/platform';
+import { evaluatePasswordStrength } from '../../utils/security';
 
 interface LoginScreenProps {
   onRegisterClick?: () => void;
@@ -79,10 +82,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [regShowPassword, setRegShowPassword] = useState(false);
+  const [regSecurityQuestion, setRegSecurityQuestion] = useState('What was your first assigned farm house?');
+  const [regSecurityAnswer, setRegSecurityAnswer] = useState('');
   const [regHouses, setRegHouses] = useState<string[]>(['House 1']);
   const [regAutoActivate, setRegAutoActivate] = useState(true);
   const [regError, setRegError] = useState<string | null>(null);
   const [regSuccess, setRegSuccess] = useState<string | null>(null);
+  const [lockoutInfo, setLockoutInfo] = useState<{ isLocked: boolean; remainingMinutes: number }>({ isLocked: false, remainingMinutes: 0 });
 
   // QR Modal State
   const [showQRModal, setShowQRModal] = useState(false);
@@ -91,32 +97,35 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const qrContainerRef = useRef<HTMLDivElement>(null);
   const currentAppUrl = typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://ais-pre-cupjad67n6ntomphx2p2z3-116744961637.asia-east1.run.app';
 
+  const regStrength = evaluatePasswordStrength(regPassword);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
+    setLockoutInfo({ isLocked: false, remainingMinutes: 0 });
     setIsLoading(true);
+    triggerHaptic('light');
 
     try {
-      if (typeof navigator !== 'undefined' && navigator.onLine) {
-        await pullAllFromMongoDB();
-      }
-    } catch {
-      // Offline fallback
-    }
-
-    setTimeout(() => {
-      const res = login(username.trim(), password);
+      const res = await login(username.trim(), password);
       setIsLoading(false);
       if (!res.success) {
         setErrorMessage(res.message);
+        if (res.lockedOut) {
+          setLockoutInfo({ isLocked: true, remainingMinutes: res.remainingMinutes || 15 });
+        }
       } else {
+        triggerHaptic('medium');
         setSuccessMessage(`Authenticated successfully. Loading ${res.user?.fullName || 'dashboard'}...`);
       }
-    }, 150);
+    } catch (err: any) {
+      setIsLoading(false);
+      setErrorMessage(err?.message || 'Authentication failed. Please check credentials.');
+    }
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegError(null);
     setRegSuccess(null);
@@ -125,25 +134,30 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       setRegError('Full Name and Username are required.');
       return;
     }
-    if (regPassword.length < 4) {
-      setRegError('Password must be at least 4 characters long.');
+    if (regPassword.length < 8) {
+      setRegError('Password must be at least 8 characters long for security compliance.');
       return;
     }
     if (regPassword !== regConfirmPassword) {
       setRegError('Passwords do not match. Please re-enter.');
       return;
     }
+    if (!regSecurityAnswer.trim()) {
+      setRegError('Please provide a secret security question answer for password recovery.');
+      return;
+    }
 
     setIsLoading(true);
-    setTimeout(() => {
-      const res = registerUser({
+    try {
+      const res = await registerUser({
         fullName: regFullName.trim(),
         username: regUsername.trim().toLowerCase(),
         email: regEmail.trim() || `${regUsername.trim().toLowerCase()}@lplimfarm.com`,
         contactNumber: regPhone.trim() || '+63 900 000 0000',
         role: regRole,
-        securityQuestion: 'What farm house are you stationed at?',
-        securityAnswer: regHouses.join(', ') || 'House 1',
+        password: regPassword,
+        securityQuestion: regSecurityQuestion,
+        securityAnswer: regSecurityAnswer.trim(),
         designatedHouses: regHouses.length > 0 ? regHouses : ['House 1']
       }, regAutoActivate);
 
@@ -160,7 +174,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           }, 1500);
         }
       }
-    }, 450);
+    } catch (err: any) {
+      setIsLoading(false);
+      setRegError(err?.message || 'Registration failed. Please try again.');
+    }
   };
 
   const handleCopyLink = () => {
@@ -347,7 +364,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 </div>
                 <div className="text-[11px]">
                   <p className="font-extrabold text-forest-950">Add to Phone Home Screen</p>
-                  <p className="text-forest-800 text-[10px] hidden sm:inline">Use as a full offline mobile app</p>
+                  <p className="text-forest-800 text-[10px] hidden sm:inline">Fast 1-tap mobile experience</p>
                 </div>
               </div>
               <button
@@ -371,7 +388,25 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           {/* TAB 1: SIGN IN FORM */}
           {activeTab === 'login' && (
             <form onSubmit={handleLogin} className="p-6 sm:p-7 space-y-4">
-              {errorMessage && (
+              {/* Account Lockout Warning Banner */}
+              {lockoutInfo.isLocked && (
+                <div className="p-4 bg-rose-50 border-2 border-rose-400 rounded-2xl text-xs text-rose-900 flex items-start gap-3 animate-fadeIn">
+                  <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 space-y-1">
+                    <p className="font-extrabold text-rose-950 flex items-center gap-1.5">
+                      <span>Account Temporarily Locked</span>
+                      <span className="px-1.5 py-0.5 rounded bg-rose-200 text-rose-900 text-[10px] font-mono">
+                        {lockoutInfo.remainingMinutes}m remaining
+                      </span>
+                    </p>
+                    <p className="text-[11px] text-rose-800 leading-relaxed">
+                      For your farm data protection, this account is locked after 5 consecutive incorrect password entries. Please wait for the lockout window to expire, reset your password using your security question, or contact the System Administrator.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {errorMessage && !lockoutInfo.isLocked && (
                 <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 flex items-start gap-2.5 animate-fadeIn">
                   <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                   <div className="flex-1">
@@ -401,19 +436,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                     id="login-username-input"
                     type="text"
                     required
+                    inputMode="text"
+                    enterKeyHint="next"
                     autoCapitalize="none"
                     autoCorrect="off"
                     spellCheck={false}
                     autoComplete="username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="e.g. von.lplimfarm@gmail.com or admin"
+                    placeholder="Enter your username or email"
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-forest-700 focus:border-transparent transition"
                   />
                 </div>
-                <p className="text-[10px] text-slate-500">
-                  You can log in with your email (<span className="text-forest-800 font-mono font-bold">von.lplimfarm@gmail.com</span>) or username (<span className="text-forest-800 font-mono font-bold">admin</span>).
-                </p>
               </div>
 
               {/* Password Field */}
@@ -426,7 +460,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                     <button
                       type="button"
                       onClick={onForgotPasswordClick}
-                      className="text-xs text-forest-700 hover:text-forest-900 font-semibold hover:underline cursor-pointer"
+                      className="text-xs text-forest-700 hover:text-forest-900 font-semibold hover:underline cursor-pointer py-1"
                     >
                       Forgot Password?
                     </button>
@@ -440,19 +474,20 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                     id="login-password-input"
                     type={showPassword ? 'text' : 'password'}
                     required
+                    enterKeyHint="go"
                     autoCapitalize="none"
                     autoCorrect="off"
                     spellCheck={false}
                     autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder="Enter password"
                     className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-forest-700 focus:border-transparent transition"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-700 transition cursor-pointer p-2"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -489,34 +524,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                   </>
                 )}
               </button>
-
-              {/* Quick Persona Evaluator Shortcuts */}
-              <div className="pt-4 border-t border-slate-200">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                    Quick 1-Click Role Login:
-                  </span>
-                  <span className="text-[10px] text-slate-400">Tap to autofill & login</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  {[
-                    { role: 'System Administrator' as UserRole, label: 'Admin (Von L.P. Lim)', user: 'admin', hint: 'von.lplimfarm@gmail.com' },
-                    { role: 'Farm Manager' as UserRole, label: 'Farm Manager (Ramon)', user: 'farm_mgr_ramon', hint: 'Operations' },
-                    { role: 'Flockman' as UserRole, label: 'Flockman (Joel)', user: 'flockman_joel', hint: 'House 1 & 2' },
-                    { role: 'Egg Collector' as UserRole, label: 'Egg Collector (Marlon)', user: 'collector_marlon', hint: 'Collection' },
-                  ].map((item) => (
-                    <button
-                      key={item.role}
-                      type="button"
-                      onClick={() => handleQuickPersonaSelect(item.role)}
-                      className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-left text-slate-800 transition hover:border-slate-300 cursor-pointer"
-                    >
-                      <p className="font-bold text-[11px] text-forest-900 truncate">{item.label}</p>
-                      <p className="text-[10px] text-slate-500 font-mono mt-0.5 truncate">{item.hint}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
 
               {/* Switch to Register link */}
               <div className="pt-2 text-center text-xs text-slate-600">
@@ -638,29 +645,111 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 </div>
               </div>
 
-              {/* Password Fields */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Password *</label>
-                  <input
-                    type={regShowPassword ? 'text' : 'password'}
-                    required
-                    value={regPassword}
-                    onChange={e => setRegPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-forest-700 focus:outline-hidden"
-                  />
+              {/* Password Fields & Security Meter */}
+              <div className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Password * (Min 8 chars)</label>
+                    <input
+                      type={regShowPassword ? 'text' : 'password'}
+                      required
+                      value={regPassword}
+                      onChange={e => setRegPassword(e.target.value)}
+                      placeholder="Enter secure password"
+                      className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-forest-700 focus:outline-hidden font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Confirm Password *</label>
+                    <input
+                      type={regShowPassword ? 'text' : 'password'}
+                      required
+                      value={regConfirmPassword}
+                      onChange={e => setRegConfirmPassword(e.target.value)}
+                      placeholder="Re-enter password"
+                      className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-forest-700 focus:outline-hidden font-medium"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Confirm Password *</label>
-                  <input
-                    type={regShowPassword ? 'text' : 'password'}
-                    required
-                    value={regConfirmPassword}
-                    onChange={e => setRegConfirmPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-forest-700 focus:outline-hidden"
-                  />
+
+                {/* Password Strength Meter & Policy Checklist */}
+                {regPassword.length > 0 && (
+                  <div className="p-3 bg-slate-50 border border-slate-200/90 rounded-2xl space-y-2 animate-fadeIn">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-600">Password Strength:</span>
+                      <span className={`font-black uppercase tracking-wider text-[11px] ${
+                        regStrength.level === 'strong' ? 'text-emerald-700' :
+                        regStrength.level === 'good' ? 'text-blue-700' :
+                        regStrength.level === 'fair' ? 'text-amber-700' : 'text-rose-700'
+                      }`}>
+                        {regStrength.level} ({regStrength.score}/4)
+                      </span>
+                    </div>
+
+                    {/* Visual Segmented Progress Bar */}
+                    <div className="grid grid-cols-4 gap-1.5 h-1.5 w-full">
+                      <div className={`h-full rounded-full transition-all ${regStrength.score >= 1 ? (regStrength.level === 'weak' ? 'bg-rose-500' : regStrength.level === 'fair' ? 'bg-amber-500' : 'bg-emerald-500') : 'bg-slate-200'}`} />
+                      <div className={`h-full rounded-full transition-all ${regStrength.score >= 2 ? (regStrength.level === 'fair' ? 'bg-amber-500' : 'bg-emerald-500') : 'bg-slate-200'}`} />
+                      <div className={`h-full rounded-full transition-all ${regStrength.score >= 3 ? 'bg-blue-500' : 'bg-slate-200'}`} />
+                      <div className={`h-full rounded-full transition-all ${regStrength.score >= 4 ? 'bg-emerald-500' : 'bg-slate-200'}`} />
+                    </div>
+
+                    {/* Criteria Badges */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 text-[10px] pt-1">
+                      <div className={`flex items-center gap-1 font-medium ${regStrength.checks.hasMinLength ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}>
+                        <Check className={`w-3 h-3 ${regStrength.checks.hasMinLength ? 'text-emerald-600' : 'text-slate-300'}`} />
+                        <span>8+ Characters</span>
+                      </div>
+                      <div className={`flex items-center gap-1 font-medium ${regStrength.checks.hasUppercase && regStrength.checks.hasLowercase ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}>
+                        <Check className={`w-3 h-3 ${regStrength.checks.hasUppercase && regStrength.checks.hasLowercase ? 'text-emerald-600' : 'text-slate-300'}`} />
+                        <span>Upper & Lower</span>
+                      </div>
+                      <div className={`flex items-center gap-1 font-medium ${regStrength.checks.hasNumber ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}>
+                        <Check className={`w-3 h-3 ${regStrength.checks.hasNumber ? 'text-emerald-600' : 'text-slate-300'}`} />
+                        <span>Number (0-9)</span>
+                      </div>
+                      <div className={`flex items-center gap-1 font-medium ${regStrength.checks.hasSpecial ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}>
+                        <Check className={`w-3 h-3 ${regStrength.checks.hasSpecial ? 'text-emerald-600' : 'text-slate-300'}`} />
+                        <span>Symbol (!@#$)</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Password Recovery Setup */}
+              <div className="p-3.5 bg-forest-50/80 border border-forest-200/90 rounded-2xl space-y-2.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-forest-950">
+                  <KeyRound className="w-3.5 h-3.5 text-forest-700" />
+                  <span>Account Security & Recovery Setup</span>
+                </div>
+
+                <div className="space-y-2">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Security Question *</label>
+                    <select
+                      value={regSecurityQuestion}
+                      onChange={e => setRegSecurityQuestion(e.target.value)}
+                      className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg outline-hidden focus:ring-1 focus:ring-forest-700"
+                    >
+                      <option value="What was your first assigned farm house?">What was your first assigned farm house?</option>
+                      <option value="What town or city were you born in?">What town or city were you born in?</option>
+                      <option value="What is your mother's maiden surname?">What is your mother's maiden surname?</option>
+                      <option value="What is the name of your first poultry mentor?">What is the name of your first poultry mentor?</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Security Answer (Salted & Hashed for Recovery) *</label>
+                    <input
+                      type="text"
+                      required
+                      value={regSecurityAnswer}
+                      onChange={e => setRegSecurityAnswer(e.target.value)}
+                      placeholder="e.g. House 1 or San Jose"
+                      className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg outline-hidden focus:ring-1 focus:ring-forest-700 font-medium"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -692,7 +781,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 className="w-full py-3 px-4 bg-forest-900 hover:bg-forest-950 text-white font-black rounded-xl shadow-md transition flex items-center justify-center gap-2 text-sm disabled:opacity-60 cursor-pointer mt-2"
               >
                 {isLoading ? (
-                  <span>Registering...</span>
+                  <span>Registering Account...</span>
                 ) : (
                   <>
                     <span>Complete Registration</span>
