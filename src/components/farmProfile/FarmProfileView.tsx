@@ -128,13 +128,17 @@ export const FarmProfileView: React.FC = () => {
     setIsEditingInfo(true);
   };
 
-  // Vaccine Modal
+  // Vaccine Add/Edit State
   const [showAddVaccine, setShowAddVaccine] = useState(false);
+  const [editingVacItem, setEditingVacItem] = useState<StandardMedProgramItem | null>(null);
   const [newVacWeek, setNewVacWeek] = useState(1);
+  const [newVacDays, setNewVacDays] = useState<number | ''>('');
   const [newVacProduct, setNewVacProduct] = useState('');
   const [newVacDisease, setNewVacDisease] = useState('');
   const [newVacMethod, setNewVacMethod] = useState('Drinking Water');
   const [newVacType, setNewVacType] = useState<StandardMedProgramItem['productType']>('Vaccine');
+  const [newVacMandatory, setNewVacMandatory] = useState(true);
+  const [newVacNotes, setNewVacNotes] = useState('');
 
   // Feed Guide Modal & State
   const [showAddFeedGuide, setShowAddFeedGuide] = useState(false);
@@ -148,21 +152,24 @@ export const FarmProfileView: React.FC = () => {
   const [newFgMaleType, setNewFgMaleType] = useState<FeedType>('CSC 1');
   const [newFgMale, setNewFgMale] = useState(22);
 
-  // Body weight modal
+  // Body weight modal & Edit State
   const [showAddBw, setShowAddBw] = useState(false);
+  const [editingBwItem, setEditingBwItem] = useState<StandardBodyWeightItem | null>(null);
   const [newBwWeek, setNewBwWeek] = useState(1);
   const [newBwMale, setNewBwMale] = useState(150);
   const [newBwFemale, setNewBwFemale] = useState(140);
 
-  // Henday Modal
+  // Henday Modal & Edit State
   const [showAddHd, setShowAddHd] = useState(false);
+  const [editingHdItem, setEditingHdItem] = useState<StandardHendayItem | null>(null);
   const [newHdWeek, setNewHdWeek] = useState(24);
   const [newHdProdWeek, setNewHdProdWeek] = useState(1);
   const [newHdPct, setNewHdPct] = useState(5.0);
   const [newHdHePct, setNewHdHePct] = useState(60.0);
 
-  // Egg weight modal
+  // Egg weight modal & Edit State
   const [showAddEw, setShowAddEw] = useState(false);
+  const [editingEwItem, setEditingEwItem] = useState<StandardEggWeightItem | null>(null);
   const [newEwWeek, setNewEwWeek] = useState(24);
   const [newEwProdWeek, setNewEwProdWeek] = useState(1);
   const [newEwGrams, setNewEwGrams] = useState(52.0);
@@ -233,28 +240,74 @@ export const FarmProfileView: React.FC = () => {
     }
   };
 
-  const handleAddVaccine = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newVacProduct) return;
-    const newItem: StandardMedProgramItem = {
-      id: 'vac_' + Date.now(),
-      ageWeek: Number(newVacWeek),
-      productName: newVacProduct,
-      productType: newVacType,
-      diseaseTarget: newVacDisease || 'General Immunity',
-      method: newVacMethod,
-      mandatory: true
-    };
-    const updated = [...farmProfile.standardVaccinationProgram, newItem].sort((a, b) => a.ageWeek - b.ageWeek);
-    updateStandardVaccination(updated);
-    setShowAddVaccine(false);
+  const handleOpenAddVaccine = () => {
+    setEditingVacItem(null);
+    setNewVacWeek(1);
+    setNewVacDays('');
     setNewVacProduct('');
     setNewVacDisease('');
+    setNewVacMethod('Drinking Water');
+    setNewVacType('Vaccine');
+    setNewVacMandatory(true);
+    setNewVacNotes('');
+    setShowAddVaccine(true);
+  };
+
+  const handleOpenEditVaccine = (item: StandardMedProgramItem) => {
+    setEditingVacItem(item);
+    setNewVacWeek(item.ageWeek);
+    setNewVacDays(item.ageDays !== undefined && item.ageDays !== null ? item.ageDays : '');
+    setNewVacProduct(item.productName);
+    setNewVacDisease(item.diseaseTarget || '');
+    setNewVacMethod(item.method || 'Drinking Water');
+    setNewVacType(item.productType || 'Vaccine');
+    setNewVacMandatory(item.mandatory !== false);
+    setNewVacNotes(item.notes || '');
+    setShowAddVaccine(true);
+  };
+
+  const handleSaveVaccine = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newVacProduct.trim()) return;
+
+    const itemToSave: StandardMedProgramItem = {
+      id: editingVacItem ? editingVacItem.id : 'vac_' + Date.now(),
+      ageWeek: Number(newVacWeek),
+      ageDays: newVacDays !== '' && !isNaN(Number(newVacDays)) ? Number(newVacDays) : undefined,
+      productName: newVacProduct.trim(),
+      productType: newVacType,
+      diseaseTarget: newVacDisease.trim() || 'General Immunity',
+      method: newVacMethod,
+      mandatory: newVacMandatory,
+      notes: newVacNotes.trim() || undefined
+    };
+
+    let updated: StandardMedProgramItem[];
+    if (editingVacItem) {
+      updated = farmProfile.standardVaccinationProgram.map(item =>
+        item.id === editingVacItem.id ? itemToSave : item
+      );
+    } else {
+      updated = [...farmProfile.standardVaccinationProgram, itemToSave];
+    }
+
+    updated.sort((a, b) => {
+      if (a.ageWeek !== b.ageWeek) return a.ageWeek - b.ageWeek;
+      return (a.ageDays || 0) - (b.ageDays || 0);
+    });
+
+    updateStandardVaccination(updated);
+    setShowAddVaccine(false);
+    setEditingVacItem(null);
   };
 
   const handleDeleteVaccine = (id: string) => {
     const updated = farmProfile.standardVaccinationProgram.filter(item => item.id !== id);
     updateStandardVaccination(updated);
+    if (editingVacItem?.id === id) {
+      setEditingVacItem(null);
+      setShowAddVaccine(false);
+    }
   };
 
   const handleOpenAddFeedGuide = () => {
@@ -319,59 +372,142 @@ export const FarmProfileView: React.FC = () => {
     updateStandardFeedGuide(updated);
   };
 
-  const handleAddBodyWeight = (e: React.FormEvent) => {
+  const handleOpenAddBodyWeight = () => {
+    setEditingBwItem(null);
+    setNewBwWeek(1);
+    setNewBwMale(150);
+    setNewBwFemale(140);
+    setShowAddBw(true);
+  };
+
+  const handleOpenEditBodyWeight = (item: StandardBodyWeightItem) => {
+    setEditingBwItem(item);
+    setNewBwWeek(item.ageWeek);
+    setNewBwMale(item.maleStandardGrams);
+    setNewBwFemale(item.femaleStandardGrams);
+    setShowAddBw(true);
+  };
+
+  const handleSaveBodyWeight = (e: React.FormEvent) => {
     e.preventDefault();
-    const newItem: StandardBodyWeightItem = {
-      id: 'bw_' + Date.now(),
+    const itemToSave: StandardBodyWeightItem = {
+      id: editingBwItem ? editingBwItem.id : 'bw_' + Date.now(),
       ageWeek: Number(newBwWeek),
       maleStandardGrams: Number(newBwMale),
       femaleStandardGrams: Number(newBwFemale)
     };
-    const updated = [...farmProfile.standardBodyWeights, newItem].sort((a, b) => a.ageWeek - b.ageWeek);
+    let updated: StandardBodyWeightItem[];
+    if (editingBwItem) {
+      updated = (farmProfile.standardBodyWeights || []).map(item => item.id === editingBwItem.id ? itemToSave : item);
+    } else {
+      updated = [...(farmProfile.standardBodyWeights || []), itemToSave];
+    }
+    updated.sort((a, b) => a.ageWeek - b.ageWeek);
     updateStandardBodyWeights(updated);
     setShowAddBw(false);
+    setEditingBwItem(null);
   };
 
   const handleDeleteBodyWeight = (id: string) => {
     const updated = farmProfile.standardBodyWeights.filter(item => item.id !== id);
     updateStandardBodyWeights(updated);
+    if (editingBwItem?.id === id) {
+      setEditingBwItem(null);
+      setShowAddBw(false);
+    }
   };
 
-  const handleAddHenday = (e: React.FormEvent) => {
+  const handleOpenAddHenday = () => {
+    setEditingHdItem(null);
+    setNewHdWeek(24);
+    setNewHdProdWeek(1);
+    setNewHdPct(5.0);
+    setNewHdHePct(60.0);
+    setShowAddHd(true);
+  };
+
+  const handleOpenEditHenday = (item: StandardHendayItem) => {
+    setEditingHdItem(item);
+    setNewHdWeek(item.ageWeek);
+    setNewHdProdWeek(item.ageInProduction);
+    setNewHdPct(item.standardHendayPct);
+    setNewHdHePct(item.standardHatchingPct);
+    setShowAddHd(true);
+  };
+
+  const handleSaveHenday = (e: React.FormEvent) => {
     e.preventDefault();
-    const newItem: StandardHendayItem = {
-      id: 'hd_' + Date.now(),
+    const itemToSave: StandardHendayItem = {
+      id: editingHdItem ? editingHdItem.id : 'hd_' + Date.now(),
       ageWeek: Number(newHdWeek),
       ageInProduction: Number(newHdProdWeek),
       standardHendayPct: Number(newHdPct),
       standardHatchingPct: Number(newHdHePct)
     };
-    const updated = [...farmProfile.standardHenday, newItem].sort((a, b) => a.ageWeek - b.ageWeek);
+    let updated: StandardHendayItem[];
+    if (editingHdItem) {
+      updated = (farmProfile.standardHenday || []).map(item => item.id === editingHdItem.id ? itemToSave : item);
+    } else {
+      updated = [...(farmProfile.standardHenday || []), itemToSave];
+    }
+    updated.sort((a, b) => a.ageWeek - b.ageWeek);
     updateStandardHenday(updated);
     setShowAddHd(false);
+    setEditingHdItem(null);
   };
 
   const handleDeleteHenday = (id: string) => {
     const updated = farmProfile.standardHenday.filter(item => item.id !== id);
     updateStandardHenday(updated);
+    if (editingHdItem?.id === id) {
+      setEditingHdItem(null);
+      setShowAddHd(false);
+    }
   };
 
-  const handleAddEggWeight = (e: React.FormEvent) => {
+  const handleOpenAddEggWeight = () => {
+    setEditingEwItem(null);
+    setNewEwWeek(24);
+    setNewEwProdWeek(1);
+    setNewEwGrams(52.0);
+    setShowAddEw(true);
+  };
+
+  const handleOpenEditEggWeight = (item: StandardEggWeightItem) => {
+    setEditingEwItem(item);
+    setNewEwWeek(item.ageWeek);
+    setNewEwProdWeek(item.ageInProduction);
+    setNewEwGrams(item.standardWeightGrams);
+    setShowAddEw(true);
+  };
+
+  const handleSaveEggWeight = (e: React.FormEvent) => {
     e.preventDefault();
-    const newItem: StandardEggWeightItem = {
-      id: 'ew_' + Date.now(),
+    const itemToSave: StandardEggWeightItem = {
+      id: editingEwItem ? editingEwItem.id : 'ew_' + Date.now(),
       ageWeek: Number(newEwWeek),
       ageInProduction: Number(newEwProdWeek),
       standardWeightGrams: Number(newEwGrams)
     };
-    const updated = [...farmProfile.standardEggWeights, newItem].sort((a, b) => a.ageWeek - b.ageWeek);
+    let updated: StandardEggWeightItem[];
+    if (editingEwItem) {
+      updated = (farmProfile.standardEggWeights || []).map(item => item.id === editingEwItem.id ? itemToSave : item);
+    } else {
+      updated = [...(farmProfile.standardEggWeights || []), itemToSave];
+    }
+    updated.sort((a, b) => a.ageWeek - b.ageWeek);
     updateStandardEggWeights(updated);
     setShowAddEw(false);
+    setEditingEwItem(null);
   };
 
   const handleDeleteEggWeight = (id: string) => {
     const updated = farmProfile.standardEggWeights.filter(item => item.id !== id);
     updateStandardEggWeights(updated);
+    if (editingEwItem?.id === id) {
+      setEditingEwItem(null);
+      setShowAddEw(false);
+    }
   };
 
   return (
@@ -1240,7 +1376,7 @@ export const FarmProfileView: React.FC = () => {
                   <span>Batch Upload</span>
                 </button>
                 <button
-                  onClick={() => setShowAddVaccine(true)}
+                  onClick={handleOpenAddVaccine}
                   className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -1251,49 +1387,78 @@ export const FarmProfileView: React.FC = () => {
           </div>
 
           {showAddVaccine && (
-            <form onSubmit={handleAddVaccine} className="p-4 bg-teal-50/70 border border-teal-200/80 rounded-2xl space-y-3 animate-fadeIn">
-              <p className="text-xs font-bold text-teal-950">Add Vaccination Standard Rule</p>
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <form onSubmit={handleSaveVaccine} className="p-5 bg-teal-50/80 border border-teal-200 rounded-2xl space-y-4 animate-fadeIn">
+              <div className="flex items-center justify-between border-b border-teal-200/70 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="p-1 rounded-lg bg-teal-700 text-white">
+                    {editingVacItem ? <Edit3 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold text-teal-950">
+                      {editingVacItem ? 'Edit Vaccination Standard Rule' : 'Add Vaccination Standard Rule'}
+                    </p>
+                    {editingVacItem && (
+                      <p className="text-[10px] text-teal-700">
+                        Editing: Week {editingVacItem.ageWeek}{editingVacItem.ageDays ? ` (Day ${editingVacItem.ageDays})` : ''} — {editingVacItem.productName}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setShowAddVaccine(false); setEditingVacItem(null); }}
+                  className="text-slate-400 hover:text-slate-700 text-xs font-bold cursor-pointer transition"
+                >
+                  ✕ Close
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">Age in Weeks *</label>
                   <input
                     type="number"
                     min="1"
-                    max="70"
+                    max="80"
                     required
                     value={newVacWeek}
                     onChange={e => setNewVacWeek(Number(e.target.value))}
-                    className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-teal-500 outline-hidden"
+                    className="w-full px-2.5 py-1.5 text-xs font-bold border border-slate-200 rounded-lg bg-white focus:outline-teal-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">Product / Vaccine *</label>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">Specific Day (Optional)</label>
                   <input
-                    type="text"
-                    required
-                    placeholder="e.g. Newcastle Clone 30"
-                    value={newVacProduct}
-                    onChange={e => setNewVacProduct(e.target.value)}
-                    className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-teal-500 outline-hidden"
+                    type="number"
+                    min="1"
+                    max="560"
+                    placeholder="e.g. 1, 7, 14, 21"
+                    value={newVacDays}
+                    onChange={e => setNewVacDays(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-teal-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">Target Disease *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. ND + IB"
-                    value={newVacDisease}
-                    onChange={e => setNewVacDisease(e.target.value)}
-                    className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-teal-500 outline-hidden"
-                  />
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">Product Type *</label>
+                  <select
+                    value={newVacType}
+                    onChange={e => setNewVacType(e.target.value as StandardMedProgramItem['productType'])}
+                    className="w-full px-2.5 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg bg-white focus:outline-teal-500"
+                  >
+                    <option value="Vaccine">Vaccine</option>
+                    <option value="Antibiotic">Antibiotic</option>
+                    <option value="Vitamin">Vitamin</option>
+                    <option value="Dewormer">Dewormer</option>
+                    <option value="Disinfectant">Disinfectant</option>
+                    <option value="Other">Other</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">Method *</label>
                   <select
                     value={newVacMethod}
                     onChange={e => setNewVacMethod(e.target.value)}
-                    className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-teal-500 outline-hidden"
+                    className="w-full px-2.5 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg bg-white focus:outline-teal-500"
                   >
                     <option value="Drinking Water">Drinking Water</option>
                     <option value="Eye Drop">Eye Drop</option>
@@ -1302,23 +1467,77 @@ export const FarmProfileView: React.FC = () => {
                     <option value="Subcutaneous Injection">Subcutaneous Injection</option>
                     <option value="Intramuscular Injection">Intramuscular Injection</option>
                     <option value="Feed Mix">Feed Mix</option>
+                    <option value="Beak Dipping">Beak Dipping</option>
+                    <option value="In-Ovo Injection">In-Ovo Injection</option>
                   </select>
                 </div>
               </div>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddVaccine(false)}
-                  className="px-3 py-1 bg-white border border-slate-200 text-slate-700 text-xs rounded-lg font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-3 py-1 bg-teal-600 text-white text-xs rounded-lg font-semibold hover:bg-teal-700 shadow-xs"
-                >
-                  Add Rule
-                </button>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">Product / Vaccine Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Newcastle Clone 30 / IB H120"
+                    value={newVacProduct}
+                    onChange={e => setNewVacProduct(e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-xs font-bold border border-slate-200 rounded-lg bg-white focus:outline-teal-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">Target Disease *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Newcastle Disease + Infectious Bronchitis"
+                    value={newVacDisease}
+                    onChange={e => setNewVacDisease(e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-teal-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">Protocol Notes / Administration Guidelines</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Withhold drinking water 2 hrs prior. Stabilize with skim milk 2g/L."
+                  value={newVacNotes}
+                  onChange={e => setNewVacNotes(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-teal-500"
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={newVacMandatory}
+                    onChange={e => setNewVacMandatory(e.target.checked)}
+                    className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 border-slate-300"
+                  />
+                  <span className="text-xs font-medium text-slate-700">
+                    Mandatory Core Schedule (Benchmark requirement for all flocks)
+                  </span>
+                </label>
+
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => { setShowAddVaccine(false); setEditingVacItem(null); }}
+                    className="px-3.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs rounded-xl font-medium cursor-pointer transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs rounded-xl font-bold shadow-xs cursor-pointer transition flex items-center gap-1.5"
+                  >
+                    {editingVacItem ? <Save className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                    <span>{editingVacItem ? 'Update Rule' : 'Add Rule'}</span>
+                  </button>
+                </div>
               </div>
             </form>
           )}
@@ -1333,35 +1552,72 @@ export const FarmProfileView: React.FC = () => {
                   <th className="py-2.5 px-3">Target Disease</th>
                   <th className="py-2.5 px-3">Administration Method</th>
                   <th className="py-2.5 px-3">Notes</th>
-                  {permissions.canDeleteRecord && <th className="py-2.5 px-3 text-right">Actions</th>}
+                  {permissions.canManageFarmProfile && <th className="py-2.5 px-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {farmProfile.standardVaccinationProgram.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/80 transition">
-                    <td className="py-2.5 px-3 font-bold text-slate-800">Week {item.ageWeek}</td>
-                    <td className="py-2.5 px-3 font-semibold text-teal-950">{item.productName}</td>
-                    <td className="py-2.5 px-3">
-                      <span className="px-2 py-0.5 rounded bg-teal-50 text-teal-700 font-medium">
-                        {item.productType}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-3 text-slate-700">{item.diseaseTarget}</td>
-                    <td className="py-2.5 px-3 font-medium text-slate-800">{item.method}</td>
-                    <td className="py-2.5 px-3 text-slate-500">{item.notes || '—'}</td>
-                    {permissions.canDeleteRecord && (
-                      <td className="py-2.5 px-3 text-right">
-                        <button
-                          onClick={() => handleDeleteVaccine(item.id)}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded transition"
-                          title="Delete rule"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                {farmProfile.standardVaccinationProgram.map((item) => {
+                  const isEditingThis = editingVacItem?.id === item.id;
+                  return (
+                    <tr
+                      key={item.id}
+                      className={`transition ${isEditingThis ? 'bg-teal-50/90 ring-1 ring-teal-300 font-medium' : 'hover:bg-slate-50/80'}`}
+                    >
+                      <td className="py-2.5 px-3 font-bold text-slate-800 whitespace-nowrap">
+                        Week {item.ageWeek}
+                        {item.ageDays !== undefined && item.ageDays !== null && (
+                          <span className="ml-1 text-[10px] font-medium text-teal-700">
+                            (Day {item.ageDays})
+                          </span>
+                        )}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td className="py-2.5 px-3 font-semibold text-teal-950">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>{item.productName}</span>
+                          {item.mandatory && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                              Mandatory
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="px-2 py-0.5 rounded bg-teal-50 text-teal-700 font-medium">
+                          {item.productType}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-700">{item.diseaseTarget}</td>
+                      <td className="py-2.5 px-3 font-medium text-slate-800">{item.method}</td>
+                      <td className="py-2.5 px-3 text-slate-500 max-w-xs truncate" title={item.notes || ''}>
+                        {item.notes || '—'}
+                      </td>
+                      {permissions.canManageFarmProfile && (
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditVaccine(item)}
+                              className="p-1.5 text-slate-400 hover:text-teal-700 hover:bg-teal-50 rounded-lg transition cursor-pointer"
+                              title="Edit vaccination rule"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            {permissions.canDeleteRecord && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteVaccine(item.id)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                                title="Delete rule"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1759,7 +2015,7 @@ export const FarmProfileView: React.FC = () => {
                   <span>Batch Upload</span>
                 </button>
                 <button
-                  onClick={() => setShowAddHd(true)}
+                  onClick={handleOpenAddHenday}
                   className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -1770,8 +2026,20 @@ export const FarmProfileView: React.FC = () => {
           </div>
 
           {showAddHd && (
-            <form onSubmit={handleAddHenday} className="p-4 bg-teal-50/70 border border-teal-200/80 rounded-2xl space-y-3 animate-fadeIn">
-              <p className="text-xs font-bold text-teal-950">Add Standard Henday Target</p>
+            <form onSubmit={handleSaveHenday} className="p-4 bg-teal-50/70 border border-teal-200/80 rounded-2xl space-y-3 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-teal-950 flex items-center gap-1.5">
+                  {editingHdItem ? <Edit3 className="w-3.5 h-3.5 text-teal-700" /> : <Plus className="w-3.5 h-3.5 text-teal-700" />}
+                  <span>{editingHdItem ? 'Edit Standard Henday Target' : 'Add Standard Henday Target'}</span>
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setShowAddHd(false); setEditingHdItem(null); }}
+                  className="text-slate-400 hover:text-slate-700 text-xs font-bold cursor-pointer"
+                >
+                  ✕ Close
+                </button>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">Age (Wks)</label>
@@ -1815,16 +2083,17 @@ export const FarmProfileView: React.FC = () => {
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddHd(false)}
-                  className="px-3 py-1 bg-white border border-slate-200 text-slate-700 text-xs rounded-lg font-medium"
+                  onClick={() => { setShowAddHd(false); setEditingHdItem(null); }}
+                  className="px-3 py-1 bg-white border border-slate-200 text-slate-700 text-xs rounded-lg font-medium cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-3 py-1 bg-teal-600 text-white text-xs rounded-lg font-semibold hover:bg-teal-700 shadow-xs"
+                  className="px-3.5 py-1 bg-teal-600 text-white text-xs rounded-lg font-semibold hover:bg-teal-700 shadow-xs cursor-pointer flex items-center gap-1.5"
                 >
-                  Add Target
+                  {editingHdItem ? <Save className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                  <span>{editingHdItem ? 'Update Target' : 'Add Target'}</span>
                 </button>
               </div>
             </form>
@@ -1838,32 +2107,49 @@ export const FarmProfileView: React.FC = () => {
                   <th className="py-2.5 px-3">Prod Week</th>
                   <th className="py-2.5 px-3">Standard Henday %</th>
                   <th className="py-2.5 px-3">Standard HE % (Hatchable)</th>
-                  {permissions.canDeleteRecord && <th className="py-2.5 px-3 text-right">Actions</th>}
+                  {permissions.canManageFarmProfile && <th className="py-2.5 px-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {(farmProfile.standardHenday || []).map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/80 transition">
-                    <td className="py-2.5 px-3 font-bold text-slate-800">Week {item.ageWeek}</td>
-                    <td className="py-2.5 px-3 font-medium text-slate-600">Week {item.ageInProduction} in Lay</td>
-                    <td className="py-2.5 px-3 font-bold text-teal-700">
-                      {typeof item.standardHendayPct === 'number' && !isNaN(item.standardHendayPct) ? item.standardHendayPct.toFixed(1) : '0.0'}%
-                    </td>
-                    <td className="py-2.5 px-3 font-bold text-teal-900">
-                      {typeof item.standardHatchingPct === 'number' && !isNaN(item.standardHatchingPct) ? item.standardHatchingPct.toFixed(1) : '0.0'}%
-                    </td>
-                    {permissions.canDeleteRecord && (
-                      <td className="py-2.5 px-3 text-right">
-                        <button
-                          onClick={() => handleDeleteHenday(item.id)}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded transition"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                {(farmProfile.standardHenday || []).map((item) => {
+                  const isEditingThis = editingHdItem?.id === item.id;
+                  return (
+                    <tr key={item.id} className={`transition ${isEditingThis ? 'bg-teal-50/90 ring-1 ring-teal-300 font-medium' : 'hover:bg-slate-50/80'}`}>
+                      <td className="py-2.5 px-3 font-bold text-slate-800">Week {item.ageWeek}</td>
+                      <td className="py-2.5 px-3 font-medium text-slate-600">Week {item.ageInProduction} in Lay</td>
+                      <td className="py-2.5 px-3 font-bold text-teal-700">
+                        {typeof item.standardHendayPct === 'number' && !isNaN(item.standardHendayPct) ? item.standardHendayPct.toFixed(1) : '0.0'}%
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td className="py-2.5 px-3 font-bold text-teal-900">
+                        {typeof item.standardHatchingPct === 'number' && !isNaN(item.standardHatchingPct) ? item.standardHatchingPct.toFixed(1) : '0.0'}%
+                      </td>
+                      {permissions.canManageFarmProfile && (
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditHenday(item)}
+                              className="p-1 text-slate-400 hover:text-teal-600 rounded transition cursor-pointer"
+                              title="Edit Henday target"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            {permissions.canDeleteRecord && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteHenday(item.id)}
+                                className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
+                                title="Delete Henday target"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1893,7 +2179,7 @@ export const FarmProfileView: React.FC = () => {
                   <span>Batch Upload</span>
                 </button>
                 <button
-                  onClick={() => setShowAddBw(true)}
+                  onClick={handleOpenAddBodyWeight}
                   className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -1904,8 +2190,20 @@ export const FarmProfileView: React.FC = () => {
           </div>
 
           {showAddBw && (
-            <form onSubmit={handleAddBodyWeight} className="p-4 bg-teal-50/70 border border-teal-200/80 rounded-2xl space-y-3 animate-fadeIn">
-              <p className="text-xs font-bold text-teal-950">Add Standard Body Weight Target</p>
+            <form onSubmit={handleSaveBodyWeight} className="p-4 bg-teal-50/70 border border-teal-200/80 rounded-2xl space-y-3 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-teal-950 flex items-center gap-1.5">
+                  {editingBwItem ? <Edit3 className="w-3.5 h-3.5 text-teal-700" /> : <Plus className="w-3.5 h-3.5 text-teal-700" />}
+                  <span>{editingBwItem ? 'Edit Standard Body Weight Target' : 'Add Standard Body Weight Target'}</span>
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setShowAddBw(false); setEditingBwItem(null); }}
+                  className="text-slate-400 hover:text-slate-700 text-xs font-bold cursor-pointer"
+                >
+                  ✕ Close
+                </button>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">Age (Wks)</label>
@@ -1938,16 +2236,17 @@ export const FarmProfileView: React.FC = () => {
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddBw(false)}
-                  className="px-3 py-1 bg-white border border-slate-200 text-slate-700 text-xs rounded-lg font-medium"
+                  onClick={() => { setShowAddBw(false); setEditingBwItem(null); }}
+                  className="px-3 py-1 bg-white border border-slate-200 text-slate-700 text-xs rounded-lg font-medium cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-3 py-1 bg-teal-600 text-white text-xs rounded-lg font-semibold hover:bg-teal-700 shadow-xs"
+                  className="px-3.5 py-1 bg-teal-600 text-white text-xs rounded-lg font-semibold hover:bg-teal-700 shadow-xs cursor-pointer flex items-center gap-1.5"
                 >
-                  Save Standard
+                  {editingBwItem ? <Save className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                  <span>{editingBwItem ? 'Update Standard' : 'Save Standard'}</span>
                 </button>
               </div>
             </form>
@@ -1961,36 +2260,53 @@ export const FarmProfileView: React.FC = () => {
                   <th className="py-2.5 px-3">Male Standard (g)</th>
                   <th className="py-2.5 px-3">Female Standard (g)</th>
                   <th className="py-2.5 px-3">Male / Female Ratio (g)</th>
-                  {permissions.canDeleteRecord && <th className="py-2.5 px-3 text-right">Actions</th>}
+                  {permissions.canManageFarmProfile && <th className="py-2.5 px-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {(farmProfile.standardBodyWeights || []).map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/80 transition">
-                    <td className="py-2.5 px-3 font-bold text-slate-800">Week {item.ageWeek}</td>
-                    <td className="py-2.5 px-3 font-semibold text-teal-950">{(item.maleStandardGrams || 0).toLocaleString()} g</td>
-                    <td className="py-2.5 px-3 font-semibold text-teal-700">{(item.femaleStandardGrams || 0).toLocaleString()} g</td>
-                    <td className="py-2.5 px-3 text-slate-500 font-medium">
-                      {(() => {
-                        const m = item.maleStandardGrams || 0;
-                        const f = item.femaleStandardGrams || 0;
-                        const diff = m - f;
-                        const ratio = f > 0 ? (m / f).toFixed(2) : '1.00';
-                        return `+${isNaN(diff) ? 0 : diff} g (${ratio}x)`;
-                      })()}
-                    </td>
-                    {permissions.canDeleteRecord && (
-                      <td className="py-2.5 px-3 text-right">
-                        <button
-                          onClick={() => handleDeleteBodyWeight(item.id)}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded transition"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                {(farmProfile.standardBodyWeights || []).map((item) => {
+                  const isEditingThis = editingBwItem?.id === item.id;
+                  return (
+                    <tr key={item.id} className={`transition ${isEditingThis ? 'bg-teal-50/90 ring-1 ring-teal-300 font-medium' : 'hover:bg-slate-50/80'}`}>
+                      <td className="py-2.5 px-3 font-bold text-slate-800">Week {item.ageWeek}</td>
+                      <td className="py-2.5 px-3 font-semibold text-teal-950">{(item.maleStandardGrams || 0).toLocaleString()} g</td>
+                      <td className="py-2.5 px-3 font-semibold text-teal-700">{(item.femaleStandardGrams || 0).toLocaleString()} g</td>
+                      <td className="py-2.5 px-3 text-slate-500 font-medium">
+                        {(() => {
+                          const m = item.maleStandardGrams || 0;
+                          const f = item.femaleStandardGrams || 0;
+                          const diff = m - f;
+                          const ratio = f > 0 ? (m / f).toFixed(2) : '1.00';
+                          return `+${isNaN(diff) ? 0 : diff} g (${ratio}x)`;
+                        })()}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      {permissions.canManageFarmProfile && (
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditBodyWeight(item)}
+                              className="p-1 text-slate-400 hover:text-teal-600 rounded transition cursor-pointer"
+                              title="Edit body weight target"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            {permissions.canDeleteRecord && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteBodyWeight(item.id)}
+                                className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
+                                title="Delete body weight target"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -2020,7 +2336,7 @@ export const FarmProfileView: React.FC = () => {
                   <span>Batch Upload</span>
                 </button>
                 <button
-                  onClick={() => setShowAddEw(true)}
+                  onClick={handleOpenAddEggWeight}
                   className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -2031,8 +2347,20 @@ export const FarmProfileView: React.FC = () => {
           </div>
 
           {showAddEw && (
-            <form onSubmit={handleAddEggWeight} className="p-4 bg-teal-50/70 border border-teal-200/80 rounded-2xl space-y-3 animate-fadeIn">
-              <p className="text-xs font-bold text-teal-950">Add Standard Egg Weight Target</p>
+            <form onSubmit={handleSaveEggWeight} className="p-4 bg-teal-50/70 border border-teal-200/80 rounded-2xl space-y-3 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-teal-950 flex items-center gap-1.5">
+                  {editingEwItem ? <Edit3 className="w-3.5 h-3.5 text-teal-700" /> : <Plus className="w-3.5 h-3.5 text-teal-700" />}
+                  <span>{editingEwItem ? 'Edit Standard Egg Weight Target' : 'Add Standard Egg Weight Target'}</span>
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setShowAddEw(false); setEditingEwItem(null); }}
+                  className="text-slate-400 hover:text-slate-700 text-xs font-bold cursor-pointer"
+                >
+                  ✕ Close
+                </button>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">Flock Age (Wks)</label>
@@ -2066,16 +2394,17 @@ export const FarmProfileView: React.FC = () => {
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddEw(false)}
-                  className="px-3 py-1 bg-white border border-slate-200 text-slate-700 text-xs rounded-lg font-medium"
+                  onClick={() => { setShowAddEw(false); setEditingEwItem(null); }}
+                  className="px-3 py-1 bg-white border border-slate-200 text-slate-700 text-xs rounded-lg font-medium cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-3 py-1 bg-teal-600 text-white text-xs rounded-lg font-semibold hover:bg-teal-700 shadow-xs"
+                  className="px-3.5 py-1 bg-teal-600 text-white text-xs rounded-lg font-semibold hover:bg-teal-700 shadow-xs cursor-pointer flex items-center gap-1.5"
                 >
-                  Save Standard
+                  {editingEwItem ? <Save className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                  <span>{editingEwItem ? 'Update Standard' : 'Save Standard'}</span>
                 </button>
               </div>
             </form>
@@ -2088,29 +2417,46 @@ export const FarmProfileView: React.FC = () => {
                   <th className="py-2.5 px-3">Flock Age (Wks)</th>
                   <th className="py-2.5 px-3">Production Week</th>
                   <th className="py-2.5 px-3">Standard Egg Weight (g)</th>
-                  {permissions.canDeleteRecord && <th className="py-2.5 px-3 text-right">Actions</th>}
+                  {permissions.canManageFarmProfile && <th className="py-2.5 px-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {(farmProfile.standardEggWeights || []).map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/80 transition">
-                    <td className="py-2.5 px-3 font-bold text-slate-800">Week {item.ageWeek}</td>
-                    <td className="py-2.5 px-3 font-medium text-slate-600">Week {item.ageInProduction} of Lay</td>
-                    <td className="py-2.5 px-3 font-bold text-teal-700">
-                      {typeof item.standardWeightGrams === 'number' && !isNaN(item.standardWeightGrams) ? item.standardWeightGrams.toFixed(1) : '0.0'} g
-                    </td>
-                    {permissions.canDeleteRecord && (
-                      <td className="py-2.5 px-3 text-right">
-                        <button
-                          onClick={() => handleDeleteEggWeight(item.id)}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded transition"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                {(farmProfile.standardEggWeights || []).map((item) => {
+                  const isEditingThis = editingEwItem?.id === item.id;
+                  return (
+                    <tr key={item.id} className={`transition ${isEditingThis ? 'bg-teal-50/90 ring-1 ring-teal-300 font-medium' : 'hover:bg-slate-50/80'}`}>
+                      <td className="py-2.5 px-3 font-bold text-slate-800">Week {item.ageWeek}</td>
+                      <td className="py-2.5 px-3 font-medium text-slate-600">Week {item.ageInProduction} of Lay</td>
+                      <td className="py-2.5 px-3 font-bold text-teal-700">
+                        {typeof item.standardWeightGrams === 'number' && !isNaN(item.standardWeightGrams) ? item.standardWeightGrams.toFixed(1) : '0.0'} g
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      {permissions.canManageFarmProfile && (
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditEggWeight(item)}
+                              className="p-1 text-slate-400 hover:text-teal-600 rounded transition cursor-pointer"
+                              title="Edit egg weight standard"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            {permissions.canDeleteRecord && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteEggWeight(item.id)}
+                                className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
+                                title="Delete egg weight standard"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
