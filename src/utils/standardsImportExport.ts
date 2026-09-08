@@ -665,6 +665,46 @@ export async function parseStandardsFile(
     }
   }
 
+  if (validRows === 0) {
+    if (detectedSheets.length === 0) {
+      allIssues.push({
+        row: 1,
+        field: 'Workbook',
+        message: 'No readable worksheets found in the uploaded file. Please provide an active Excel or CSV file.',
+        severity: 'error'
+      });
+    } else if (totalRows === 0) {
+      allIssues.push({
+        row: 1,
+        field: 'File Data',
+        message: `Worksheet "${detectedSheets[0]}" is empty. Please ensure header columns and data rows are populated.`,
+        severity: 'error'
+      });
+    } else {
+      const firstSheet = detectedSheets[0];
+      const sampleRows = getSheetRows(firstSheet);
+      const sampleRow = sampleRows[0];
+      const detectedCols = sampleRow ? Object.keys(sampleRow) : [];
+      const colSummary = detectedCols.length > 0 ? detectedCols.slice(0, 8).join(', ') : 'None';
+
+      const expectedColumns: Record<string, string> = {
+        all: 'Multiple sheets or columns for Vaccination, Feed Guide, Henday %, Body Weight, and Egg Weight',
+        vaccine: 'Age (Week), Product / Vaccine Name, Administration Method',
+        feed: 'Age (Week), Breed, Female Feed (g/bird/day), Male Feed (g/bird/day)',
+        henday: 'Age (Week), Production Week, Standard Henday %, Standard Hatching %',
+        bodyweight: 'Age (Week), Male Standard (g), Female Standard (g)',
+        eggweight: 'Flock Age (Week), Production Week, Standard Egg Weight (g)'
+      };
+
+      allIssues.push({
+        row: 1,
+        field: 'Column Headers Mismatch',
+        message: `Could not identify required columns for target "${target.toUpperCase()}". Expected: ${expectedColumns[target] || 'Standard benchmark columns'}. Found columns: [${colSummary}]. Please download our template for the exact format.`,
+        severity: 'error'
+      });
+    }
+  }
+
   const errorIssues = allIssues.filter(i => i.severity === 'error');
 
   return {

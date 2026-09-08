@@ -16,9 +16,12 @@ import {
   HelpCircle,
   FileDown,
   ArrowRight,
-  Database
+  Database,
+  AlertTriangle,
+  Info
 } from 'lucide-react';
 import { useFarm } from '../../context/FarmContext';
+import { useToast } from '../common/ToastContainer';
 import { 
   StandardTarget, 
   ParseResult, 
@@ -125,6 +128,7 @@ export const StandardsBatchUploadModal: React.FC<StandardsBatchUploadModalProps>
     updateStandardBodyWeights, 
     updateStandardEggWeights 
   } = useFarm();
+  const toast = useToast();
 
   const [selectedTarget, setSelectedTarget] = useState<StandardTarget>(initialTarget);
   const [importMode, setImportMode] = useState<'replace' | 'merge'>('replace');
@@ -162,6 +166,21 @@ export const StandardsBatchUploadModal: React.FC<StandardsBatchUploadModalProps>
   };
 
   const handleFileProcess = async (file: File) => {
+    const validExtensions = ['.xlsx', '.xls', '.csv'];
+    const lowerName = file.name.toLowerCase();
+    const hasValidExt = validExtensions.some(ext => lowerName.endsWith(ext));
+
+    if (!hasValidExt) {
+      toast.error(
+        'Unsupported File Format',
+        `"${file.name}" is not a recognized spreadsheet. Please upload an Excel (.xlsx, .xls) or CSV (.csv) file.`
+      );
+      setStatusMessage(`Invalid file format: "${file.name}". Please upload an Excel (.xlsx, .xls) or CSV (.csv) file.`);
+      setUploadedFile(null);
+      setParseResult(null);
+      return;
+    }
+
     setUploadedFile(file);
     setIsParsing(true);
     setCommitStatus('idle');
@@ -178,10 +197,24 @@ export const StandardsBatchUploadModal: React.FC<StandardsBatchUploadModalProps>
       if (availableTabs.length > 0) {
         setActivePreviewTab(availableTabs[0]);
       }
+
+      if (result.validRowsCount === 0) {
+        toast.warning(
+          'No Valid Rows Found',
+          'The spreadsheet was read, but no benchmark rows matched the target format. Check template requirements.'
+        );
+      } else {
+        toast.info(
+          'Spreadsheet Parsed',
+          `Identified ${result.validRowsCount} valid standard rows ready for review.`
+        );
+      }
     } catch (err: any) {
       console.error('File parsing error:', err);
       setParseResult(null);
-      setStatusMessage(`Failed to read file: ${err?.message || 'Invalid or corrupted spreadsheet.'}`);
+      const errMsg = `Failed to read file: ${err?.message || 'Invalid or corrupted spreadsheet.'}`;
+      setStatusMessage(errMsg);
+      toast.error('File Parsing Error', err?.message || 'Unable to open or read spreadsheet file.');
     } finally {
       setIsParsing(false);
     }
@@ -335,14 +368,18 @@ export const StandardsBatchUploadModal: React.FC<StandardsBatchUploadModalProps>
       }
 
       setCommitStatus('success');
-      setStatusMessage(`Successfully updated: ${changesSummary.join(', ')}.`);
+      const successText = `Successfully applied: ${changesSummary.join(', ')}.`;
+      setStatusMessage(successText);
+      toast.success('Standards Imported Successfully', successText);
       setTimeout(() => {
         onClose();
       }, 1600);
     } catch (err: any) {
       console.error('Error committing standards:', err);
       setCommitStatus('error');
-      setStatusMessage(`Failed to save standards: ${err?.message || 'Internal database error.'}`);
+      const errorMsg = `Failed to save standards: ${err?.message || 'Internal database error.'}`;
+      setStatusMessage(errorMsg);
+      toast.error('Standards Save Error', errorMsg);
     }
   };
 
@@ -600,33 +637,104 @@ export const StandardsBatchUploadModal: React.FC<StandardsBatchUploadModalProps>
                 </div>
 
                 <div className="flex items-center gap-2 text-xs font-medium">
-                  <span className="px-2.5 py-1 bg-white/80 rounded-lg border border-emerald-200 text-emerald-800 font-semibold">
+                  <span className={`px-2.5 py-1 rounded-lg border font-semibold ${
+                    parseResult.validRowsCount > 0 
+                      ? 'bg-white/90 border-emerald-200 text-emerald-800' 
+                      : 'bg-white/90 border-rose-200 text-rose-800'
+                  }`}>
                     {parseResult.validRowsCount} Ready
                   </span>
                   {parseResult.issues.length > 0 && (
-                    <span className="px-2.5 py-1 bg-white/80 rounded-lg border border-amber-200 text-amber-800 font-semibold">
-                      {parseResult.issues.length} Issues / Notes
+                    <span className={`px-2.5 py-1 rounded-lg border font-semibold ${
+                      parseResult.errorRowsCount > 0 
+                        ? 'bg-rose-100 border-rose-300 text-rose-800' 
+                        : 'bg-amber-100 border-amber-300 text-amber-800'
+                    }`}>
+                      {parseResult.issues.length} {parseResult.errorRowsCount > 0 ? 'Errors & Warnings' : 'Notes'}
                     </span>
                   )}
                 </div>
               </div>
 
+              {/* Comprehensive Error Prompt Card when parsing fails */}
+              {!parseResult.success && (
+                <div className="p-4 bg-rose-50 border border-rose-200/90 rounded-xl space-y-3 text-rose-950">
+                  <div className="flex items-start gap-2.5">
+                    <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-rose-900">
+                        Spreadsheet Verification Alert
+                      </h4>
+                      <p className="text-xs text-rose-800 mt-1 leading-relaxed">
+                        The uploaded file could not be parsed into valid benchmark rows for <strong>{currentConfig.label}</strong>.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white/90 rounded-lg p-3 border border-rose-200 text-xs space-y-1.5">
+                    <p className="font-bold text-slate-800 text-[11px] uppercase tracking-wide">
+                      Diagnostic Guidance:
+                    </p>
+                    <ul className="list-disc list-inside space-y-1 text-slate-600 pl-1 text-[11px]">
+                      <li>Ensure column headers are placed on the first row of your worksheet.</li>
+                      <li>Check that column names match common terms (e.g., <code>Age (Week)</code>, <code>Male Target (g)</code>, <code>Female Target (g)</code>).</li>
+                      <li>Remove non-numeric characters or currency signs from numeric data columns.</li>
+                      <li>For multi-sheet workbooks, label sheets clearly as <em>Vaccination</em>, <em>Feed</em>, <em>Henday</em>, <em>Body Weight</em>, or <em>Egg Weight</em>.</li>
+                    </ul>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadTemplate('xlsx')}
+                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download {currentConfig.shortLabel} Template (.xlsx)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUploadedFile(null);
+                        setParseResult(null);
+                        setStatusMessage('');
+                      }}
+                      className="px-3 py-1.5 bg-white border border-rose-200 text-rose-700 hover:bg-rose-100 rounded-lg text-xs font-semibold transition cursor-pointer"
+                    >
+                      Select Another File
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Issues list if any */}
               {parseResult.issues.length > 0 && (
-                <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl space-y-1.5 text-xs text-amber-900">
-                  <p className="font-bold flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-amber-950">
-                    <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                    Spreadsheet Warnings & Notes ({parseResult.issues.length})
-                  </p>
-                  <div className="max-h-24 overflow-y-auto space-y-1 pr-1 text-[11px]">
+                <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl space-y-2 text-xs text-amber-900">
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-amber-950">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                      Spreadsheet Verification Prompts & Warnings ({parseResult.issues.length})
+                    </p>
+                    <span className="text-[10px] text-amber-700 font-medium">
+                      Review warnings before saving
+                    </span>
+                  </div>
+                  <div className="max-h-28 overflow-y-auto space-y-1.5 pr-1 text-[11px]">
                     {parseResult.issues.map((issue, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <span className={`px-1.5 py-0.2 rounded font-bold text-[10px] ${
-                          issue.severity === 'error' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'
+                      <div key={i} className={`p-1.5 rounded-lg border flex items-start gap-2 ${
+                        issue.severity === 'error'
+                          ? 'bg-rose-50/80 border-rose-200 text-rose-900'
+                          : 'bg-amber-50/80 border-amber-200 text-amber-900'
+                      }`}>
+                        <span className={`px-1.5 py-0.2 rounded font-bold text-[10px] uppercase shrink-0 mt-0.5 ${
+                          issue.severity === 'error' ? 'bg-rose-200 text-rose-800' : 'bg-amber-200 text-amber-800'
                         }`}>
-                          Row {issue.row}
+                          {issue.severity === 'error' ? 'Error' : 'Warning'} (Row {issue.row})
                         </span>
-                        <span>{issue.message}</span>
+                        <div className="flex-1">
+                          {issue.field && <strong className="font-semibold">{issue.field}: </strong>}
+                          <span>{issue.message}</span>
+                        </div>
                       </div>
                     ))}
                   </div>

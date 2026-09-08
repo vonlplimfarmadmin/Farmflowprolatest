@@ -69,9 +69,9 @@ export const FlockmanModuleView: React.FC = () => {
 
   // Feed Log State for Side/Pen (in grams per bird)
   const [femaleFeedType, setFemaleFeedType] = useState<FeedType>('BLC 1');
-  const [femaleFeedGrams, setFemaleFeedGrams] = useState<number>(155);
+  const [femaleFeedGrams, setFemaleFeedGrams] = useState<string | number>(155);
   const [maleFeedType, setMaleFeedType] = useState<FeedType>('BMCC');
-  const [maleFeedGrams, setMaleFeedGrams] = useState<number>(125);
+  const [maleFeedGrams, setMaleFeedGrams] = useState<string | number>(125);
   const [feedDate, setFeedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [feedNotes, setFeedNotes] = useState<string>('');
   const [feedSuccess, setFeedSuccess] = useState(false);
@@ -236,13 +236,15 @@ export const FlockmanModuleView: React.FC = () => {
     setTimeout(() => setTransferFeedback(null), 4000);
   };
 
-  const femaleFeedKg = sideFemales > 0 ? Math.round((sideFemales * (Number(femaleFeedGrams) || 0)) / 1000) : 0;
-  const maleFeedKg = sideMales > 0 ? Math.round((sideMales * (Number(maleFeedGrams) || 0)) / 1000) : 0;
-  const totalFeedKg = femaleFeedKg + maleFeedKg;
+  const femaleGramsNum = parseFloat(String(femaleFeedGrams)) || 0;
+  const maleGramsNum = parseFloat(String(maleFeedGrams)) || 0;
+  const femaleFeedKg = sideFemales > 0 ? Math.round(((sideFemales * femaleGramsNum) / 1000) * 100) / 100 : 0;
+  const maleFeedKg = sideMales > 0 ? Math.round(((sideMales * maleGramsNum) / 1000) * 100) / 100 : 0;
+  const totalFeedKg = Math.round((femaleFeedKg + maleFeedKg) * 100) / 100;
 
   const handleLogFeed = (e: React.FormEvent) => {
     e.preventDefault();
-    if ((femaleFeedGrams <= 0 && maleFeedGrams <= 0) || !activeFlock) return;
+    if ((femaleGramsNum <= 0 && maleGramsNum <= 0) || !activeFlock) return;
 
     addFeedConsumption({
       houseNumber: activeFlock.houseNumber,
@@ -250,13 +252,13 @@ export const FlockmanModuleView: React.FC = () => {
       side: activeSide,
       femaleFeedType,
       femaleQuantityKg: femaleFeedKg,
-      femaleGramsPerBird: Number(femaleFeedGrams) || 0,
+      femaleGramsPerBird: femaleGramsNum,
       maleFeedType,
       maleQuantityKg: maleFeedKg,
-      maleGramsPerBird: Number(maleFeedGrams) || 0,
+      maleGramsPerBird: maleGramsNum,
       feedType: femaleFeedType,
       quantityKg: totalFeedKg,
-      notes: feedNotes.trim() || `${activeSide} Side: ${femaleFeedGrams}g/bird (${femaleFeedKg}kg ${femaleFeedType}) + ${maleFeedGrams}g/bird (${maleFeedKg}kg ${maleFeedType})`
+      notes: feedNotes.trim() || `${activeSide} Side: ${femaleGramsNum}g/bird (${femaleFeedKg}kg ${femaleFeedType}) + ${maleGramsNum}g/bird (${maleFeedKg}kg ${maleFeedType})`
     });
 
     setFeedSuccess(true);
@@ -715,10 +717,12 @@ export const FlockmanModuleView: React.FC = () => {
                         <input
                           type="number"
                           min="0"
-                          step="0.5"
+                          step="any"
+                          inputMode="decimal"
+                          placeholder="e.g. 155.5"
                           required
                           value={femaleFeedGrams}
-                          onChange={e => setFemaleFeedGrams(Number(e.target.value))}
+                          onChange={e => setFemaleFeedGrams(e.target.value)}
                           className="w-full px-2.5 py-1.5 text-xs font-bold border border-rose-200 rounded-xl bg-white outline-hidden focus:outline-rose-500 text-rose-950 pr-14"
                         />
                         <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-rose-600">
@@ -731,7 +735,7 @@ export const FlockmanModuleView: React.FC = () => {
                   <div className="flex items-center justify-between text-[11px] text-rose-900 bg-rose-100/60 px-2.5 py-1.5 rounded-lg">
                     <span>Calculated Female Feed:</span>
                     <strong>
-                      {(femaleFeedKg || 0).toLocaleString()} kg (~{((femaleFeedKg || 0) / 50).toFixed(1)} bags)
+                      {(femaleFeedKg || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg (~{((femaleFeedKg || 0) / 50).toFixed(1)} bags)
                       {feedGuideItem && (
                         <span className="text-[10px] text-rose-700 font-normal ml-1.5">
                           (Target: {feedGuideItem.femaleGramsPerBird || 0}g)
@@ -773,10 +777,12 @@ export const FlockmanModuleView: React.FC = () => {
                         <input
                           type="number"
                           min="0"
-                          step="0.5"
+                          step="any"
+                          inputMode="decimal"
+                          placeholder="e.g. 125.5"
                           required
                           value={maleFeedGrams}
-                          onChange={e => setMaleFeedGrams(Number(e.target.value))}
+                          onChange={e => setMaleFeedGrams(e.target.value)}
                           className="w-full px-2.5 py-1.5 text-xs font-bold border border-teal-200 rounded-xl bg-white outline-hidden focus:outline-teal-500 text-teal-950 pr-14"
                         />
                         <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-teal-600">
@@ -789,7 +795,7 @@ export const FlockmanModuleView: React.FC = () => {
                   <div className="flex items-center justify-between text-[11px] text-teal-900 bg-teal-100/60 px-2.5 py-1.5 rounded-lg">
                     <span>Calculated Male Feed:</span>
                     <strong>
-                      {(maleFeedKg || 0).toLocaleString()} kg (~{((maleFeedKg || 0) / 50).toFixed(1)} bags)
+                      {(maleFeedKg || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg (~{((maleFeedKg || 0) / 50).toFixed(1)} bags)
                       {feedGuideItem && (
                         <span className="text-[10px] text-teal-700 font-normal ml-1.5">
                           (Target: {feedGuideItem.maleGramsPerBird || 125}g)
@@ -804,7 +810,7 @@ export const FlockmanModuleView: React.FC = () => {
                   <div>
                     <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Total Feed Logged</span>
                     <span className="font-bold text-sm text-teal-300">
-                      {(totalFeedKg || 0).toLocaleString()} kg
+                      {(totalFeedKg || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
                     </span>
                   </div>
                   <div className="text-right text-[11px] text-slate-300">
@@ -825,9 +831,9 @@ export const FlockmanModuleView: React.FC = () => {
 
                 <button
                   type="submit"
-                  disabled={!canEditHouse || (femaleFeedGrams <= 0 && maleFeedGrams <= 0)}
+                  disabled={!canEditHouse || (femaleGramsNum <= 0 && maleGramsNum <= 0)}
                   className={`w-full py-2.5 rounded-xl text-xs font-bold text-white transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer ${
-                    canEditHouse && (femaleFeedGrams > 0 || maleFeedGrams > 0)
+                    canEditHouse && (femaleGramsNum > 0 || maleGramsNum > 0)
                       ? 'bg-teal-600 hover:bg-teal-700'
                       : 'bg-slate-300 cursor-not-allowed text-slate-500'
                   }`}

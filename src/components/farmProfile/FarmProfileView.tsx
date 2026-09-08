@@ -34,8 +34,10 @@ import {
   Info,
   Database,
   RefreshCw,
-  FileSpreadsheet
+  FileSpreadsheet,
+  AlertTriangle
 } from 'lucide-react';
+import { useToast } from '../common/ToastContainer';
 import { CompanyLogoUploadModal } from './CompanyLogoUploadModal';
 import { StandardsBatchUploadModal } from './StandardsBatchUploadModal';
 import { StandardTarget } from '../../utils/standardsImportExport';
@@ -59,6 +61,7 @@ export const FarmProfileView: React.FC = () => {
     updateStandardEggWeights,
     permissions 
   } = useFarm();
+  const toast = useToast();
 
   const [activeTab, setActiveTab] = useState<'info' | 'vaccine' | 'feed' | 'henday' | 'bodyweight' | 'eggweight'>('info');
   const [isEditingInfo, setIsEditingInfo] = useState(false);
@@ -148,9 +151,9 @@ export const FarmProfileView: React.FC = () => {
   const [newFgWeek, setNewFgWeek] = useState(1);
   const [newFgPhase, setNewFgPhase] = useState('Brooding / Starter');
   const [newFgFemaleType, setNewFgFemaleType] = useState<FeedType>('CSC 1');
-  const [newFgFemale, setNewFgFemale] = useState(20);
+  const [newFgFemale, setNewFgFemale] = useState<string | number>(20);
   const [newFgMaleType, setNewFgMaleType] = useState<FeedType>('CSC 1');
-  const [newFgMale, setNewFgMale] = useState(22);
+  const [newFgMale, setNewFgMale] = useState<string | number>(22);
 
   // Body weight modal & Edit State
   const [showAddBw, setShowAddBw] = useState(false);
@@ -198,13 +201,16 @@ export const FarmProfileView: React.FC = () => {
       });
       setIsEditingInfo(false);
       setSaveSuccess(true);
-      setSaveMessage(res?.message || 'Farm Profile & Overview saved to database!');
+      const msg = res?.message || 'Farm Profile & Overview saved to database!';
+      setSaveMessage(msg);
+      toast.success('Farm Profile Saved', msg);
       setTimeout(() => {
         setSaveSuccess(false);
         setSaveMessage(null);
       }, 3500);
     } catch (err: any) {
       console.error('Error saving farm profile info:', err);
+      toast.error('Save Failed', err?.message || 'Failed to save farm profile details.');
     } finally {
       setIsSaving(false);
     }
@@ -216,10 +222,13 @@ export const FarmProfileView: React.FC = () => {
       await updateFarmProfile({ logoUrl: newLogoUrl });
       setSaveSuccess(true);
       setSaveMessage('Company logo saved to database.');
+      toast.success('Logo Saved', 'Company logo uploaded and saved to profile.');
       setTimeout(() => {
         setSaveSuccess(false);
         setSaveMessage(null);
       }, 3000);
+    } catch (err: any) {
+      toast.error('Logo Save Failed', err?.message || 'Unable to update farm logo.');
     } finally {
       setIsSaving(false);
     }
@@ -231,13 +240,47 @@ export const FarmProfileView: React.FC = () => {
       await updateFarmProfile({ logoUrl: '' });
       setSaveSuccess(true);
       setSaveMessage('Logo removed and updated.');
+      toast.info('Logo Removed', 'Company logo removed from profile.');
       setTimeout(() => {
         setSaveSuccess(false);
         setSaveMessage(null);
       }, 3000);
+    } catch (err: any) {
+      toast.error('Failed to Remove Logo', err?.message);
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // State for interactive deletion confirmation prompt modal
+  const [deleteConfirmPrompt, setDeleteConfirmPrompt] = useState<{
+    isOpen: boolean;
+    type: 'vaccine' | 'feed' | 'henday' | 'bodyweight' | 'eggweight';
+    id: string;
+    title: string;
+    description: string;
+  } | null>(null);
+
+  const requestDeleteConfirm = (
+    type: 'vaccine' | 'feed' | 'henday' | 'bodyweight' | 'eggweight',
+    id: string,
+    title: string,
+    description: string
+  ) => {
+    setDeleteConfirmPrompt({ isOpen: true, type, id, title, description });
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deleteConfirmPrompt) return;
+    const { type, id, title } = deleteConfirmPrompt;
+    if (type === 'vaccine') handleDeleteVaccine(id);
+    else if (type === 'feed') handleDeleteFeedGuide(id);
+    else if (type === 'henday') handleDeleteHenday(id);
+    else if (type === 'bodyweight') handleDeleteBodyWeight(id);
+    else if (type === 'eggweight') handleDeleteEggWeight(id);
+
+    setDeleteConfirmPrompt(null);
+    toast.info('Standard Removed', `Removed ${title} from farm benchmarks.`);
   };
 
   const handleOpenAddVaccine = () => {
@@ -268,11 +311,19 @@ export const FarmProfileView: React.FC = () => {
 
   const handleSaveVaccine = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newVacProduct.trim()) return;
+    if (!newVacProduct.trim()) {
+      toast.error('Validation Error', 'Please specify the vaccine or medication product name.');
+      return;
+    }
+    const ageWeekNum = Number(newVacWeek);
+    if (isNaN(ageWeekNum) || ageWeekNum <= 0) {
+      toast.error('Validation Error', 'Flock age week must be 1 or higher.');
+      return;
+    }
 
     const itemToSave: StandardMedProgramItem = {
       id: editingVacItem ? editingVacItem.id : 'vac_' + Date.now(),
-      ageWeek: Number(newVacWeek),
+      ageWeek: ageWeekNum,
       ageDays: newVacDays !== '' && !isNaN(Number(newVacDays)) ? Number(newVacDays) : undefined,
       productName: newVacProduct.trim(),
       productType: newVacType,
@@ -299,6 +350,10 @@ export const FarmProfileView: React.FC = () => {
     updateStandardVaccination(updated);
     setShowAddVaccine(false);
     setEditingVacItem(null);
+    toast.success(
+      editingVacItem ? 'Vaccine Standard Updated' : 'Vaccine Standard Added',
+      `Saved ${itemToSave.productName} scheduled for Week ${itemToSave.ageWeek}.`
+    );
   };
 
   const handleDeleteVaccine = (id: string) => {
@@ -336,15 +391,27 @@ export const FarmProfileView: React.FC = () => {
 
   const handleSaveFeedGuide = (e: React.FormEvent) => {
     e.preventDefault();
+    const ageWeekNum = Number(newFgWeek);
+    if (isNaN(ageWeekNum) || ageWeekNum <= 0) {
+      toast.error('Validation Error', 'Flock age week must be 1 or higher.');
+      return;
+    }
+    const femaleG = parseFloat(String(newFgFemale)) || 0;
+    const maleG = parseFloat(String(newFgMale)) || 0;
+    if (femaleG <= 0 && maleG <= 0) {
+      toast.error('Validation Error', 'Please specify at least one feed allocation (> 0 g/bird) for Female or Male.');
+      return;
+    }
+
     const itemToSave: StandardFeedGuideItem = {
       id: editingFgItem ? editingFgItem.id : 'fg_' + Date.now(),
       breedType: newFgBreed.trim() || 'All Breeds',
-      ageWeek: Number(newFgWeek),
+      ageWeek: ageWeekNum,
       productionPhase: newFgPhase.trim() || 'Standard Feeding',
       femaleFeedType: newFgFemaleType,
-      femaleGramsPerBird: Number(newFgFemale) || 0,
+      femaleGramsPerBird: femaleG,
       maleFeedType: newFgMaleType,
-      maleGramsPerBird: Number(newFgMale) || 0,
+      maleGramsPerBird: maleG,
       recommendedFeedType: newFgFemaleType
     };
 
@@ -365,6 +432,10 @@ export const FarmProfileView: React.FC = () => {
     updateStandardFeedGuide(updated);
     setShowAddFeedGuide(false);
     setEditingFgItem(null);
+    toast.success(
+      editingFgItem ? 'Feed Guide Standard Updated' : 'Feed Guide Standard Added',
+      `Saved ${itemToSave.breedType} Week ${itemToSave.ageWeek} allocation.`
+    );
   };
 
   const handleDeleteFeedGuide = (id: string) => {
@@ -390,11 +461,23 @@ export const FarmProfileView: React.FC = () => {
 
   const handleSaveBodyWeight = (e: React.FormEvent) => {
     e.preventDefault();
+    const ageWeekNum = Number(newBwWeek);
+    if (isNaN(ageWeekNum) || ageWeekNum <= 0) {
+      toast.error('Validation Error', 'Flock age week must be 1 or higher.');
+      return;
+    }
+    const maleG = Number(newBwMale) || 0;
+    const femaleG = Number(newBwFemale) || 0;
+    if (maleG <= 0 && femaleG <= 0) {
+      toast.error('Validation Error', 'Please specify standard weights in grams for male or female.');
+      return;
+    }
+
     const itemToSave: StandardBodyWeightItem = {
       id: editingBwItem ? editingBwItem.id : 'bw_' + Date.now(),
-      ageWeek: Number(newBwWeek),
-      maleStandardGrams: Number(newBwMale),
-      femaleStandardGrams: Number(newBwFemale)
+      ageWeek: ageWeekNum,
+      maleStandardGrams: maleG,
+      femaleStandardGrams: femaleG
     };
     let updated: StandardBodyWeightItem[];
     if (editingBwItem) {
@@ -406,6 +489,10 @@ export const FarmProfileView: React.FC = () => {
     updateStandardBodyWeights(updated);
     setShowAddBw(false);
     setEditingBwItem(null);
+    toast.success(
+      editingBwItem ? 'Body Weight Benchmark Updated' : 'Body Weight Benchmark Added',
+      `Saved Week ${itemToSave.ageWeek} standards: Male ${itemToSave.maleStandardGrams}g, Female ${itemToSave.femaleStandardGrams}g.`
+    );
   };
 
   const handleDeleteBodyWeight = (id: string) => {
@@ -437,12 +524,28 @@ export const FarmProfileView: React.FC = () => {
 
   const handleSaveHenday = (e: React.FormEvent) => {
     e.preventDefault();
+    const ageWeekNum = Number(newHdWeek);
+    if (isNaN(ageWeekNum) || ageWeekNum <= 0) {
+      toast.error('Validation Error', 'Flock age week must be 1 or higher.');
+      return;
+    }
+    const hdPct = Number(newHdPct);
+    if (isNaN(hdPct) || hdPct < 0 || hdPct > 100) {
+      toast.error('Validation Error', 'Standard Henday lay percentage must be between 0% and 100%.');
+      return;
+    }
+    const hePct = Number(newHdHePct);
+    if (isNaN(hePct) || hePct < 0 || hePct > 100) {
+      toast.error('Validation Error', 'Standard Hatching Egg percentage must be between 0% and 100%.');
+      return;
+    }
+
     const itemToSave: StandardHendayItem = {
       id: editingHdItem ? editingHdItem.id : 'hd_' + Date.now(),
-      ageWeek: Number(newHdWeek),
-      ageInProduction: Number(newHdProdWeek),
-      standardHendayPct: Number(newHdPct),
-      standardHatchingPct: Number(newHdHePct)
+      ageWeek: ageWeekNum,
+      ageInProduction: Number(newHdProdWeek) || Math.max(1, ageWeekNum - 23),
+      standardHendayPct: hdPct,
+      standardHatchingPct: hePct
     };
     let updated: StandardHendayItem[];
     if (editingHdItem) {
@@ -454,6 +557,10 @@ export const FarmProfileView: React.FC = () => {
     updateStandardHenday(updated);
     setShowAddHd(false);
     setEditingHdItem(null);
+    toast.success(
+      editingHdItem ? 'Henday Benchmark Updated' : 'Henday Benchmark Added',
+      `Saved Week ${itemToSave.ageWeek} lay benchmark (${itemToSave.standardHendayPct}% HD, ${itemToSave.standardHatchingPct}% HE).`
+    );
   };
 
   const handleDeleteHenday = (id: string) => {
@@ -483,11 +590,22 @@ export const FarmProfileView: React.FC = () => {
 
   const handleSaveEggWeight = (e: React.FormEvent) => {
     e.preventDefault();
+    const ageWeekNum = Number(newEwWeek);
+    if (isNaN(ageWeekNum) || ageWeekNum <= 0) {
+      toast.error('Validation Error', 'Flock age week must be 1 or higher.');
+      return;
+    }
+    const weightG = Number(newEwGrams);
+    if (isNaN(weightG) || weightG <= 0) {
+      toast.error('Validation Error', 'Standard egg weight must be greater than 0 grams.');
+      return;
+    }
+
     const itemToSave: StandardEggWeightItem = {
       id: editingEwItem ? editingEwItem.id : 'ew_' + Date.now(),
-      ageWeek: Number(newEwWeek),
-      ageInProduction: Number(newEwProdWeek),
-      standardWeightGrams: Number(newEwGrams)
+      ageWeek: ageWeekNum,
+      ageInProduction: Number(newEwProdWeek) || Math.max(1, ageWeekNum - 23),
+      standardWeightGrams: weightG
     };
     let updated: StandardEggWeightItem[];
     if (editingEwItem) {
@@ -499,6 +617,10 @@ export const FarmProfileView: React.FC = () => {
     updateStandardEggWeights(updated);
     setShowAddEw(false);
     setEditingEwItem(null);
+    toast.success(
+      editingEwItem ? 'Egg Weight Benchmark Updated' : 'Egg Weight Benchmark Added',
+      `Saved Week ${itemToSave.ageWeek} egg weight benchmark (${itemToSave.standardWeightGrams}g).`
+    );
   };
 
   const handleDeleteEggWeight = (id: string) => {
@@ -1605,7 +1727,12 @@ export const FarmProfileView: React.FC = () => {
                             {permissions.canDeleteRecord && (
                               <button
                                 type="button"
-                                onClick={() => handleDeleteVaccine(item.id)}
+                                onClick={() => requestDeleteConfirm(
+                                  'vaccine',
+                                  item.id,
+                                  item.productName,
+                                  `Are you sure you want to remove ${item.productName} (scheduled for Week ${item.ageWeek}) from your farm vaccination program?`
+                                )}
                                 className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                                 title="Delete rule"
                               >
@@ -1805,11 +1932,13 @@ export const FarmProfileView: React.FC = () => {
                       <div className="relative">
                         <input
                           type="number"
-                          step="0.5"
+                          step="any"
+                          inputMode="decimal"
                           min="0"
+                          placeholder="e.g. 20.5"
                           required
                           value={newFgFemale}
-                          onChange={e => setNewFgFemale(Number(e.target.value))}
+                          onChange={e => setNewFgFemale(e.target.value)}
                           className="w-full px-2.5 py-1.5 text-xs font-bold border border-rose-200 rounded-lg bg-white focus:outline-rose-500 text-rose-950 pr-14"
                         />
                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-rose-600">
@@ -1850,11 +1979,13 @@ export const FarmProfileView: React.FC = () => {
                       <div className="relative">
                         <input
                           type="number"
-                          step="0.5"
+                          step="any"
+                          inputMode="decimal"
                           min="0"
+                          placeholder="e.g. 22.5"
                           required
                           value={newFgMale}
-                          onChange={e => setNewFgMale(Number(e.target.value))}
+                          onChange={e => setNewFgMale(e.target.value)}
                           className="w-full px-2.5 py-1.5 text-xs font-bold border border-teal-200 rounded-lg bg-white focus:outline-teal-500 text-teal-950 pr-14"
                         />
                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-teal-600">
@@ -1973,7 +2104,13 @@ export const FarmProfileView: React.FC = () => {
                               </button>
                               {permissions.canDeleteRecord && (
                                 <button
-                                  onClick={() => handleDeleteFeedGuide(item.id)}
+                                  type="button"
+                                  onClick={() => requestDeleteConfirm(
+                                    'feed',
+                                    item.id,
+                                    `${item.breedType} Week ${item.ageWeek}`,
+                                    `Are you sure you want to remove feed standard for ${item.breedType} Week ${item.ageWeek} (${item.femaleGramsPerBird}g female / ${item.maleGramsPerBird}g male)?`
+                                  )}
                                   className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
                                   title="Delete guideline"
                                 >
@@ -2137,7 +2274,12 @@ export const FarmProfileView: React.FC = () => {
                             {permissions.canDeleteRecord && (
                               <button
                                 type="button"
-                                onClick={() => handleDeleteHenday(item.id)}
+                                onClick={() => requestDeleteConfirm(
+                                  'henday',
+                                  item.id,
+                                  `Week ${item.ageWeek} Henday`,
+                                  `Are you sure you want to remove the Week ${item.ageWeek} lay benchmark (${item.standardHendayPct}% HD / ${item.standardHatchingPct}% HE)?`
+                                )}
                                 className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
                                 title="Delete Henday target"
                               >
@@ -2303,7 +2445,12 @@ export const FarmProfileView: React.FC = () => {
                                 {permissions.canDeleteRecord && (
                                   <button
                                     type="button"
-                                    onClick={() => handleDeleteBodyWeight(item.id)}
+                                    onClick={() => requestDeleteConfirm(
+                                      'bodyweight',
+                                      item.id,
+                                      `Week ${item.ageWeek} Body Weight`,
+                                      `Are you sure you want to delete Week ${item.ageWeek} body weight benchmark (${item.maleStandardGrams}g Male / ${item.femaleStandardGrams}g Female)?`
+                                    )}
                                     className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
                                     title="Delete body weight target"
                                   >
@@ -2463,7 +2610,12 @@ export const FarmProfileView: React.FC = () => {
                                 {permissions.canDeleteRecord && (
                                   <button
                                     type="button"
-                                    onClick={() => handleDeleteEggWeight(item.id)}
+                                    onClick={() => requestDeleteConfirm(
+                                      'eggweight',
+                                      item.id,
+                                      `Week ${item.ageWeek} Egg Weight`,
+                                      `Are you sure you want to delete Week ${item.ageWeek} standard egg weight (${item.standardWeightGrams}g)?`
+                                    )}
                                     className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
                                     title="Delete egg weight standard"
                                   >
@@ -2498,6 +2650,51 @@ export const FarmProfileView: React.FC = () => {
         onClose={() => setShowBatchUploadModal(false)}
         initialTarget={batchUploadTarget}
       />
+
+      {/* Interactive Deletion Confirmation Prompt Dialog */}
+      {deleteConfirmPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-rose-100 overflow-hidden transform transition-all">
+            <div className="p-5 flex items-start gap-4">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-slate-900">
+                  Confirm Deletion Prompt
+                </h3>
+                <p className="text-xs font-semibold text-rose-700">
+                  {deleteConfirmPrompt.title}
+                </p>
+                <p className="text-xs text-slate-600 leading-relaxed pt-1">
+                  {deleteConfirmPrompt.description}
+                </p>
+                <p className="text-[11px] text-slate-400 pt-1">
+                  This standard item will be removed from your farm profile and comparison charts.
+                </p>
+              </div>
+            </div>
+
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmPrompt(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition shadow-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Benchmark</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
