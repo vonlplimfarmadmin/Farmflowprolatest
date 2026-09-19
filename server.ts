@@ -14,6 +14,12 @@ import {
   saveFarmProfileDoc,
   saveOverviewDoc,
 } from './server/mongodb.js';
+import {
+  getNeonStatus,
+  initNeonTables,
+  syncAllToNeon,
+  pullAllFromNeon,
+} from './server/neon.js';
 
 dotenv.config();
 
@@ -41,15 +47,27 @@ async function startServer() {
 
   // Health check endpoint
   app.get('/api/health', async (_req, res) => {
-    const mongoStatus = await getMongoStatus();
+    const [mongoStatus, neonStatus] = await Promise.all([
+      getMongoStatus().catch(() => ({ connected: false, dbName: 'farmflow_db' })),
+      getNeonStatus().catch(() => ({ connected: false, database: 'neondb', latencyMs: undefined })),
+    ]);
+
     res.json({
       status: 'ok',
       service: 'FarmFlow Pro Enterprise API',
       timestamp: new Date().toISOString(),
-      database: {
-        engine: 'MongoDB',
-        connected: mongoStatus.connected,
-        dbName: mongoStatus.dbName,
+      databases: {
+        mongodb: {
+          engine: 'MongoDB',
+          connected: mongoStatus.connected,
+          dbName: mongoStatus.dbName,
+        },
+        neonPostgres: {
+          engine: 'Neon PostgreSQL (Serverless)',
+          connected: neonStatus.connected,
+          database: neonStatus.database,
+          latencyMs: (neonStatus as any).latencyMs,
+        },
       },
     });
   });
@@ -285,6 +303,84 @@ async function startServer() {
       res.status(500).json({
         success: false,
         message: err?.message || 'MongoDB test connection failed',
+      });
+    }
+  });
+
+  // ==========================================
+  // Neon PostgreSQL Serverless API Endpoints
+  // ==========================================
+
+  // Neon Health & Connection Status
+  app.get('/api/neon/status', async (_req, res) => {
+    try {
+      const status = await getNeonStatus();
+      res.json(status);
+    } catch (err: any) {
+      res.status(500).json({
+        connected: false,
+        error: err?.message || 'Failed to query Neon PostgreSQL status',
+      });
+    }
+  });
+
+  // Initialize Neon Tables and Schemas
+  app.post('/api/neon/init-tables', async (req, res) => {
+    try {
+      const customUrl = req.body?.connectionString;
+      const result = await initNeonTables(customUrl);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({
+        success: false,
+        message: err?.message || 'Failed to initialize Neon PostgreSQL tables',
+      });
+    }
+  });
+
+  // Sync All Farm Data to Neon PostgreSQL
+  app.post('/api/neon/sync', async (req, res) => {
+    try {
+      const data = req.body;
+      const result = await syncAllToNeon(data);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({
+        success: false,
+        message: err?.message || 'Error syncing data to Neon PostgreSQL',
+      });
+    }
+  });
+
+  // Pull All Farm Data from Neon PostgreSQL
+  app.get('/api/neon/pull', async (_req, res) => {
+    try {
+      const result = await pullAllFromNeon();
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({
+        success: false,
+        message: err?.message || 'Error pulling data from Neon PostgreSQL',
+      });
+    }
+  });
+
+  // Test Neon PostgreSQL Connection String
+  app.post('/api/neon/test-connection', async (req, res) => {
+    try {
+      const customUrl = req.body?.connectionString;
+      const status = await getNeonStatus(customUrl);
+      res.json({
+        success: status.connected,
+        message: status.connected
+          ? `Successfully connected to Neon PostgreSQL database "${status.database}" on ${status.host} (${status.latencyMs}ms latency)`
+          : (status.error || 'Could not connect to Neon PostgreSQL'),
+        status,
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        success: false,
+        message: err?.message || 'Neon PostgreSQL connection test failed',
       });
     }
   });
