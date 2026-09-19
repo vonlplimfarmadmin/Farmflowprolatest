@@ -110,32 +110,27 @@ const FarmAppContent: React.FC = () => {
   const isDisabled = currentUser.status === 'disabled';
 
   return (
-    <div className="min-h-screen bg-glass-ambient flex flex-col font-sans text-graphite-900 antialiased selection:bg-mint-400 selection:text-forest-950 relative overflow-x-hidden">
-      {/* Ambient background soft light blurs for glass refraction */}
-      <div className="fixed top-0 right-1/4 w-96 h-96 bg-emerald-300/15 rounded-full blur-3xl pointer-events-none -z-10 animate-pulse" style={{ animationDuration: '8s' }} />
-      <div className="fixed bottom-10 left-10 w-[28rem] h-[28rem] bg-teal-200/20 rounded-full blur-3xl pointer-events-none -z-10" />
-      <div className="fixed top-1/2 right-10 w-72 h-72 bg-mint-200/20 rounded-full blur-3xl pointer-events-none -z-10" />
-
-      {/* Top Demo Helper Bar: Sleek Fast Role Switching (Hidden during printing) */}
-      <div className="glass-card-dark text-graphite-300 border-b border-forest-800/50 text-xs py-1.5 px-4 sm:px-6 flex flex-wrap items-center justify-between gap-2 shrink-0 z-50 print:hidden shadow-xs">
+    <div className="min-h-screen bg-glass-ambient flex flex-col font-sans text-graphite-900 antialiased selection:bg-emerald-200 selection:text-emerald-950 relative overflow-x-hidden">
+      {/* Top Demo Helper Bar: Compact, clean role switching utility (Hidden during printing) */}
+      <div className="bg-forest-950 text-graphite-300 border-b border-forest-900 text-xs py-1.5 px-4 sm:px-6 flex flex-wrap items-center justify-between gap-2 shrink-0 z-50 print:hidden shadow-xs">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-mint-400 animate-pulse shadow-xs shadow-mint-400/80" />
-          <span className="text-mint-300 font-semibold text-[11px] uppercase tracking-wider">Active Role:</span>
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-graphite-400 font-semibold text-[11px] uppercase tracking-wider">Role Scope:</span>
           <span className="font-bold text-white flex items-center gap-1.5 text-xs">
             {currentUser && <RoleBadge role={currentUser.role} size="sm" />}
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
-          <span className="text-[10px] text-mint-400/90 font-bold uppercase tracking-wider hidden md:inline">Quick Switch:</span>
+        <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 scrollbar-none">
+          <span className="text-[10px] text-graphite-400 font-bold uppercase tracking-wider hidden md:inline mr-1">Switch:</span>
           {(['System Administrator', 'Farm Manager', 'Flockman', 'Leadman', 'Egg Collector'] as UserRole[]).map((role) => (
             <button
               key={role}
               onClick={() => switchUserRole(role)}
-              className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition-all duration-200 whitespace-nowrap cursor-pointer ${
+              className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition-all duration-150 whitespace-nowrap cursor-pointer ${
                 currentUser?.role === role
-                  ? 'bg-gradient-to-r from-mint-400 to-emerald-400 text-forest-950 font-bold shadow-xs shadow-mint-400/40'
-                  : 'glass-pill-dark text-graphite-200 hover:text-white hover:border-mint-400/40'
+                  ? 'bg-emerald-400 text-forest-950 font-bold shadow-xs'
+                  : 'bg-forest-900/60 text-graphite-300 hover:text-white hover:bg-forest-900 border border-forest-800/60'
               }`}
             >
               {role.replace('System ', '')}

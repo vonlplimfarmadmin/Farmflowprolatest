@@ -147,7 +147,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={() => onNavigate('reports')}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs border cursor-pointer ${
               currentModule === 'reports'
-                ? 'bg-emerald-500 text-slate-950 border-emerald-400 ring-2 ring-emerald-300'
+                ? 'bg-emerald-600 text-white border-emerald-700'
                 : 'glass-pill hover:bg-emerald-50/90 text-emerald-950 border-emerald-200/80'
             }`}
             title="Dynamic Reports (Egg Production, Mortality, Vaccines, Meds) - Print & Export Excel"
@@ -163,10 +163,10 @@ export const Navbar: React.FC<NavbarProps> = ({
         <button
           id="navbar-messenger-report-btn"
           onClick={onOpenReport}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-forest-950/90 hover:bg-forest-900 active:scale-95 text-mint-300 border border-forest-800/80 rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer backdrop-blur-md"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-forest-950 hover:bg-forest-900 active:scale-[0.98] text-emerald-300 border border-forest-800 rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer"
           title="Generate Daily Egg & Flock Summary for Messenger/WhatsApp"
         >
-          <Share2 className="w-3.5 h-3.5 text-mint-400" />
+          <Share2 className="w-3.5 h-3.5 text-emerald-400" />
           <span className="hidden md:inline">Messenger Report</span>
         </button>
 
@@ -179,12 +179,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => onNavigate('egg_production')}
               className={`hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs border cursor-pointer ${
                 currentModule === 'egg_production'
-                  ? 'bg-forest-800 text-white border-forest-900 ring-2 ring-emerald-300'
-                  : 'glass-pill hover:bg-mint-100/90 text-forest-900 border-mint-200/80'
+                  ? 'bg-forest-900 text-white border-forest-950'
+                  : 'glass-pill hover:bg-emerald-50/90 text-forest-900 border-emerald-200/80'
               }`}
               title="Record Daily Egg Grading & Lay Rate"
             >
-              <Plus className="w-3.5 h-3.5 text-forest-700" />
+              <Plus className="w-3.5 h-3.5 text-emerald-700" />
               <span>Log Egg</span>
             </button>
           </>
@@ -195,7 +195,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             id="navbar-shortcuts-btn"
             onClick={onOpenShortcuts}
-            className="p-2 text-graphite-500 hover:text-graphite-800 hover:bg-forest-50/80 rounded-xl transition hidden sm:flex items-center justify-center cursor-pointer"
+            className="w-9 h-9 text-graphite-500 hover:text-graphite-900 hover:bg-forest-50/80 rounded-xl transition hidden sm:flex items-center justify-center cursor-pointer"
             title="Keyboard Shortcuts Cheat Sheet ( ? )"
             aria-label="Keyboard Shortcuts"
           >
@@ -207,23 +207,23 @@ export const Navbar: React.FC<NavbarProps> = ({
         <button
           id="navbar-qr-access-btn"
           onClick={() => setShowQRModal(true)}
-          className="p-2 text-graphite-600 hover:text-forest-900 hover:bg-forest-50/80 rounded-xl transition flex items-center justify-center cursor-pointer"
+          className="w-9 h-9 text-graphite-600 hover:text-forest-900 hover:bg-forest-50/80 rounded-xl transition flex items-center justify-center cursor-pointer"
           title="Scan QR Code for Mobile Access / Print Badge"
           aria-label="App QR Code Access"
         >
-          <QrCode className="w-4 h-4 text-forest-700" />
+          <QrCode className="w-4 h-4 text-emerald-800" />
         </button>
 
         {/* Notification Bell */}
         <button
           id="navbar-notifications-btn"
           onClick={onOpenNotifications}
-          className="relative p-2 text-graphite-500 hover:text-graphite-800 hover:bg-forest-50/80 rounded-xl transition cursor-pointer"
+          className="relative w-9 h-9 text-graphite-600 hover:text-graphite-900 hover:bg-forest-50/80 rounded-xl transition flex items-center justify-center cursor-pointer"
           title="Operational Alerts"
         >
-          <Bell className="w-5 h-5" />
+          <Bell className="w-4 h-4" />
           {alertCount > 0 && (
-            <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white ring-2 ring-white animate-pulse">
+            <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white ring-2 ring-white">
               {alertCount}
             </span>
           )}

@@ -82,14 +82,12 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
 
   return (
     <div className="space-y-6 animate-fadeIn pb-8">
-      {/* Sleek Hero Banner with Glassmorphism */}
-      <div className="glass-card-dark text-white rounded-3xl p-6 sm:p-8 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-400/15 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20 animate-pulse" style={{ animationDuration: '6s' }} />
-        <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-mint-400/10 rounded-full blur-2xl pointer-events-none" />
+      {/* Sleek Hero Command Banner with High Contrast */}
+      <div className="bg-gradient-to-br from-forest-950 via-forest-900 to-[#02281b] text-white rounded-3xl p-6 sm:p-8 border border-emerald-500/20 shadow-xl shadow-forest-950/10 relative overflow-hidden">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-start gap-4 sm:gap-5 max-w-2xl">
             {farmProfile.logoUrl ? (
-              <div className="w-16 h-16 rounded-2xl overflow-hidden bg-white/95 p-1 shadow-lg shadow-black/30 shrink-0 border border-forest-700/80 hidden sm:flex items-center justify-center">
+              <div className="w-16 h-16 rounded-2xl overflow-hidden bg-white p-1 shadow-md shadow-black/25 shrink-0 border border-emerald-500/30 hidden sm:flex items-center justify-center">
                 <img
                   src={farmProfile.logoUrl}
                   alt={farmProfile.name}
@@ -101,14 +99,14 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
                 />
               </div>
             ) : (
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-mint-400 to-emerald-500 text-forest-950 font-black text-xl italic flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0 hidden sm:flex font-display">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-400 text-forest-950 font-black text-xl italic flex items-center justify-center shadow-md shadow-emerald-400/20 shrink-0 hidden sm:flex font-display">
                 FF
               </div>
             )}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="px-3 py-0.5 rounded-full glass-pill-dark text-mint-300 text-[10px] font-bold uppercase tracking-wider shadow-2xs">
-                  Live Operations Station
+                <span className="px-2.5 py-0.5 rounded-full bg-forest-800/80 text-emerald-300 text-[10px] font-bold uppercase tracking-wider border border-emerald-500/30">
+                  Operations Station
                 </span>
                 {currentUser && <RoleBadge role={currentUser.role} />}
               </div>
@@ -116,7 +114,7 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
                 {farmProfile.name}
               </h1>
               <p className="text-xs sm:text-sm text-graphite-300 leading-relaxed max-w-xl">
-                Active control for <strong className="text-mint-300 font-semibold">{currentUser?.fullName}</strong>. Live monitoring of {flocks.length} parent-stock breeder houses, bio-security compliance, and daily egg grading.
+                Active control for <strong className="text-white font-semibold">{currentUser?.fullName}</strong>. Live monitoring of {flocks.length} parent-stock breeder houses, bio-security compliance, and daily egg grading.
               </p>
             </div>
           </div>
@@ -127,14 +125,14 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
                 const el = document.getElementById('flock-productivity-dashboard-section');
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="px-4 py-2.5 glass-pill-dark hover:bg-forest-900/90 text-mint-300 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-xs transition-all cursor-pointer"
+              className="px-4 py-2.5 bg-forest-900/80 hover:bg-forest-800 text-emerald-200 border border-forest-700/80 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-xs transition-all cursor-pointer"
             >
-              <ChartIcon className="w-4 h-4 text-mint-400" />
+              <ChartIcon className="w-4 h-4 text-emerald-400" />
               <span>Trends & Curves</span>
             </button>
             <button
               onClick={onOpenMessengerReport}
-              className="px-4 py-2.5 bg-gradient-to-r from-mint-400 to-emerald-400 hover:from-mint-300 hover:to-emerald-300 active:scale-95 text-forest-950 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-md shadow-emerald-500/20 transition-all cursor-pointer"
+              className="px-4 py-2.5 bg-emerald-400 hover:bg-emerald-300 active:scale-[0.98] text-forest-950 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-md shadow-emerald-400/20 transition-all cursor-pointer"
             >
               <Share2 className="w-4 h-4" />
               <span>Messenger Summary</span>
@@ -188,7 +186,7 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
         </div>
       )}
 
-      {/* 4 Key Executive Farm KPIs with Glassmorphism */}
+      {/* 4 Key Executive Farm KPIs with Consistent Light Polish */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Flock Population */}
         <div 
@@ -197,15 +195,15 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-graphite-500 uppercase tracking-wider">Total Population</span>
-            <div className="p-2 bg-forest-50/90 text-forest-800 rounded-xl group-hover:bg-forest-100 transition-colors border border-forest-100">
-              <Bird className="w-4 h-4 text-forest-700" />
+            <div className="p-2 bg-emerald-50 text-emerald-800 rounded-xl group-hover:bg-emerald-100 transition-colors border border-emerald-100">
+              <Bird className="w-4 h-4 text-emerald-700" />
             </div>
           </div>
           <p className="text-2xl sm:text-3xl font-black text-graphite-900 mt-2 tracking-tight">
             {totalFarmPopulation.toLocaleString()} <span className="text-xs font-semibold text-graphite-400 font-sans">birds</span>
           </p>
           <div className="mt-3 pt-2.5 border-t border-graphite-100 flex items-center justify-between text-xs">
-            <span className="text-forest-800 font-bold">{totalFarmMales.toLocaleString()} Males</span>
+            <span className="text-emerald-800 font-bold">{totalFarmMales.toLocaleString()} Males</span>
             <span className="text-rose-700 font-semibold">{totalFarmFemales.toLocaleString()} Females</span>
           </div>
         </div>
@@ -217,11 +215,11 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-graphite-500 uppercase tracking-wider">Farm Livability %</span>
-            <div className="p-2 bg-mint-50/90 text-mint-800 rounded-xl border border-mint-200 group-hover:bg-mint-100 transition-colors">
-              <TrendingUp className="w-4 h-4 text-forest-700" />
+            <div className="p-2 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-100 group-hover:bg-emerald-100 transition-colors">
+              <TrendingUp className="w-4 h-4 text-emerald-700" />
             </div>
           </div>
-          <p className="text-2xl sm:text-3xl font-black text-forest-800 mt-2 tracking-tight">
+          <p className="text-2xl sm:text-3xl font-black text-emerald-800 mt-2 tracking-tight">
             {typeof overallLivability === 'number' && !isNaN(overallLivability) ? overallLivability.toFixed(2) : '100.00'}%
           </p>
           <div className="mt-3 pt-2.5 border-t border-graphite-100 text-xs text-graphite-500 flex justify-between">
@@ -233,20 +231,20 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
         {/* Daily Egg Volume */}
         <div 
           onClick={() => onNavigate('egg_production')}
-          className="cursor-pointer glass-card-dark rounded-2xl p-5 group transition-all duration-200 hover:-translate-y-0.5 hover:border-mint-400/50"
+          className="cursor-pointer glass-card-interactive rounded-2xl p-5 group"
         >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-mint-300 uppercase tracking-wider">Today's Total Eggs</span>
-            <div className="p-2 bg-gradient-to-br from-mint-400 to-emerald-500 text-forest-950 rounded-xl shadow-xs group-hover:scale-105 transition-transform">
-              <Egg className="w-4 h-4" />
+            <span className="text-[11px] font-bold text-graphite-500 uppercase tracking-wider">Today's Total Eggs</span>
+            <div className="p-2 bg-amber-50 text-amber-800 rounded-xl border border-amber-100 group-hover:bg-amber-100 transition-colors">
+              <Egg className="w-4 h-4 text-amber-700" />
             </div>
           </div>
-          <p className="text-2xl sm:text-3xl font-black text-white mt-2 tracking-tight">
-            {(totalEggsToday || 0).toLocaleString()} <span className="text-xs font-semibold text-mint-300 font-sans">eggs</span>
+          <p className="text-2xl sm:text-3xl font-black text-graphite-900 mt-2 tracking-tight">
+            {(totalEggsToday || 0).toLocaleString()} <span className="text-xs font-semibold text-graphite-400 font-sans">eggs</span>
           </p>
-          <div className="mt-3 pt-2.5 border-t border-forest-800/80 flex items-center justify-between text-xs">
-            <span className="text-mint-400 font-bold">{(totalHEToday || 0).toLocaleString()} HE</span>
-            <span className="text-graphite-300 font-semibold">{typeof avgHendayToday === 'number' && !isNaN(avgHendayToday) ? avgHendayToday.toFixed(1) : '0.0'}% Henday</span>
+          <div className="mt-3 pt-2.5 border-t border-graphite-100 flex items-center justify-between text-xs">
+            <span className="text-emerald-800 font-bold">{(totalHEToday || 0).toLocaleString()} HE</span>
+            <span className="text-graphite-600 font-semibold">{typeof avgHendayToday === 'number' && !isNaN(avgHendayToday) ? avgHendayToday.toFixed(1) : '0.0'}% Henday</span>
           </div>
         </div>
 
@@ -257,7 +255,7 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-graphite-500 uppercase tracking-wider">Production Houses</span>
-            <div className="p-2 bg-graphite-100/80 text-graphite-700 rounded-xl group-hover:bg-graphite-200/80 transition-colors">
+            <div className="p-2 bg-graphite-100 text-graphite-700 rounded-xl group-hover:bg-graphite-200 transition-colors">
               <Building2 className="w-4 h-4" />
             </div>
           </div>
@@ -315,17 +313,17 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                  <div className="glass-pill p-2 rounded-xl">
-                    <span className="text-[10px] text-forest-700 font-semibold block">Males</span>
-                    <span className="font-extrabold text-graphite-900">{stats.currentMales}</span>
+                  <div className="bg-emerald-50/70 border border-emerald-100/80 p-2 rounded-xl">
+                    <span className="text-[10px] text-emerald-700 font-semibold block uppercase tracking-wider">Males</span>
+                    <span className="font-extrabold text-graphite-900 text-sm">{stats.currentMales.toLocaleString()}</span>
                   </div>
-                  <div className="glass-pill p-2 rounded-xl">
-                    <span className="text-[10px] text-rose-600 font-semibold block">Females</span>
-                    <span className="font-extrabold text-graphite-900">{stats.currentFemales}</span>
+                  <div className="bg-rose-50/70 border border-rose-100/80 p-2 rounded-xl">
+                    <span className="text-[10px] text-rose-700 font-semibold block uppercase tracking-wider">Females</span>
+                    <span className="font-extrabold text-graphite-900 text-sm">{stats.currentFemales.toLocaleString()}</span>
                   </div>
-                  <div className="glass-pill p-2 rounded-xl">
-                    <span className="text-[10px] text-forest-700 font-semibold block">Livability</span>
-                    <span className="font-extrabold text-forest-800">
+                  <div className="bg-graphite-50/80 border border-graphite-200/70 p-2 rounded-xl">
+                    <span className="text-[10px] text-graphite-600 font-semibold block uppercase tracking-wider">Livability</span>
+                    <span className={`font-extrabold text-sm ${stats.livabilityPct >= 98 ? 'text-emerald-700' : stats.livabilityPct >= 95 ? 'text-forest-800' : 'text-amber-700'}`}>
                       {typeof stats.livabilityPct === 'number' && !isNaN(stats.livabilityPct) ? stats.livabilityPct.toFixed(1) : '100.0'}%
                     </span>
                   </div>
