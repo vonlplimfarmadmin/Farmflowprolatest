@@ -1,5 +1,5 @@
-// Service worker unregistration and cache cleanup
-self.addEventListener('install', (event) => {
+// Clean unregister and cache purger without intercepting fetch
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
@@ -13,9 +13,4 @@ self.addEventListener('activate', (event) => {
       return self.clients.claim();
     })
   );
-});
-
-// Pass-through all fetch requests directly to network without caching
-self.addEventListener('fetch', (event) => {
-  event.respondWith(fetch(event.request));
 });

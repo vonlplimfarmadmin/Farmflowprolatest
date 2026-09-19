@@ -4,7 +4,7 @@
   # Output directory containing built production assets
   publish = "dist"
 
-  # Default build command
+  # Build command
   command = "npm run build"
 
 [build.environment]
@@ -16,10 +16,16 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-# Proxy /api/neon/* to Netlify Functions when hosted on Netlify Edge/Serverless
+# Proxy /api/mongodb/* to Netlify Functions when hosted on Netlify
 [[redirects]]
-  from = "/api/neon/*"
-  to = "/.netlify/functions/neon/:splat"
+  from = "/api/mongodb/*"
+  to = "/.netlify/functions/mongodb/:splat"
+  status = 200
+
+# Proxy /api/* to Netlify MongoDB Functions
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/mongodb/:splat"
   status = 200
 
 # Single-Page Application (SPA) redirect rule:
@@ -37,7 +43,6 @@
     X-Content-Type-Options = "nosniff"
     X-XSS-Protection = "1; mode=block"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
 
 # Cache immutable hashed assets for high performance
 [[headers]]

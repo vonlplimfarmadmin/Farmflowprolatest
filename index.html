@@ -38,19 +38,23 @@
   </head>
   <body class="overscroll-none bg-graphite-50 text-graphite-900 selection:bg-emerald-200 selection:text-emerald-950">
     <div id="root"></div>
-    <script type="module" src="./src/main.tsx"></script>
+    <script type="module" src="/src/main.tsx"></script>
     <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(registrations => {
-          for (let registration of registrations) {
-            registration.unregister();
-          }
-        });
-      }
-      if ('caches' in window) {
-        caches.keys().then(keys => {
-          keys.forEach(key => caches.delete(key));
-        });
+      try {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(registrations => {
+            for (let registration of registrations) {
+              registration.unregister();
+            }
+          }).catch(function() {});
+        }
+        if ('caches' in window) {
+          caches.keys().then(keys => {
+            keys.forEach(key => caches.delete(key));
+          }).catch(function() {});
+        }
+      } catch (e) {
+        // Safe fallback
       }
     </script>
   </body>

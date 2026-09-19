@@ -40,11 +40,15 @@ import {
   UserPlus,
   Pencil,
   Phone,
-  Filter
+  Filter,
+  Server,
+  Layers,
+  ExternalLink
 } from 'lucide-react';
 import { RoleBadge } from '../common/RoleBadge';
 import { BiosecurityComplianceView } from './BiosecurityComplianceView';
 import { StaffFormModal } from './StaffFormModal';
+import { DatabaseStatusModal } from '../common/MongoStatusModal';
 import { evaluatePasswordStrength, isAccountLocked } from '../../utils/security';
 
 export const SettingsView: React.FC = () => {
@@ -80,6 +84,7 @@ export const SettingsView: React.FC = () => {
   const [clearFeedback, setClearFeedback] = useState<string | null>(null);
   const [qrStationName, setQrStationName] = useState('All Poultry Houses & Egg Room');
   const [qrCopiedLink, setQrCopiedLink] = useState(false);
+  const [showDbHubModal, setShowDbHubModal] = useState(false);
   const qrRef = useRef<HTMLDivElement>(null);
   const appOrigin = typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://ais-pre-cupjad67n6ntomphx2p2z3-116744961637.asia-east1.run.app';
 
@@ -1134,14 +1139,18 @@ export const SettingsView: React.FC = () => {
                     </span>
                   </div>
                   <p className="text-xs text-slate-600 mt-1 max-w-xl">
-                    Direct MongoDB database storage for farm records, egg harvests, feed stocks, biosecurity verifications, and staff accounts. All operations connect directly to MongoDB.
+                    Direct MongoDB database storage for farm records, egg harvests, feed stocks, biosecurity verifications, and staff accounts. All operations connect directly to MongoDB Atlas.
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <div className="px-3 py-1.5 bg-white/90 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-900 flex items-center gap-1.5 shadow-2xs">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>Live Connected</span>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowDbHubModal(true)}
+                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+                    <span>MongoDB Hub</span>
+                  </button>
                 </div>
               </div>
 
@@ -1150,13 +1159,13 @@ export const SettingsView: React.FC = () => {
                   <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Connection Mode</span>
                   <div className="flex items-center gap-2 text-xs font-extrabold text-slate-900">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>Direct MongoDB</span>
+                    <span>Direct MongoDB Atlas</span>
                   </div>
                 </div>
                 <div className="p-3 bg-white/80 backdrop-blur-xs rounded-2xl border border-emerald-200 space-y-1">
                   <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Database</span>
                   <div className="text-xs font-extrabold text-slate-900 truncate" title={mongoStatus.dbName}>
-                    {mongoStatus.dbName || 'farmflow_db'}
+                    {mongoStatus.dbName || 'farmflowproviii'}
                   </div>
                 </div>
                 <div className="p-3 bg-white/80 backdrop-blur-xs rounded-2xl border border-emerald-200 space-y-1">
@@ -1639,6 +1648,12 @@ export const SettingsView: React.FC = () => {
         userToEdit={editingStaffUser}
         existingUsers={users}
         flocks={flocks}
+      />
+
+      {/* Modal: Neon PostgreSQL & MongoDB Hub */}
+      <DatabaseStatusModal
+        isOpen={showDbHubModal}
+        onClose={() => setShowDbHubModal(false)}
       />
     </div>
   );

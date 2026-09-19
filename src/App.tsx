@@ -269,11 +269,13 @@ const FarmAppContent: React.FC = () => {
 
 export default function App() {
   return (
-    <FarmProvider>
-      <ToastProvider>
-        <FarmAppContent />
-      </ToastProvider>
-    </FarmProvider>
+    <ErrorBoundary fallbackTitle="FarmFlow Pro System">
+      <FarmProvider>
+        <ToastProvider>
+          <FarmAppContent />
+        </ToastProvider>
+      </FarmProvider>
+    </ErrorBoundary>
   );
 }
 
