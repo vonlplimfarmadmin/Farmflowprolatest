@@ -11,6 +11,7 @@ import {
   deleteDocument,
   isAllowedCollection,
   sanitizeDocId,
+  purgeOldRecords,
 } from './server/mongodb.ts';
 
 dotenv.config();
@@ -154,6 +155,23 @@ async function startServer() {
         success: false,
         error: 'Database synchronization failed',
       });
+    }
+  });
+
+  // Purge / Delete Persistent Old Records from Database
+  app.post('/api/mongodb/purge', createRateLimiter(20, 60 * 1000), async (req, res) => {
+    try {
+      const { collections, preserveUsers = true, preserveStandards = true, preserveFarmProfile = true } = req.body || {};
+      const result = await purgeOldRecords({
+        collectionsToClear: collections,
+        preserveUsers,
+        preserveStandards,
+        preserveFarmProfile,
+      });
+      res.json(result);
+    } catch (err: any) {
+      console.error('[API /api/mongodb/purge] error:', err?.message || err);
+      res.status(500).json({ success: false, error: 'Failed to purge database records' });
     }
   });
 

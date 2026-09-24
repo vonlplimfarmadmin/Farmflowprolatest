@@ -63,6 +63,8 @@ import {
   getMongoDBStatus,
   startMongoDBPolling,
   saveFarmProfileToMongoDB,
+  purgeOldDataFromMongoDB,
+  clearAllLocalCacheAndStorage,
 } from '../services/mongodbSync';
 
 export interface StorageQuotaInfo {
@@ -302,6 +304,14 @@ interface FarmContextType {
   };
   syncAllToMongoDB: () => Promise<{ success: boolean; message: string; counts?: any }>;
   pullAllFromMongoDB: () => Promise<{ success: boolean; message: string }>;
+  purgeDatabaseAndCache: (options?: {
+    purgeDatabase?: boolean;
+    clearCache?: boolean;
+    collections?: string[];
+    preserveUsers?: boolean;
+    preserveFarmProfile?: boolean;
+    preserveStandards?: boolean;
+  }) => Promise<{ success: boolean; message: string; cleared?: Record<string, number> }>;
 
   // Backwards-compatible aliases
   firestoreStatus: {
@@ -412,9 +422,10 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return null; // Require login or registration first
   });
 
-  const [users, setUsers] = useState<UserAccount[]>(() => 
-    deduplicateUsers(safeParseArray<UserAccount>(`${LOCAL_STORAGE_KEY}_users`, INITIAL_USERS))
-  );
+  const [users, setUsers] = useState<UserAccount[]>(() => {
+    const saved = safeParseArray<UserAccount>(`${LOCAL_STORAGE_KEY}_users`, []);
+    return saved.length > 0 ? deduplicateUsers(saved) : [INITIAL_USERS[0]];
+  });
 
   const [farmProfile, setFarmProfile] = useState<FarmProfile>(() => {
     const parsed = safeParseObject<FarmProfile>(`${LOCAL_STORAGE_KEY}_profile`, INITIAL_FARM_PROFILE);
@@ -429,73 +440,23 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   });
 
-  const [flocks, setFlocks] = useState<Flock[]>(() => 
-    deduplicateFlocks(safeParseArray<Flock>(`${LOCAL_STORAGE_KEY}_flocks`, INITIAL_FLOCKS))
-  );
-
-  const [feedStockEntries, setFeedStockEntries] = useState<FeedStockEntry[]>(() => 
-    deduplicateById(safeParseArray<FeedStockEntry>(`${LOCAL_STORAGE_KEY}_feed_stock`, INITIAL_FEED_STOCK))
-  );
-
-  const [feedConsumptionRecords, setFeedConsumptionRecords] = useState<FeedConsumptionRecord[]>(() => 
-    deduplicateById(safeParseArray<FeedConsumptionRecord>(`${LOCAL_STORAGE_KEY}_feed_cons`, INITIAL_FEED_CONSUMPTION))
-  );
-
-  const [depletions, setDepletions] = useState<DepletionRecord[]>(() => 
-    deduplicateById(safeParseArray<DepletionRecord>(`${LOCAL_STORAGE_KEY}_depletions`, INITIAL_DEPLETIONS))
-  );
-
-  const [transfers, setTransfers] = useState<BirdTransferRecord[]>(() => 
-    deduplicateById(safeParseArray<BirdTransferRecord>(`${LOCAL_STORAGE_KEY}_transfers`, INITIAL_BIRD_TRANSFERS))
-  );
-
-  const [medProducts, setMedProducts] = useState<MedProduct[]>(() => 
-    deduplicateById(safeParseArray<MedProduct>(`${LOCAL_STORAGE_KEY}_med_products`, INITIAL_MED_PRODUCTS))
-  );
-
-  const [medStockLogs, setMedStockLogs] = useState<MedStockLog[]>(() => 
-    deduplicateById(safeParseArray<MedStockLog>(`${LOCAL_STORAGE_KEY}_med_stock`, []))
-  );
-
-  const [medAdministrations, setMedAdministrations] = useState<MedAdministrationRecord[]>(() => 
-    deduplicateById(safeParseArray<MedAdministrationRecord>(`${LOCAL_STORAGE_KEY}_med_admin`, INITIAL_MED_ADMIN))
-  );
-
-  const [bodyWeights, setBodyWeights] = useState<BodyWeightRecord[]>(() => 
-    deduplicateById(safeParseArray<BodyWeightRecord>(`${LOCAL_STORAGE_KEY}_body_weights`, INITIAL_BODY_WEIGHTS))
-  );
-
-  const [rawEggRecords, setRawEggRecords] = useState<EggProductionRecord[]>(() => 
-    deduplicateById(safeParseArray<EggProductionRecord>(`${LOCAL_STORAGE_KEY}_egg_prod`, INITIAL_EGG_PRODUCTION))
-  );
-
-  const [weeklyEggWeights, setWeeklyEggWeights] = useState<WeeklyEggWeightRecord[]>(() => 
-    deduplicateById(safeParseArray<WeeklyEggWeightRecord>(`${LOCAL_STORAGE_KEY}_weekly_egg_weights`, INITIAL_WEEKLY_EGG_WEIGHTS))
-  );
-
-  const [systemLogs, setSystemLogs] = useState<SystemLog[]>(() => 
-    deduplicateById(safeParseArray<SystemLog>(`${LOCAL_STORAGE_KEY}_logs`, INITIAL_SYSTEM_LOGS))
-  );
-
-  const [biosecurityRequirements, setBiosecurityRequirements] = useState<BiosecurityRequirement[]>(() => 
-    deduplicateById(safeParseArray<BiosecurityRequirement>(`${LOCAL_STORAGE_KEY}_biosecurity_reqs`, INITIAL_BIOSECURITY_REQUIREMENTS))
-  );
-
-  const [biosecurityLogs, setBiosecurityLogs] = useState<BiosecurityVerificationLog[]>(() => 
-    deduplicateById(safeParseArray<BiosecurityVerificationLog>(`${LOCAL_STORAGE_KEY}_biosecurity_logs`, INITIAL_BIOSECURITY_LOGS))
-  );
-
-  const [biosecuritySummaries, setBiosecuritySummaries] = useState<Record<string, BiosecurityDailySummary>>(() => 
-    safeParseObject<Record<string, BiosecurityDailySummary>>(`${LOCAL_STORAGE_KEY}_biosecurity_summaries`, INITIAL_BIOSECURITY_SUMMARIES)
-  );
-
-  const [deliveries, setDeliveries] = useState<DeliveryRecord[]>(() => 
-    safeParseArray<DeliveryRecord>(`${LOCAL_STORAGE_KEY}_deliveries`, INITIAL_DELIVERIES)
-  );
-
-  const [hatchingSummaries, setHatchingSummaries] = useState<HatchingSummaryRecord[]>(() => 
-    safeParseArray<HatchingSummaryRecord>(`${LOCAL_STORAGE_KEY}_hatching_summaries`, INITIAL_HATCHING_SUMMARIES)
-  );
+  const [flocks, setFlocks] = useState<Flock[]>([]);
+  const [feedStockEntries, setFeedStockEntries] = useState<FeedStockEntry[]>([]);
+  const [feedConsumptionRecords, setFeedConsumptionRecords] = useState<FeedConsumptionRecord[]>([]);
+  const [depletions, setDepletions] = useState<DepletionRecord[]>([]);
+  const [transfers, setTransfers] = useState<BirdTransferRecord[]>([]);
+  const [medProducts, setMedProducts] = useState<MedProduct[]>([]);
+  const [medStockLogs, setMedStockLogs] = useState<MedStockLog[]>([]);
+  const [medAdministrations, setMedAdministrations] = useState<MedAdministrationRecord[]>([]);
+  const [bodyWeights, setBodyWeights] = useState<BodyWeightRecord[]>([]);
+  const [rawEggRecords, setRawEggRecords] = useState<EggProductionRecord[]>([]);
+  const [weeklyEggWeights, setWeeklyEggWeights] = useState<WeeklyEggWeightRecord[]>([]);
+  const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
+  const [biosecurityRequirements, setBiosecurityRequirements] = useState<BiosecurityRequirement[]>(() => INITIAL_BIOSECURITY_REQUIREMENTS);
+  const [biosecurityLogs, setBiosecurityLogs] = useState<BiosecurityVerificationLog[]>([]);
+  const [biosecuritySummaries, setBiosecuritySummaries] = useState<Record<string, BiosecurityDailySummary>>({});
+  const [deliveries, setDeliveries] = useState<DeliveryRecord[]>([]);
+  const [hatchingSummaries, setHatchingSummaries] = useState<HatchingSummaryRecord[]>([]);
 
   // Platform & Mobile Auto-Routing Engine
   const platformInfo = useMemo(() => {
@@ -685,61 +646,61 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (res.success && res.data) {
         const d = res.data;
         if (Array.isArray(d.users) && d.users.length > 0) {
-          setUsers(prev => deduplicateUsers([...d.users, ...prev]));
+          setUsers(deduplicateUsers(d.users));
         }
         if (d.farmProfile && typeof d.farmProfile === 'object') {
           setFarmProfile(prev => ({ ...prev, ...d.farmProfile }));
         }
-        if (Array.isArray(d.flocks) && d.flocks.length > 0) {
+        if (Array.isArray(d.flocks)) {
           setFlocks(deduplicateFlocks(d.flocks));
         }
-        if (Array.isArray(d.eggRecords) && d.eggRecords.length > 0) {
+        if (Array.isArray(d.eggRecords)) {
           setRawEggRecords(deduplicateById(d.eggRecords));
         }
-        if (Array.isArray(d.feedStock) && d.feedStock.length > 0) {
+        if (Array.isArray(d.feedStock)) {
           setFeedStockEntries(deduplicateById(d.feedStock));
         }
-        if (Array.isArray(d.feedRecords) && d.feedRecords.length > 0) {
+        if (Array.isArray(d.feedRecords)) {
           setFeedConsumptionRecords(deduplicateById(d.feedRecords));
         }
-        if (Array.isArray(d.depletions) && d.depletions.length > 0) {
+        if (Array.isArray(d.depletions)) {
           setDepletions(deduplicateById(d.depletions));
         }
-        if (Array.isArray(d.transfers) && d.transfers.length > 0) {
+        if (Array.isArray(d.transfers)) {
           setTransfers(deduplicateById(d.transfers));
         }
-        if (Array.isArray(d.medProducts) && d.medProducts.length > 0) {
+        if (Array.isArray(d.medProducts)) {
           setMedProducts(deduplicateById(d.medProducts));
         }
-        if (Array.isArray(d.medStockLogs) && d.medStockLogs.length > 0) {
+        if (Array.isArray(d.medStockLogs)) {
           setMedStockLogs(deduplicateById(d.medStockLogs));
         }
-        if (Array.isArray(d.medAdmins) && d.medAdmins.length > 0) {
+        if (Array.isArray(d.medAdmins)) {
           setMedAdministrations(deduplicateById(d.medAdmins));
         }
-        if (Array.isArray(d.bodyWeights) && d.bodyWeights.length > 0) {
+        if (Array.isArray(d.bodyWeights)) {
           setBodyWeights(deduplicateById(d.bodyWeights));
         }
-        if (Array.isArray(d.weeklyEggWeights) && d.weeklyEggWeights.length > 0) {
+        if (Array.isArray(d.weeklyEggWeights)) {
           setWeeklyEggWeights(deduplicateById(d.weeklyEggWeights));
         }
-        if (Array.isArray(d.biosecurityLogs) && d.biosecurityLogs.length > 0) {
+        if (Array.isArray(d.biosecurityLogs)) {
           setBiosecurityLogs(deduplicateById(d.biosecurityLogs));
         }
-        if (Array.isArray(d.biosecurityRequirements) && d.biosecurityRequirements.length > 0) {
+        if (Array.isArray(d.biosecurityRequirements)) {
           setBiosecurityRequirements(deduplicateById(d.biosecurityRequirements));
         }
-        if (d.biosecuritySummaries && typeof d.biosecuritySummaries === 'object' && Object.keys(d.biosecuritySummaries).length > 0) {
+        if (d.biosecuritySummaries && typeof d.biosecuritySummaries === 'object') {
           setBiosecuritySummaries(d.biosecuritySummaries);
         }
-        if (Array.isArray(d.deliveries) && d.deliveries.length > 0) {
+        if (Array.isArray(d.deliveries)) {
           setDeliveries(deduplicateById(d.deliveries));
         }
-        if (Array.isArray(d.hatchingSummaries) && d.hatchingSummaries.length > 0) {
+        if (Array.isArray(d.hatchingSummaries)) {
           setHatchingSummaries(deduplicateById(d.hatchingSummaries));
         }
-        if (Array.isArray(d.auditLogs) && d.auditLogs.length > 0) {
-          setSystemLogs(prev => deduplicateById([...d.auditLogs, ...prev]).slice(0, 500));
+        if (Array.isArray(d.auditLogs)) {
+          setSystemLogs(deduplicateById<SystemLog>(d.auditLogs).slice(0, 100));
         }
 
         setMongoStatus({
@@ -769,6 +730,72 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Backwards-compatible aliases
   const syncAllToFirestore = syncAllToMongoDB;
   const pullAllFromFirestore = pullAllFromMongoDB;
+
+  // Completely purge persistent recurring records from MongoDB database and local browser cache
+  const purgeDatabaseAndCache = async (options?: {
+    purgeDatabase?: boolean;
+    clearCache?: boolean;
+    collections?: string[];
+    preserveUsers?: boolean;
+    preserveFarmProfile?: boolean;
+    preserveStandards?: boolean;
+  }): Promise<{ success: boolean; message: string; cleared?: Record<string, number> }> => {
+    try {
+      const preserveUsers = options?.preserveUsers !== false;
+      const preserveFarmProfile = options?.preserveFarmProfile !== false;
+      const preserveStandards = options?.preserveStandards !== false;
+      let clearedCounts: Record<string, number> = {};
+
+      if (options?.purgeDatabase !== false) {
+        const res = await purgeOldDataFromMongoDB({
+          collections: options?.collections,
+          preserveUsers,
+          preserveStandards,
+          preserveFarmProfile,
+        });
+        if (!res.success) {
+          return { success: false, message: res.message || 'Failed to purge database records' };
+        }
+        clearedCounts = res.cleared || {};
+      }
+
+      if (options?.clearCache !== false) {
+        await clearAllLocalCacheAndStorage();
+      }
+
+      // Reset all in-memory client records
+      setFlocks([]);
+      setRawEggRecords([]);
+      setFeedStockEntries([]);
+      setFeedConsumptionRecords([]);
+      setDepletions([]);
+      setTransfers([]);
+      setMedProducts([]);
+      setMedStockLogs([]);
+      setMedAdministrations([]);
+      setBodyWeights([]);
+      setWeeklyEggWeights([]);
+      setBiosecurityLogs([]);
+      setDeliveries([]);
+      setHatchingSummaries([]);
+      setSystemLogs([]);
+
+      if (!preserveUsers && currentUser) {
+        setUsers([currentUser]);
+      }
+
+      await refreshStorageQuota();
+      await pullAllFromMongoDB();
+
+      return {
+        success: true,
+        cleared: clearedCounts,
+        message: 'Persistent old records and cache successfully purged.',
+      };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Purge failed' };
+    }
+  };
 
   // Real-time document level persistence to MongoDB
   const saveDocToFirestore = (collection?: string, id?: string, data?: any) => {
@@ -2622,57 +2649,28 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return hatchingSummaries.find(h => h.id === id);
   };
 
-  // Reset & Backup Data
-  const resetAllDataToDefaults = () => {
-    setFarmProfile(INITIAL_FARM_PROFILE);
-    setUsers(INITIAL_USERS);
-    setFlocks(INITIAL_FLOCKS);
-    setFeedStockEntries(INITIAL_FEED_STOCK);
-    setFeedConsumptionRecords(INITIAL_FEED_CONSUMPTION);
-    setDepletions(INITIAL_DEPLETIONS);
-    setTransfers(INITIAL_BIRD_TRANSFERS);
-    setMedProducts(INITIAL_MED_PRODUCTS);
-    setMedAdministrations(INITIAL_MED_ADMIN);
-    setBodyWeights(INITIAL_BODY_WEIGHTS);
-    setRawEggRecords(INITIAL_EGG_PRODUCTION);
-    setWeeklyEggWeights(INITIAL_WEEKLY_EGG_WEIGHTS);
-    setDeliveries(INITIAL_DELIVERIES);
-    setHatchingSummaries(INITIAL_HATCHING_SUMMARIES);
-    setSystemLogs(INITIAL_SYSTEM_LOGS);
-    setBiosecurityRequirements(INITIAL_BIOSECURITY_REQUIREMENTS);
-    setBiosecurityLogs(INITIAL_BIOSECURITY_LOGS);
-    setBiosecuritySummaries(INITIAL_BIOSECURITY_SUMMARIES);
-    setCurrentUser(INITIAL_USERS[0]);
-    localStorage.clear();
-    logAction('SYSTEM_RESET', 'admin', 'Reset all farm management database to factory demo defaults.');
+  // Reset & Purge Data
+  const resetAllDataToDefaults = async () => {
+    await purgeDatabaseAndCache({
+      purgeDatabase: true,
+      clearCache: true,
+      preserveUsers: true,
+      preserveFarmProfile: true,
+      preserveStandards: true,
+    });
+    logAction('SYSTEM_RESET', 'admin', 'Reset database and cache: removed all persistent and recurring records.');
   };
 
   const clearDatabaseForNewCycle = async (): Promise<{ success: boolean; message: string }> => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    
-    // Reset all houses 1-6 to baseline zero for a brand new placement cycle
-    const freshFlocks: Flock[] = [1, 2, 3, 4, 5, 6].map(num => ({
-      id: `flock_h${num}_new`,
-      houseNumber: `House ${num}`,
-      breed: 'Cobb 500',
-      loadingDateMale: todayStr,
-      loadingDateFemale: todayStr,
-      initialMales: 0,
-      initialFemales: 0,
-      currentMales: 0,
-      currentFemales: 0,
-      hatchDate: todayStr,
-      status: 'active' as const,
-      notes: `House ${num} ready for new flock placement cycle.`,
-      pens: [
-        { id: `pen_h${num}_l1`, name: 'Pen L1', side: 'Left' as const, males: 0, females: 0 },
-        { id: `pen_h${num}_l2`, name: 'Pen L2', side: 'Left' as const, males: 0, females: 0 },
-        { id: `pen_h${num}_r1`, name: 'Pen R1', side: 'Right' as const, males: 0, females: 0 },
-        { id: `pen_h${num}_r2`, name: 'Pen R2', side: 'Right' as const, males: 0, females: 0 },
-      ]
-    }));
+    // Purge backend database and client cache completely
+    await purgeOldDataFromMongoDB({
+      preserveUsers: true,
+      preserveStandards: true,
+      preserveFarmProfile: true,
+    });
+    await clearAllLocalCacheAndStorage();
 
-    setFlocks(freshFlocks);
+    setFlocks([]);
     setRawEggRecords([]);
     setWeeklyEggWeights([]);
     setDeliveries([]);
@@ -2680,8 +2678,12 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setFeedConsumptionRecords([]);
     setDepletions([]);
     setTransfers([]);
+    setMedProducts([]);
+    setMedStockLogs([]);
     setMedAdministrations([]);
     setBodyWeights([]);
+    setBiosecurityLogs([]);
+    setHatchingSummaries([]);
 
     const newLog: SystemLog = {
       id: 'log_' + Date.now(),
@@ -2937,6 +2939,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         mongoStatus,
         syncAllToMongoDB,
         pullAllFromMongoDB,
+        purgeDatabaseAndCache,
 
         // Firebase Firestore Engine (Aliases)
         firestoreStatus,

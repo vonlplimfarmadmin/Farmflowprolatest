@@ -203,6 +203,35 @@ export const handler: Handler = async (event) => {
       };
     }
 
+    // POST /api/mongodb/purge
+    if (segments[0] === 'purge' && event.httpMethod === 'POST') {
+      const parsed = JSON.parse(event.body || '{}');
+      const collectionsToClear: string[] = Array.isArray(parsed.collections) ? parsed.collections : [
+        'flocks', 'eggRecords', 'feedRecords', 'feedStock', 'depletions', 'transfers',
+        'medProducts', 'medStockLogs', 'medAdmins', 'bodyWeights', 'biosecurityLogs',
+        'weeklyEggWeights', 'deliveries', 'hatchingSummaries', 'auditLogs'
+      ];
+      const cleared: Record<string, number> = {};
+      for (const colName of collectionsToClear) {
+        if (!KNOWN_COLLECTIONS.includes(colName)) continue;
+        if (colName === 'users' && parsed.preserveUsers !== false) continue;
+        if (colName === 'farmProfile' && parsed.preserveFarmProfile !== false) continue;
+        if (colName === 'standards' && parsed.preserveStandards !== false) continue;
+        try {
+          const col = db.collection(colName);
+          const res = await col.deleteMany({});
+          cleared[colName] = res.deletedCount || 0;
+        } catch {
+          cleared[colName] = 0;
+        }
+      }
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ success: true, cleared, message: 'Collections purged successfully.' }),
+      };
+    }
+
     // Doc CRUD /api/mongodb/doc/:collection/:id
     if (segments[0] === 'doc' && segments.length >= 3) {
       const colName = segments[1];

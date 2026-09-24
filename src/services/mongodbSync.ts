@@ -223,3 +223,57 @@ export function startMongoDBPolling(callback: () => void, intervalMs: number = 3
 
   return () => clearInterval(intervalId);
 }
+
+export async function purgeOldDataFromMongoDB(options?: {
+  collections?: string[];
+  preserveUsers?: boolean;
+  preserveStandards?: boolean;
+  preserveFarmProfile?: boolean;
+}): Promise<{ success: boolean; cleared?: Record<string, number>; message: string }> {
+  try {
+    const res = await fetch('/api/mongodb/purge', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(options || {}),
+    });
+    const json = await res.json();
+    return {
+      success: res.ok && json.success,
+      cleared: json.cleared,
+      message: json.message || json.error || 'Purge completed.',
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.message || 'Failed to call purge endpoint.',
+    };
+  }
+}
+
+export async function clearAllLocalCacheAndStorage(): Promise<void> {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const activeUser = localStorage.getItem('broiler_breeder_active_user');
+      localStorage.clear();
+      if (activeUser) {
+        localStorage.setItem('broiler_breeder_active_user', activeUser);
+      }
+    }
+  } catch {}
+
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.clear();
+    }
+  } catch {}
+
+  try {
+    if (typeof window !== 'undefined' && 'caches' in window) {
+      const keys = await window.caches.keys();
+      await Promise.all(keys.map(k => window.caches.delete(k)));
+    }
+  } catch {}
+}

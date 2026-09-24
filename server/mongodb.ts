@@ -362,3 +362,56 @@ export async function deleteDocument(collectionName: string, docId: string): Pro
   const res = await col.deleteOne({ id: cleanId });
   return res.deletedCount > 0;
 }
+
+export async function purgeOldRecords(options?: {
+  collectionsToClear?: string[];
+  preserveUsers?: boolean;
+  preserveStandards?: boolean;
+  preserveFarmProfile?: boolean;
+}): Promise<{ success: boolean; cleared: Record<string, number>; message: string }> {
+  const database = await getDb();
+  const cleared: Record<string, number> = {};
+
+  const defaultTargets = [
+    'flocks',
+    'eggRecords',
+    'feedRecords',
+    'feedStock',
+    'depletions',
+    'transfers',
+    'medProducts',
+    'medStockLogs',
+    'medAdmins',
+    'bodyWeights',
+    'biosecurityLogs',
+    'weeklyEggWeights',
+    'deliveries',
+    'hatchingSummaries',
+    'auditLogs',
+  ];
+
+  const targets = (options?.collectionsToClear && options.collectionsToClear.length > 0)
+    ? options.collectionsToClear.filter(isAllowedCollection)
+    : defaultTargets;
+
+  for (const colName of targets) {
+    if (colName === 'users' && options?.preserveUsers !== false) continue;
+    if (colName === 'farmProfile' && options?.preserveFarmProfile !== false) continue;
+    if (colName === 'standards' && options?.preserveStandards !== false) continue;
+
+    try {
+      const col = database.collection(colName);
+      const res = await col.deleteMany({});
+      cleared[colName] = res.deletedCount || 0;
+    } catch (e: any) {
+      console.warn(`[MongoDB] Failed to clear collection ${colName}:`, e.message);
+      cleared[colName] = 0;
+    }
+  }
+
+  return {
+    success: true,
+    cleared,
+    message: 'Persistent old records successfully purged from MongoDB database.',
+  };
+}
