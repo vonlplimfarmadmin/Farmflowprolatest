@@ -2,30 +2,82 @@ import express from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
-import { 
-  getMongoStatus, 
-  getMongoDoc,
-  saveMongoDoc, 
-  deleteMongoDoc, 
-  syncAllToMongo, 
-  pullAllFromMongo, 
-  getMongoDb,
-  getFarmProfileDoc,
-  saveFarmProfileDoc,
-  saveOverviewDoc,
-} from './server/mongodb.js';
+import {
+  checkConnection,
+  pullAllCollections,
+  syncAllCollections,
+  upsertDocument,
+  getDocument,
+  deleteDocument,
+  isAllowedCollection,
+  sanitizeDocId,
+} from './server/mongodb.ts';
 
 dotenv.config();
+
+// In-memory sliding rate-limit tracker
+interface RateLimitEntry {
+  count: number;
+  resetAt: number;
+}
+const rateLimitMap = new Map<string, RateLimitEntry>();
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of rateLimitMap.entries()) {
+    if (entry.resetAt <= now) {
+      rateLimitMap.delete(key);
+    }
+  }
+}, 3 * 60 * 1000);
+
+function createRateLimiter(maxRequests: number, windowMs: number) {
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const rawIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || '127.0.0.1';
+    const key = `${rawIp}:${req.baseUrl || ''}${req.path}`;
+    const now = Date.now();
+    const entry = rateLimitMap.get(key);
+
+    if (!entry || entry.resetAt <= now) {
+      rateLimitMap.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+
+    entry.count += 1;
+    if (entry.count > maxRequests) {
+      res.setHeader('Retry-After', Math.ceil((entry.resetAt - now) / 1000));
+      return res.status(429).json({
+        success: false,
+        error: 'Too many requests. Please slow down and try again shortly.',
+      });
+    }
+
+    next();
+  };
+}
 
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-  app.use(express.json({ limit: '50mb' }));
+  // Prevent server technology fingerprinting
+  app.disable('x-powered-by');
 
-  // Global Cache-Control: no-cache middleware for dynamic data & real-time sync
+  // Hardened Security Headers Middleware
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+    next();
+  });
+
+  // Strict Request Body Limit to prevent memory exhaustion / DoS
+  app.use(express.json({ limit: '10mb' }));
+
+  // Global Cache-Control middleware for dynamic API routes
   app.use((req, res, next) => {
-    // Disable caching on all /api/* routes and document navigations to guarantee real-time fresh data
     if (req.path.startsWith('/api') || req.path === '/' || req.path.endsWith('.html')) {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
       res.setHeader('Pragma', 'no-cache');
@@ -35,265 +87,194 @@ async function startServer() {
     next();
   });
 
-  // ==========================================
-  // API Routes
-  // ==========================================
+  // Apply general rate limit to all /api endpoints
+  app.use('/api', createRateLimiter(200, 60 * 1000));
 
   // Health check endpoint
   app.get('/api/health', async (_req, res) => {
-    const mongoStatus = await getMongoStatus().catch(() => ({ connected: false, dbName: 'farmflow_db', serverInfo: undefined }));
-
-    res.json({
-      status: 'ok',
-      service: 'FarmFlow Pro Enterprise API',
-      timestamp: new Date().toISOString(),
-      database: {
-        engine: 'MongoDB',
-        connected: mongoStatus.connected,
-        dbName: mongoStatus.dbName,
-        serverInfo: mongoStatus.serverInfo,
-      },
-    });
+    try {
+      const status = await checkConnection();
+      res.json({
+        status: status.connected ? 'ok' : 'degraded',
+        service: 'FarmFlow Pro OS',
+        timestamp: new Date().toISOString(),
+        mongodb: status,
+      });
+    } catch {
+      res.status(500).json({
+        status: 'error',
+        error: 'Health check failed',
+      });
+    }
   });
 
-  // MongoDB Status & Health
+  // MongoDB Status & Diagnostics
   app.get('/api/mongodb/status', async (_req, res) => {
     try {
-      const status = await getMongoStatus();
+      const status = await checkConnection();
       res.json(status);
-    } catch (err: any) {
+    } catch {
       res.status(500).json({
         connected: false,
-        error: err?.message || 'Failed to query MongoDB status',
+        error: 'Unable to retrieve database status',
       });
     }
   });
 
-  // Dedicated Database Connection & Persistence for Farm Profile & Overview
-  app.get('/api/farm-profile', async (_req, res) => {
-    try {
-      const result = await getFarmProfileDoc();
-      res.json(result);
-    } catch (err: any) {
-      res.status(500).json({
-        success: false,
-        message: err?.message || 'Error querying farm profile from MongoDB',
-      });
-    }
-  });
-
-  app.post('/api/farm-profile', async (req, res) => {
-    try {
-      const profileData = req.body;
-      const result = await saveFarmProfileDoc(profileData);
-      res.json(result);
-    } catch (err: any) {
-      res.status(500).json({
-        success: false,
-        message: err?.message || 'Error saving farm profile to MongoDB',
-      });
-    }
-  });
-
-  app.put('/api/farm-profile', async (req, res) => {
-    try {
-      const profileData = req.body;
-      const result = await saveFarmProfileDoc(profileData);
-      res.json(result);
-    } catch (err: any) {
-      res.status(500).json({
-        success: false,
-        message: err?.message || 'Error updating farm profile in MongoDB',
-      });
-    }
-  });
-
-  app.get('/api/farm-profile/overview', async (_req, res) => {
-    try {
-      const result = await getFarmProfileDoc();
-      if (result.success && result.data) {
-        const d = result.data;
-        res.json({
-          success: true,
-          data: {
-            name: d.name,
-            address: d.address,
-            contactNumber: d.contactNumber,
-            email: d.email,
-            establishedYear: d.establishedYear,
-            industrySector: d.industrySector,
-            primaryBreeds: d.primaryBreeds,
-            facilityHousesCount: d.facilityHousesCount,
-            totalBirdCapacity: d.totalBirdCapacity,
-            dailyEggCapacity: d.dailyEggCapacity,
-            farmOverviewNotes: d.farmOverviewNotes,
-            farmOwners: d.farmOwners,
-            presidentCeo: d.presidentCeo,
-            cfo: d.cfo,
-            animalHealthSpecialist: d.animalHealthSpecialist,
-            animalProductionSpecialist: d.animalProductionSpecialist,
-            currency: d.currency,
-            logoUrl: d.logoUrl,
-          }
-        });
-      } else {
-        res.json({ success: true, data: null });
-      }
-    } catch (err: any) {
-      res.status(500).json({
-        success: false,
-        message: err?.message || 'Error retrieving farm overview',
-      });
-    }
-  });
-
-  app.post('/api/farm-profile/overview', async (req, res) => {
-    try {
-      const overviewData = req.body;
-      const result = await saveOverviewDoc(overviewData);
-      res.json(result);
-    } catch (err: any) {
-      res.status(500).json({
-        success: false,
-        message: err?.message || 'Error updating farm overview in MongoDB',
-      });
-    }
-  });
-
-  app.get('/api/mongodb/farm-profile', async (_req, res) => {
-    try {
-      const result = await getFarmProfileDoc();
-      res.json(result);
-    } catch (err: any) {
-      res.status(500).json({
-        success: false,
-        message: err?.message || 'Error querying farm profile from MongoDB',
-      });
-    }
-  });
-
-  app.post('/api/mongodb/farm-profile', async (req, res) => {
-    try {
-      const result = await saveFarmProfileDoc(req.body);
-      res.json(result);
-    } catch (err: any) {
-      res.status(500).json({
-        success: false,
-        message: err?.message || 'Error saving farm profile to MongoDB',
-      });
-    }
-  });
-
-  // MongoDB Sync All Collections (Push)
-  app.post('/api/mongodb/sync', async (req, res) => {
-    try {
-      const data = req.body;
-      const result = await syncAllToMongo(data);
-      res.json(result);
-    } catch (err: any) {
-      res.status(500).json({
-        success: false,
-        message: err?.message || 'Error syncing data to MongoDB',
-      });
-    }
-  });
-
-  // MongoDB Pull All Collections
+  // Pull All Collections
   app.get('/api/mongodb/pull', async (_req, res) => {
     try {
-      const result = await pullAllFromMongo();
-      res.json(result);
+      const data = await pullAllCollections();
+      res.json({
+        success: true,
+        data,
+        timestamp: new Date().toISOString(),
+      });
     } catch (err: any) {
+      console.error('[API /api/mongodb/pull] error:', err?.message || err);
       res.status(500).json({
         success: false,
-        message: err?.message || 'Error pulling data from MongoDB',
+        error: 'Failed to retrieve farm dataset',
       });
     }
   });
 
-  // MongoDB Upsert Single Document (POST & PUT)
-  app.post('/api/mongodb/doc/:collection/:id', async (req, res) => {
+  // Sync / Push All Collections (Stricter Rate Limit)
+  app.post('/api/mongodb/sync', createRateLimiter(45, 60 * 1000), async (req, res) => {
     try {
-      const { collection, id } = req.params;
-      const docData = req.body;
-      const result = await saveMongoDoc(collection, id, docData);
+      const payload = req.body;
+      if (!payload || typeof payload !== 'object') {
+        return res.status(400).json({ success: false, error: 'Malformed synchronization payload' });
+      }
+      const result = await syncAllCollections(payload);
       res.json(result);
     } catch (err: any) {
+      console.error('[API /api/mongodb/sync] error:', err?.message || err);
       res.status(500).json({
         success: false,
-        message: err?.message || 'Error saving document to MongoDB',
+        error: 'Database synchronization failed',
       });
     }
   });
 
-  app.put('/api/mongodb/doc/:collection/:id', async (req, res) => {
+  // Farm Profile Endpoints
+  app.get('/api/mongodb/farm-profile', async (_req, res) => {
     try {
-      const { collection, id } = req.params;
-      const docData = req.body;
-      const result = await saveMongoDoc(collection, id, docData);
-      res.json(result);
-    } catch (err: any) {
-      res.status(500).json({
-        success: false,
-        message: err?.message || 'Error updating document in MongoDB',
+      const data = await pullAllCollections();
+      res.json({
+        success: true,
+        data: data.farmProfile || null,
+        standards: data.standards || null,
+        settings: data.settings || null,
       });
+    } catch {
+      res.status(500).json({ success: false, error: 'Failed to retrieve farm profile' });
     }
   });
 
-  // MongoDB Get Single Document
+  app.post('/api/mongodb/farm-profile', createRateLimiter(40, 60 * 1000), async (req, res) => {
+    try {
+      const profile = req.body;
+      if (!profile || typeof profile !== 'object') {
+        return res.status(400).json({ success: false, error: 'Invalid profile data' });
+      }
+      const result = await syncAllCollections({ farmProfile: profile });
+      res.json({
+        success: true,
+        message: 'Farm profile saved directly to MongoDB.',
+        result,
+      });
+    } catch {
+      res.status(500).json({ success: false, error: 'Failed to save farm profile' });
+    }
+  });
+
+  // Single Document CRUD with Whitelist & ID Validation
   app.get('/api/mongodb/doc/:collection/:id', async (req, res) => {
     try {
       const { collection, id } = req.params;
-      const result = await getMongoDoc(collection, id);
-      if (!result.success || !result.data) {
-        res.status(404).json(result);
-      } else {
-        res.json(result);
+      if (!isAllowedCollection(collection)) {
+        return res.status(400).json({ success: false, message: 'Invalid or prohibited collection' });
       }
+      const cleanId = sanitizeDocId(id);
+      const doc = await getDocument(collection, cleanId);
+      if (!doc) {
+        return res.status(404).json({ success: false, message: 'Document not found' });
+      }
+      res.json({ success: true, data: doc });
     } catch (err: any) {
-      res.status(500).json({
-        success: false,
-        message: err?.message || 'Error fetching document from MongoDB',
-      });
+      res.status(400).json({ success: false, message: err?.message || 'Error fetching document' });
     }
   });
 
-  // MongoDB Delete Single Document
-  app.delete('/api/mongodb/doc/:collection/:id', async (req, res) => {
+  app.post('/api/mongodb/doc/:collection/:id', createRateLimiter(60, 60 * 1000), async (req, res) => {
     try {
       const { collection, id } = req.params;
-      const result = await deleteMongoDoc(collection, id);
+      if (!isAllowedCollection(collection)) {
+        return res.status(400).json({ success: false, message: 'Invalid or prohibited collection' });
+      }
+      const cleanId = sanitizeDocId(id);
+      const result = await upsertDocument(collection, cleanId, req.body);
       res.json(result);
     } catch (err: any) {
-      res.status(500).json({
-        success: false,
-        message: err?.message || 'Error deleting document from MongoDB',
-      });
+      res.status(400).json({ success: false, message: err?.message || 'Error saving document' });
     }
   });
 
-  // Test MongoDB Connection String
-  app.post('/api/mongodb/test-connection', async (_req, res) => {
+  app.put('/api/mongodb/doc/:collection/:id', createRateLimiter(60, 60 * 1000), async (req, res) => {
     try {
-      const status = await getMongoStatus();
-      res.json({
-        success: status.connected,
-        message: status.connected
-          ? `Successfully connected to MongoDB database "${status.dbName}"`
-          : (status.error || 'Could not connect to MongoDB'),
-        status,
-      });
+      const { collection, id } = req.params;
+      if (!isAllowedCollection(collection)) {
+        return res.status(400).json({ success: false, message: 'Invalid or prohibited collection' });
+      }
+      const cleanId = sanitizeDocId(id);
+      const result = await upsertDocument(collection, cleanId, req.body);
+      res.json(result);
     } catch (err: any) {
-      res.status(500).json({
-        success: false,
-        message: err?.message || 'MongoDB test connection failed',
-      });
+      res.status(400).json({ success: false, message: err?.message || 'Error updating document' });
     }
   });
 
-  // ==========================================
+  app.delete('/api/mongodb/doc/:collection/:id', createRateLimiter(40, 60 * 1000), async (req, res) => {
+    try {
+      const { collection, id } = req.params;
+      if (!isAllowedCollection(collection)) {
+        return res.status(400).json({ success: false, message: 'Invalid or prohibited collection' });
+      }
+      const cleanId = sanitizeDocId(id);
+      const deleted = await deleteDocument(collection, cleanId);
+      res.json({ success: true, deleted });
+    } catch (err: any) {
+      res.status(400).json({ success: false, message: err?.message || 'Error deleting document' });
+    }
+  });
+
+  // Dedicated user endpoints with validation
+  app.post('/api/users/sync', createRateLimiter(40, 60 * 1000), async (req, res) => {
+    try {
+      const user = req.body;
+      if (!user || typeof user !== 'object' || !user.id) {
+        return res.status(400).json({ success: false, message: 'Invalid user payload' });
+      }
+      const cleanId = sanitizeDocId(user.id);
+      const result = await upsertDocument('users', cleanId, user);
+      res.json(result);
+    } catch (err: any) {
+      res.status(400).json({ success: false, message: err?.message || 'Error synchronizing user' });
+    }
+  });
+
+  app.delete('/api/users/:id', createRateLimiter(30, 60 * 1000), async (req, res) => {
+    try {
+      const cleanId = sanitizeDocId(req.params.id);
+      const deleted = await deleteDocument('users', cleanId);
+      res.json({ success: true, deleted });
+    } catch (err: any) {
+      res.status(400).json({ success: false, message: err?.message || 'Error deleting user' });
+    }
+  });
+
   // Vite Middleware & SPA Static Serving
-  // ==========================================
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },

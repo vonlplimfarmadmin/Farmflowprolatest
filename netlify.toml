@@ -16,13 +16,12 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-# Proxy /api/mongodb/* to Netlify Functions when hosted on Netlify
+# Proxy /api/mongodb/* and /api/* to Netlify Functions
 [[redirects]]
   from = "/api/mongodb/*"
   to = "/.netlify/functions/mongodb/:splat"
   status = 200
 
-# Proxy /api/* to Netlify MongoDB Functions
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/mongodb/:splat"
@@ -43,6 +42,7 @@
     X-Content-Type-Options = "nosniff"
     X-XSS-Protection = "1; mode=block"
     Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
 
 # Cache immutable hashed assets for high performance
 [[headers]]

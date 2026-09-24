@@ -76,6 +76,19 @@ export async function hashSecurityAnswer(answer: string, salt: string): Promise<
 }
 
 /**
+ * Constant-time comparison to prevent timing attacks on cryptographic hashes
+ */
+export function constantTimeCompare(a: string, b: string): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}
+
+/**
  * Verify password against stored hash and salt
  */
 export async function verifyPassword(
@@ -85,7 +98,7 @@ export async function verifyPassword(
 ): Promise<boolean> {
   if (!inputPassword || !storedHash || !storedSalt) return false;
   const computedHash = await hashPasswordWithSalt(inputPassword, storedSalt);
-  return computedHash === storedHash;
+  return constantTimeCompare(computedHash, storedHash);
 }
 
 /**

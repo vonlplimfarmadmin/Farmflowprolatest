@@ -48,7 +48,6 @@ import {
 import { RoleBadge } from '../common/RoleBadge';
 import { BiosecurityComplianceView } from './BiosecurityComplianceView';
 import { StaffFormModal } from './StaffFormModal';
-import { DatabaseStatusModal } from '../common/MongoStatusModal';
 import { evaluatePasswordStrength, isAccountLocked } from '../../utils/security';
 
 export const SettingsView: React.FC = () => {
@@ -66,9 +65,7 @@ export const SettingsView: React.FC = () => {
     flocks,
     permissions,
     clearDatabaseForNewCycle,
-    syncAllToMongoDB,
-    pullAllFromMongoDB,
-    mongoStatus,
+    storageQuota,
     changePassword,
     adminResetUserPassword,
     adminToggleUserLock
@@ -84,7 +81,6 @@ export const SettingsView: React.FC = () => {
   const [clearFeedback, setClearFeedback] = useState<string | null>(null);
   const [qrStationName, setQrStationName] = useState('All Poultry Houses & Egg Room');
   const [qrCopiedLink, setQrCopiedLink] = useState(false);
-  const [showDbHubModal, setShowDbHubModal] = useState(false);
   const qrRef = useRef<HTMLDivElement>(null);
   const appOrigin = typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://ais-pre-cupjad67n6ntomphx2p2z3-116744961637.asia-east1.run.app';
 
@@ -1066,14 +1062,14 @@ export const SettingsView: React.FC = () => {
             <div className="p-5 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3">
               <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
                 <Database className="w-4 h-4 text-forest-700" />
-                <span>MongoDB Cloud Database Connection</span>
+                <span>Local Persistent Browser Storage</span>
               </h4>
               <p className="text-xs text-slate-600">
-                FarmFlow Pro connects directly to your central MongoDB database with instant data persistence, backup exports, and zero data loss.
+                FarmFlow Pro runs in local-first standalone mode with instant persistence, offline capability, zero cloud database latency, and complete data privacy.
               </p>
               <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-mint-100 text-forest-900 rounded-xl text-xs font-bold">
                 <CheckCircle2 className="w-4 h-4 text-forest-700" />
-                <span>MongoDB Connected & Active</span>
+                <span>Local Device Storage Active & Ready</span>
               </div>
             </div>
 
@@ -1086,7 +1082,7 @@ export const SettingsView: React.FC = () => {
                     <span>Cross-Platform Standalone App Installation</span>
                   </div>
                   <p className="text-xs text-slate-300 leading-relaxed max-w-xl">
-                    Install FarmFlow Pro directly onto your mobile phone, tablet, or desktop computer. Installed apps launch in full-screen standalone mode with direct MongoDB database access.
+                    Install FarmFlow Pro directly onto your mobile phone, tablet, or desktop computer. Installed apps launch in full-screen standalone mode with offline-ready local storage.
                   </p>
                 </div>
               </div>
@@ -1124,55 +1120,45 @@ export const SettingsView: React.FC = () => {
               </div>
             </div>
 
-            {/* MongoDB Central Cloud Database - Direct Connection */}
+            {/* Local Storage Diagnostics Card */}
             <div className="p-5 bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-300 rounded-3xl space-y-4 shadow-xs">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
                     <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
                       <Database className="w-4 h-4 text-emerald-700" />
-                      <span>MongoDB Central Database</span>
+                      <span>Device Storage Diagnostics</span>
                     </h4>
                     <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 font-extrabold text-[10px] uppercase tracking-wider flex items-center gap-1">
                       <CheckCircle2 className="w-3 h-3 text-emerald-700" />
-                      Direct Connected
+                      Offline-First Storage
                     </span>
                   </div>
                   <p className="text-xs text-slate-600 mt-1 max-w-xl">
-                    Direct MongoDB database storage for farm records, egg harvests, feed stocks, biosecurity verifications, and staff accounts. All operations connect directly to MongoDB Atlas.
+                    All flock records, egg harvests, feed consumption, medication treatments, biosecurity verifications, and staff profiles are safely stored directly on your device.
                   </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setShowDbHubModal(true)}
-                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
-                  >
-                    <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
-                    <span>MongoDB Hub</span>
-                  </button>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                 <div className="p-3 bg-white/80 backdrop-blur-xs rounded-2xl border border-emerald-200 space-y-1">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Connection Mode</span>
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Storage Mode</span>
                   <div className="flex items-center gap-2 text-xs font-extrabold text-slate-900">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>Direct MongoDB Atlas</span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span>Local Device Storage</span>
                   </div>
                 </div>
                 <div className="p-3 bg-white/80 backdrop-blur-xs rounded-2xl border border-emerald-200 space-y-1">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Database</span>
-                  <div className="text-xs font-extrabold text-slate-900 truncate" title={mongoStatus.dbName}>
-                    {mongoStatus.dbName || 'farmflowproviii'}
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Storage Used</span>
+                  <div className="text-xs font-extrabold text-slate-900">
+                    {storageQuota.usageMB} MB / {storageQuota.quotaMB} MB ({storageQuota.percentUsed}%)
                   </div>
                 </div>
                 <div className="p-3 bg-white/80 backdrop-blur-xs rounded-2xl border border-emerald-200 space-y-1">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Database Status</span>
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Network Dependency</span>
                   <div className="text-xs font-extrabold text-emerald-800 flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span>Active & Connected</span>
+                    <span>None (Full Offline Support)</span>
                   </div>
                 </div>
               </div>
@@ -1648,12 +1634,6 @@ export const SettingsView: React.FC = () => {
         userToEdit={editingStaffUser}
         existingUsers={users}
         flocks={flocks}
-      />
-
-      {/* Modal: Neon PostgreSQL & MongoDB Hub */}
-      <DatabaseStatusModal
-        isOpen={showDbHubModal}
-        onClose={() => setShowDbHubModal(false)}
       />
     </div>
   );

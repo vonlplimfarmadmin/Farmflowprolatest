@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useFarm } from '../../context/FarmContext';
 import { RoleBadge } from '../common/RoleBadge';
-import { MongoStatusModal } from '../common/MongoStatusModal';
 import { PWAInstallPrompt } from '../common/PWAInstallPrompt';
 import { AppAccessQRModal } from '../common/AppAccessQRModal';
 import { 
@@ -22,6 +21,7 @@ import {
   HelpCircle,
   QrCode
 } from 'lucide-react';
+import { MongoStatusModal } from '../common/MongoStatusModal';
 
 interface NavbarProps {
   onOpenReport: () => void;
@@ -55,12 +55,13 @@ export const Navbar: React.FC<NavbarProps> = ({
     getLowStockAlerts, 
     getUpcomingVaccines,
     dbStatus,
+    mongoStatus,
     permissions
   } = useFarm();
 
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
-  const [showMongoModal, setShowMongoModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
+  const [showMongoModal, setShowMongoModal] = useState(false);
 
   const lowFeeds = getLowStockAlerts();
   const upcomingVaccines = getUpcomingVaccines();
@@ -122,23 +123,19 @@ export const Navbar: React.FC<NavbarProps> = ({
           <span>{todayFormatted}</span>
         </div>
 
+        {/* MongoDB Cloud Database Status Badge */}
+        <button
+          onClick={() => setShowMongoModal(true)}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 glass-pill hover:bg-emerald-50 text-emerald-950 text-xs font-semibold rounded-full border border-emerald-300 transition cursor-pointer"
+          title="MongoDB Database Status (Click to inspect)"
+        >
+          <Database className="w-3.5 h-3.5 text-emerald-700" />
+          <span className={`w-1.5 h-1.5 rounded-full ${mongoStatus.connected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+          <span className="hidden md:inline font-bold">MongoDB</span>
+        </button>
+
         {/* Universal PWA Install Button */}
         <PWAInstallPrompt />
-
-        {/* Live Database Status Button */}
-        <button
-          id="navbar-mongo-sync-btn"
-          onClick={() => setShowMongoModal(true)}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold glass-pill text-emerald-950 hover:bg-emerald-50/80 border border-emerald-300/80 shadow-2xs transition cursor-pointer"
-          title="MongoDB Database Connected - Direct Real-Time Connection"
-        >
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
-          </span>
-          <Database className="w-3.5 h-3.5 text-emerald-700" />
-          <span className="hidden xl:inline text-[11px] font-bold">MongoDB</span>
-        </button>
 
         {/* Action Pod 1: Dynamic Reports Hub */}
         {onNavigate && (
@@ -342,14 +339,14 @@ export const Navbar: React.FC<NavbarProps> = ({
         )}
       </div>
 
-      <MongoStatusModal
-        isOpen={showMongoModal}
-        onClose={() => setShowMongoModal(false)}
-      />
-
       <AppAccessQRModal
         isOpen={showQRModal}
         onClose={() => setShowQRModal(false)}
+      />
+
+      <MongoStatusModal
+        isOpen={showMongoModal}
+        onClose={() => setShowMongoModal(false)}
       />
     </header>
   );
