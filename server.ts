@@ -88,8 +88,8 @@ async function startServer() {
     next();
   });
 
-  // Apply general rate limit to all /api endpoints
-  app.use('/api', createRateLimiter(200, 60 * 1000));
+  // Apply generous rate limit to prevent DDoS while never throttling active farm logging
+  app.use('/api', createRateLimiter(5000, 60 * 1000));
 
   // Health check endpoint
   app.get('/api/health', async (_req, res) => {
@@ -140,8 +140,8 @@ async function startServer() {
     }
   });
 
-  // Sync / Push All Collections (Stricter Rate Limit)
-  app.post('/api/mongodb/sync', createRateLimiter(45, 60 * 1000), async (req, res) => {
+  // Sync / Push All Collections
+  app.post('/api/mongodb/sync', async (req, res) => {
     try {
       const payload = req.body;
       if (!payload || typeof payload !== 'object') {
@@ -159,7 +159,7 @@ async function startServer() {
   });
 
   // Purge / Delete Persistent Old Records from Database
-  app.post('/api/mongodb/purge', createRateLimiter(20, 60 * 1000), async (req, res) => {
+  app.post('/api/mongodb/purge', async (req, res) => {
     try {
       const { collections, preserveUsers = true, preserveStandards = true, preserveFarmProfile = true } = req.body || {};
       const result = await purgeOldRecords({
@@ -190,7 +190,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/mongodb/farm-profile', createRateLimiter(40, 60 * 1000), async (req, res) => {
+  app.post('/api/mongodb/farm-profile', async (req, res) => {
     try {
       const profile = req.body;
       if (!profile || typeof profile !== 'object') {
@@ -225,7 +225,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/mongodb/doc/:collection/:id', createRateLimiter(60, 60 * 1000), async (req, res) => {
+  app.post('/api/mongodb/doc/:collection/:id', async (req, res) => {
     try {
       const { collection, id } = req.params;
       if (!isAllowedCollection(collection)) {
@@ -239,7 +239,7 @@ async function startServer() {
     }
   });
 
-  app.put('/api/mongodb/doc/:collection/:id', createRateLimiter(60, 60 * 1000), async (req, res) => {
+  app.put('/api/mongodb/doc/:collection/:id', async (req, res) => {
     try {
       const { collection, id } = req.params;
       if (!isAllowedCollection(collection)) {
@@ -253,7 +253,7 @@ async function startServer() {
     }
   });
 
-  app.delete('/api/mongodb/doc/:collection/:id', createRateLimiter(40, 60 * 1000), async (req, res) => {
+  app.delete('/api/mongodb/doc/:collection/:id', async (req, res) => {
     try {
       const { collection, id } = req.params;
       if (!isAllowedCollection(collection)) {
@@ -268,7 +268,7 @@ async function startServer() {
   });
 
   // Dedicated user endpoints with validation
-  app.post('/api/users/sync', createRateLimiter(40, 60 * 1000), async (req, res) => {
+  app.post('/api/users/sync', async (req, res) => {
     try {
       const user = req.body;
       if (!user || typeof user !== 'object' || !user.id) {
@@ -282,7 +282,7 @@ async function startServer() {
     }
   });
 
-  app.delete('/api/users/:id', createRateLimiter(30, 60 * 1000), async (req, res) => {
+  app.delete('/api/users/:id', async (req, res) => {
     try {
       const cleanId = sanitizeDocId(req.params.id);
       const deleted = await deleteDocument('users', cleanId);

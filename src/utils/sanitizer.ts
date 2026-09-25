@@ -4,23 +4,28 @@
  */
 
 // Characters considered safe for alphanumeric identifiers, IDs, slugs
-const SAFE_ID_REGEX = /^[a-zA-Z0-9_\-\.:@]{1,128}$/;
+const SAFE_ID_REGEX = /^[a-zA-Z0-9_\-\.:@\s]{1,128}$/;
 
 /**
  * Validates whether a given string is a safe document/record ID
  */
 export function isSafeIdentifier(id: unknown): boolean {
-  if (typeof id !== 'string') return false;
-  return SAFE_ID_REGEX.test(id.trim());
+  if (typeof id !== 'string' && typeof id !== 'number') return false;
+  return SAFE_ID_REGEX.test(String(id).trim());
 }
 
 /**
  * Sanitizes plain text input by stripping dangerous tags, script injections,
  * and malicious control characters while preserving valid multi-language text.
  */
-export function sanitizeText(input: unknown, maxLength: number = 2000): string {
+export function sanitizeText(input: unknown, maxLength: number = 20000): string {
   if (input === null || input === undefined) return '';
   let str = String(input);
+
+  // Allow image base64 data URIs intact if valid
+  if (str.startsWith('data:image/')) {
+    return str.slice(0, maxLength);
+  }
 
   // Strip NULL bytes and dangerous non-printable ASCII control characters (keep \t, \n, \r)
   str = str.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
@@ -35,7 +40,7 @@ export function sanitizeText(input: unknown, maxLength: number = 2000): string {
   str = str.replace(/\bon\w+\s*=\s*(['"]).*?\1/gi, '');
   str = str.replace(/\bon\w+\s*=\s*[^>\s]+/gi, '');
 
-  // Strip javascript: and data: URIs
+  // Strip javascript: and vbscript: URIs
   str = str.replace(/javascript:[^\s]*/gi, '');
   str = str.replace(/vbscript:[^\s]*/gi, '');
 

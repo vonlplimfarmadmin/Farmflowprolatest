@@ -422,24 +422,8 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return null; // Require login or registration first
   });
 
-  const [users, setUsers] = useState<UserAccount[]>(() => {
-    const saved = safeParseArray<UserAccount>(`${LOCAL_STORAGE_KEY}_users`, []);
-    return saved.length > 0 ? deduplicateUsers(saved) : [INITIAL_USERS[0]];
-  });
-
-  const [farmProfile, setFarmProfile] = useState<FarmProfile>(() => {
-    const parsed = safeParseObject<FarmProfile>(`${LOCAL_STORAGE_KEY}_profile`, INITIAL_FARM_PROFILE);
-    return {
-      ...INITIAL_FARM_PROFILE,
-      ...parsed,
-      standardFeedGuide: Array.isArray(parsed?.standardFeedGuide) ? parsed.standardFeedGuide : INITIAL_FARM_PROFILE.standardFeedGuide,
-      standardHenday: Array.isArray(parsed?.standardHenday) ? parsed.standardHenday : INITIAL_FARM_PROFILE.standardHenday,
-      standardBodyWeights: Array.isArray(parsed?.standardBodyWeights) ? parsed.standardBodyWeights : INITIAL_FARM_PROFILE.standardBodyWeights,
-      standardEggWeights: Array.isArray(parsed?.standardEggWeights) ? parsed.standardEggWeights : INITIAL_FARM_PROFILE.standardEggWeights,
-      standardVaccinationProgram: Array.isArray(parsed?.standardVaccinationProgram) ? parsed.standardVaccinationProgram : INITIAL_FARM_PROFILE.standardVaccinationProgram
-    };
-  });
-
+  const [users, setUsers] = useState<UserAccount[]>(() => [INITIAL_USERS[0]]);
+  const [farmProfile, setFarmProfile] = useState<FarmProfile>(INITIAL_FARM_PROFILE);
   const [flocks, setFlocks] = useState<Flock[]>([]);
   const [feedStockEntries, setFeedStockEntries] = useState<FeedStockEntry[]>([]);
   const [feedConsumptionRecords, setFeedConsumptionRecords] = useState<FeedConsumptionRecord[]>([]);
@@ -588,9 +572,18 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await refreshStorageQuota();
   };
 
-  const reconnectDB = async (_uri?: string) => {
-    await refreshStorageQuota();
-    return { success: true, message: 'MongoDB connection refreshed.' };
+  const reconnectDB = async (_uri?: string): Promise<{ success: boolean; message: string }> => {
+    try {
+      const status = await getMongoDBStatus();
+      await refreshStorageQuota();
+      await pullAllFromMongoDB();
+      if (status.connected) {
+        return { success: true, message: 'MongoDB connection active and verified.' };
+      }
+      return { success: false, message: status.error || 'MongoDB connection offline.' };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Failed to reconnect to database.' };
+    }
   };
 
   // Direct sync of all collections to MongoDB Cloud Database
@@ -638,7 +631,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Direct pull of all collections from MongoDB Cloud Database
+  // Direct pull of all collections from MongoDB Cloud Database with non-destructive merge
   const pullAllFromMongoDB = async (): Promise<{ success: boolean; message: string }> => {
     setMongoStatus(prev => ({ ...prev, isSyncing: true }));
     try {
@@ -720,6 +713,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         return { success: true, message: 'All records loaded directly from MongoDB.' };
       }
+      setMongoStatus(prev => ({ ...prev, isSyncing: false, error: res.message || 'Unable to pull records' }));
       return { success: false, message: res.message || 'Unable to pull records from MongoDB.' };
     } catch (e: any) {
       setMongoStatus(prev => ({ ...prev, isSyncing: false, error: e.message }));
@@ -798,62 +792,107 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Real-time document level persistence to MongoDB
-  const saveDocToFirestore = (collection?: string, id?: string, data?: any) => {
+  const saveDocToFirestore = async (collection?: string, id?: string, data?: any): Promise<boolean> => {
     if (collection && id && data) {
-      saveDocToMongoDB(collection, id, data).catch((err) => {
+      try {
+        const ok = await saveDocToMongoDB(collection, id, data);
+        if (ok) {
+          setMongoStatus(prev => ({
+            ...prev,
+            connected: true,
+            lastSyncedAt: new Date().toISOString(),
+            error: null,
+          }));
+          setDbStatus(prev => ({
+            ...prev,
+            connected: true,
+            state: 'MongoDB Atlas Active & Synchronized',
+          }));
+          return true;
+        } else {
+          setMongoStatus(prev => ({
+            ...prev,
+            error: `Failed to persist ${collection}/${id} to MongoDB`,
+          }));
+          return false;
+        }
+      } catch (err: any) {
         console.warn(`[MongoDB] Auto-save error for ${collection}/${id}:`, err);
-      });
+        setMongoStatus(prev => ({
+          ...prev,
+          error: err?.message || 'MongoDB auto-save error',
+        }));
+        return false;
+      }
     }
+    return false;
   };
 
-  const deleteDocFromFirestore = (collection?: string, id?: string) => {
+  const deleteDocFromFirestore = async (collection?: string, id?: string): Promise<boolean> => {
     if (collection && id) {
-      deleteDocFromMongoDB(collection, id).catch((err) => {
+      try {
+        const ok = await deleteDocFromMongoDB(collection, id);
+        if (ok) {
+          setMongoStatus(prev => ({
+            ...prev,
+            connected: true,
+            lastSyncedAt: new Date().toISOString(),
+            error: null,
+          }));
+        }
+        return ok;
+      } catch (err: any) {
         console.warn(`[MongoDB] Delete error for ${collection}/${id}:`, err);
-      });
+        return false;
+      }
     }
+    return false;
   };
 
   const syncUserToBackend = (u: UserAccount) => {
     saveDocToMongoDB('users', u.id, u).catch(() => {});
   };
 
-  // Purge legacy persistent browser storage on startup
+  // Clear any existing offline record cache from browser local storage
   useEffect(() => {
     try {
-      const keysToClean = [
-        `${LOCAL_STORAGE_KEY}_profile`,
-        `${LOCAL_STORAGE_KEY}_flocks`,
-        `${LOCAL_STORAGE_KEY}_eggs`,
-        `${LOCAL_STORAGE_KEY}_egg_prod`,
-        `${LOCAL_STORAGE_KEY}_feed_stock`,
-        `${LOCAL_STORAGE_KEY}_feed_cons`,
-        `${LOCAL_STORAGE_KEY}_depletions`,
-        `${LOCAL_STORAGE_KEY}_transfers`,
-        `${LOCAL_STORAGE_KEY}_med_products`,
-        `${LOCAL_STORAGE_KEY}_med_admin`,
-        `${LOCAL_STORAGE_KEY}_body_weights`,
-        `${LOCAL_STORAGE_KEY}_weekly_egg_weights`,
-        `${LOCAL_STORAGE_KEY}_biosecurity_logs`,
-        `${LOCAL_STORAGE_KEY}_biosecurity_reqs`,
-        `${LOCAL_STORAGE_KEY}_biosecurity_summaries`,
-        `${LOCAL_STORAGE_KEY}_deliveries`,
-        `${LOCAL_STORAGE_KEY}_hatching_summaries`,
-        `${LOCAL_STORAGE_KEY}_system_logs`,
-        `${LOCAL_STORAGE_KEY}_logs`,
-      ];
-      for (const k of keysToClean) {
-        localStorage.removeItem(k);
+      if (typeof localStorage !== 'undefined') {
+        const keysToClean = [
+          `${LOCAL_STORAGE_KEY}_flocks`,
+          `${LOCAL_STORAGE_KEY}_eggs`,
+          `${LOCAL_STORAGE_KEY}_egg_prod`,
+          `${LOCAL_STORAGE_KEY}_feed_stock`,
+          `${LOCAL_STORAGE_KEY}_feed_cons`,
+          `${LOCAL_STORAGE_KEY}_depletions`,
+          `${LOCAL_STORAGE_KEY}_transfers`,
+          `${LOCAL_STORAGE_KEY}_med_products`,
+          `${LOCAL_STORAGE_KEY}_med_stock`,
+          `${LOCAL_STORAGE_KEY}_med_admin`,
+          `${LOCAL_STORAGE_KEY}_body_weights`,
+          `${LOCAL_STORAGE_KEY}_weekly_egg_weights`,
+          `${LOCAL_STORAGE_KEY}_biosecurity_logs`,
+          `${LOCAL_STORAGE_KEY}_biosecurity_reqs`,
+          `${LOCAL_STORAGE_KEY}_biosecurity_summaries`,
+          `${LOCAL_STORAGE_KEY}_deliveries`,
+          `${LOCAL_STORAGE_KEY}_hatching_summaries`,
+          `${LOCAL_STORAGE_KEY}_system_logs`,
+          `${LOCAL_STORAGE_KEY}_profile`,
+          `${LOCAL_STORAGE_KEY}_users`,
+        ];
+        for (const k of keysToClean) {
+          localStorage.removeItem(k);
+        }
       }
     } catch {
-      // safe fallback
+      // ignore
     }
   }, []);
 
   // Hydrate from MongoDB on initial mount & start periodic background polling
   useEffect(() => {
+    refreshStorageQuota().catch(() => {});
     pullAllFromMongoDB().catch(() => {});
-    const stopPolling = startMongoDBPolling(pullAllFromMongoDB, 25000);
+    const stopPolling = startMongoDBPolling(pullAllFromMongoDB, 30000);
     return () => stopPolling();
   }, []);
 

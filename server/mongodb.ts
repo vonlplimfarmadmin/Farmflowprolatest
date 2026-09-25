@@ -141,7 +141,7 @@ export const KNOWN_COLLECTIONS = [
   'settings',
 ];
 
-const SAFE_ID_PATTERN = /^[a-zA-Z0-9_\-\.:@]{1,128}$/;
+const SAFE_ID_PATTERN = /^[a-zA-Z0-9_\-\.:@\s]{1,128}$/;
 
 /**
  * Validates whether a collection name is in the authorized whitelist
@@ -198,45 +198,58 @@ export async function pullAllCollections(): Promise<Record<string, any>> {
   const database = await getDb();
   const result: Record<string, any> = {};
 
-  for (const name of KNOWN_COLLECTIONS) {
-    try {
-      const col = database.collection(name);
-      if (name === 'farmProfile') {
-        const doc = await col.findOne({ _id: { $in: ['farmProfile', 'profile'] as any } });
-        if (doc) {
-          const { _id, ...rest } = doc;
-          result.farmProfile = rest;
-        } else {
-          const first = await col.findOne({});
-          if (first) {
-            const { _id, ...rest } = first;
+  await Promise.all(
+    KNOWN_COLLECTIONS.map(async (name) => {
+      try {
+        const col = database.collection(name);
+        if (name === 'farmProfile') {
+          const doc = await col.findOne({ _id: { $in: ['farmProfile', 'profile'] as any } });
+          if (doc) {
+            const { _id, ...rest } = doc;
             result.farmProfile = rest;
+          } else {
+            const first = await col.findOne({});
+            if (first) {
+              const { _id, ...rest } = first;
+              result.farmProfile = rest;
+            }
           }
+        } else if (name === 'standards') {
+          const doc = await col.findOne({ _id: 'standards' as any });
+          if (doc) {
+            const { _id, ...rest } = doc;
+            result.standards = rest;
+          }
+        } else if (name === 'settings') {
+          const doc = await col.findOne({ _id: 'global_settings' as any });
+          if (doc) {
+            const { _id, ...rest } = doc;
+            result.settings = rest;
+          }
+        } else if (name === 'biosecuritySummaries') {
+          const docs = await col.find({}).limit(5000).toArray();
+          const summaryObj: Record<string, any> = {};
+          for (const d of docs) {
+            const { _id, id, ...rest } = d;
+            const docId = id || _id?.toString();
+            if (docId) {
+              summaryObj[docId] = { id: docId, ...rest };
+            }
+          }
+          result.biosecuritySummaries = summaryObj;
+        } else {
+          const docs = await col.find({}).limit(5000).toArray();
+          result[name] = docs.map((d) => {
+            const { _id, ...rest } = d;
+            return { id: (d as any).id || _id.toString(), ...rest };
+          });
         }
-      } else if (name === 'standards') {
-        const doc = await col.findOne({ _id: 'standards' as any });
-        if (doc) {
-          const { _id, ...rest } = doc;
-          result.standards = rest;
-        }
-      } else if (name === 'settings') {
-        const doc = await col.findOne({ _id: 'global_settings' as any });
-        if (doc) {
-          const { _id, ...rest } = doc;
-          result.settings = rest;
-        }
-      } else {
-        const docs = await col.find({}).limit(5000).toArray();
-        result[name] = docs.map((d) => {
-          const { _id, ...rest } = d;
-          return { id: (d as any).id || _id.toString(), ...rest };
-        });
+      } catch (e: any) {
+        console.warn(`[MongoDB] Failed to read collection ${name}:`, e.message);
+        result[name] = name === 'biosecuritySummaries' ? {} : [];
       }
-    } catch (e: any) {
-      console.warn(`[MongoDB] Failed to read collection ${name}:`, e.message);
-      result[name] = [];
-    }
-  }
+    })
+  );
 
   return result;
 }
@@ -279,6 +292,25 @@ export async function syncAllCollections(payload: Record<string, any>): Promise<
         { upsert: true }
       );
       counts.settings = 1;
+    } else if (name === 'biosecuritySummaries' && typeof data === 'object' && !Array.isArray(data)) {
+      const cleanSummaries = sanitizeMongoObject(data);
+      const bulkOps = Object.entries(cleanSummaries)
+        .filter(([_, item]) => item && typeof item === 'object')
+        .map(([dateKey, item]) => {
+          const safeKey = sanitizeDocId(dateKey);
+          const { _id, ...rest } = item as any;
+          return {
+            updateOne: {
+              filter: { id: safeKey },
+              update: { $set: { ...rest, id: safeKey, updatedAt: new Date().toISOString() } },
+              upsert: true,
+            },
+          };
+        });
+      if (bulkOps.length > 0) {
+        const res = await col.bulkWrite(bulkOps as any, { ordered: false });
+        counts.biosecuritySummaries = (res.upsertedCount || 0) + (res.modifiedCount || 0);
+      }
     } else if (Array.isArray(data)) {
       if (data.length === 0) {
         counts[name] = 0;

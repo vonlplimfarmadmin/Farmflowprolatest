@@ -132,49 +132,65 @@ export async function saveDocToMongoDB(
   id: string,
   data: any
 ): Promise<boolean> {
-  try {
-    const cleanId = String(id).trim();
-    if (!isSafeIdentifier(cleanId)) {
-      console.warn('[Security] Refused to save document with unsafe ID:', id);
-      return false;
-    }
-    const cleanData = sanitizePayload(data);
-    const res = await fetch(`/api/mongodb/doc/${encodeURIComponent(collectionName)}/${encodeURIComponent(cleanId)}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(cleanData),
-    });
-    return res.ok;
-  } catch (err) {
-    console.warn(`[MongoDB Client] Save doc error (${collectionName}/${id}):`, err);
+  const cleanId = String(id).trim();
+  if (!isSafeIdentifier(cleanId)) {
+    console.warn('[Security] Refused to save document with unsafe ID:', id);
     return false;
   }
+  const cleanData = sanitizePayload(data);
+
+  // Attempt save with up to 1 automatic retry
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const res = await fetch(`/api/mongodb/doc/${encodeURIComponent(collectionName)}/${encodeURIComponent(cleanId)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(cleanData),
+      });
+      if (res.ok) {
+        return true;
+      }
+      console.warn(`[MongoDB Client] Save doc attempt ${attempt} returned status ${res.status} for ${collectionName}/${cleanId}`);
+    } catch (err) {
+      console.warn(`[MongoDB Client] Save doc attempt ${attempt} network error (${collectionName}/${id}):`, err);
+    }
+    if (attempt < 2) {
+      await new Promise(r => setTimeout(r, 400));
+    }
+  }
+  return false;
 }
 
 export async function deleteDocFromMongoDB(
   collectionName: string,
   id: string
 ): Promise<boolean> {
-  try {
-    const cleanId = String(id).trim();
-    if (!isSafeIdentifier(cleanId)) {
-      console.warn('[Security] Refused to delete document with unsafe ID:', id);
-      return false;
-    }
-    const res = await fetch(`/api/mongodb/doc/${encodeURIComponent(collectionName)}/${encodeURIComponent(cleanId)}`, {
-      method: 'DELETE',
-      headers: {
-        'Accept': 'application/json',
-      },
-    });
-    return res.ok;
-  } catch (err) {
-    console.warn(`[MongoDB Client] Delete doc error (${collectionName}/${id}):`, err);
+  const cleanId = String(id).trim();
+  if (!isSafeIdentifier(cleanId)) {
+    console.warn('[Security] Refused to delete document with unsafe ID:', id);
     return false;
   }
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const res = await fetch(`/api/mongodb/doc/${encodeURIComponent(collectionName)}/${encodeURIComponent(cleanId)}`, {
+        method: 'DELETE',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+      if (res.ok) return true;
+    } catch (err) {
+      console.warn(`[MongoDB Client] Delete doc attempt ${attempt} error (${collectionName}/${id}):`, err);
+    }
+    if (attempt < 2) {
+      await new Promise(r => setTimeout(r, 400));
+    }
+  }
+  return false;
 }
 
 export async function saveFarmProfileToMongoDB(profile: any): Promise<{ success: boolean; message: string }> {
