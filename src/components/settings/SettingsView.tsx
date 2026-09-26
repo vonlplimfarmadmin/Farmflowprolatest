@@ -1062,14 +1062,14 @@ export const SettingsView: React.FC = () => {
             <div className="p-5 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3">
               <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
                 <Database className="w-4 h-4 text-forest-700" />
-                <span>Local Persistent Browser Storage</span>
+                <span>MongoDB Atlas Cloud Storage</span>
               </h4>
               <p className="text-xs text-slate-600">
-                FarmFlow Pro runs in local-first standalone mode with instant persistence, offline capability, zero cloud database latency, and complete data privacy.
+                FarmFlow Pro connects directly to MongoDB Atlas Cloud Database with real-time persistent data storage, automatic backups, and seamless synchronization across all farm terminals.
               </p>
               <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-mint-100 text-forest-900 rounded-xl text-xs font-bold">
                 <CheckCircle2 className="w-4 h-4 text-forest-700" />
-                <span>Local Device Storage Active & Ready</span>
+                <span>MongoDB Atlas Database Active & Ready</span>
               </div>
             </div>
 
@@ -1082,7 +1082,7 @@ export const SettingsView: React.FC = () => {
                     <span>Cross-Platform Standalone App Installation</span>
                   </div>
                   <p className="text-xs text-slate-300 leading-relaxed max-w-xl">
-                    Install FarmFlow Pro directly onto your mobile phone, tablet, or desktop computer. Installed apps launch in full-screen standalone mode with offline-ready local storage.
+                    Install FarmFlow Pro directly onto your mobile phone, tablet, or desktop computer. Installed apps launch in full-screen standalone mode with direct real-time database synchronization.
                   </p>
                 </div>
               </div>
@@ -1120,22 +1120,22 @@ export const SettingsView: React.FC = () => {
               </div>
             </div>
 
-            {/* Local Storage Diagnostics Card */}
+            {/* Cloud & Terminal Diagnostics Card */}
             <div className="p-5 bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-300 rounded-3xl space-y-4 shadow-xs">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
                     <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
                       <Database className="w-4 h-4 text-emerald-700" />
-                      <span>Device Storage Diagnostics</span>
+                      <span>Database & Storage Diagnostics</span>
                     </h4>
                     <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 font-extrabold text-[10px] uppercase tracking-wider flex items-center gap-1">
                       <CheckCircle2 className="w-3 h-3 text-emerald-700" />
-                      Offline-First Storage
+                      Cloud Synchronized
                     </span>
                   </div>
                   <p className="text-xs text-slate-600 mt-1 max-w-xl">
-                    All flock records, egg harvests, feed consumption, medication treatments, biosecurity verifications, and staff profiles are safely stored directly on your device.
+                    All flock records, egg harvests, feed consumption, medication treatments, biosecurity verifications, and staff profiles are safely stored in MongoDB Atlas.
                   </p>
                 </div>
               </div>
@@ -1145,11 +1145,11 @@ export const SettingsView: React.FC = () => {
                   <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Storage Mode</span>
                   <div className="flex items-center gap-2 text-xs font-extrabold text-slate-900">
                     <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span>Local Device Storage</span>
+                    <span>MongoDB Atlas Cluster</span>
                   </div>
                 </div>
                 <div className="p-3 bg-white/80 backdrop-blur-xs rounded-2xl border border-emerald-200 space-y-1">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Storage Used</span>
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Local Storage Used</span>
                   <div className="text-xs font-extrabold text-slate-900">
                     {storageQuota.usageMB} MB / {storageQuota.quotaMB} MB ({storageQuota.percentUsed}%)
                   </div>
@@ -1158,7 +1158,7 @@ export const SettingsView: React.FC = () => {
                   <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Network Dependency</span>
                   <div className="text-xs font-extrabold text-emerald-800 flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span>None (Full Offline Support)</span>
+                    <span>Active Cloud Connection (MongoDB Atlas)</span>
                   </div>
                 </div>
               </div>

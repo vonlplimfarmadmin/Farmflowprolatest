@@ -186,6 +186,13 @@ interface FarmContextType {
   // Farm Profile
   farmProfile: FarmProfile;
   updateFarmProfile: (profile: Partial<FarmProfile>) => Promise<{ success: boolean; message: string; data?: FarmProfile }>;
+  updateAllStandards: (standards: {
+    vaccine?: StandardMedProgramItem[];
+    feed?: StandardFeedGuideItem[];
+    henday?: StandardHendayItem[];
+    bodyweight?: StandardBodyWeightItem[];
+    eggweight?: StandardEggWeightItem[];
+  }) => Promise<{ success: boolean; message: string }>;
   updateStandardVaccination: (program: StandardMedProgramItem[]) => void;
   updateStandardFeedGuide: (guide: StandardFeedGuideItem[]) => void;
   updateStandardHenday: (henday: StandardHendayItem[]) => void;
@@ -642,7 +649,28 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setUsers(deduplicateUsers(d.users));
         }
         if (d.farmProfile && typeof d.farmProfile === 'object') {
-          setFarmProfile(prev => ({ ...prev, ...d.farmProfile }));
+          setFarmProfile(prev => {
+            const merged = { ...prev, ...d.farmProfile };
+            if (d.standards) {
+              const stds = d.standards;
+              if (Array.isArray(stds.vaccination?.items) && stds.vaccination.items.length > 0) {
+                merged.standardVaccinationProgram = stds.vaccination.items;
+              }
+              if (Array.isArray(stds.feedGuide?.items) && stds.feedGuide.items.length > 0) {
+                merged.standardFeedGuide = stds.feedGuide.items;
+              }
+              if (Array.isArray(stds.bodyWeights?.items) && stds.bodyWeights.items.length > 0) {
+                merged.standardBodyWeights = stds.bodyWeights.items;
+              }
+              if (Array.isArray(stds.henday?.items) && stds.henday.items.length > 0) {
+                merged.standardHenday = stds.henday.items;
+              }
+              if (Array.isArray(stds.eggWeights?.items) && stds.eggWeights.items.length > 0) {
+                merged.standardEggWeights = stds.eggWeights.items;
+              }
+            }
+            return merged;
+          });
         }
         if (Array.isArray(d.flocks)) {
           setFlocks(deduplicateFlocks(d.flocks));
@@ -957,7 +985,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     // If not found in local memory, attempt a fast targeted lookup for this user from MongoDB
-    if (!user && isSafeIdentifier(clean) && typeof navigator !== 'undefined' && navigator.onLine) {
+    if (!user && isSafeIdentifier(clean)) {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 2000);
@@ -1568,53 +1596,124 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   };
 
-  const updateStandardVaccination = (program: StandardMedProgramItem[]) => {
+  const updateAllStandards = async (standards: {
+    vaccine?: StandardMedProgramItem[];
+    feed?: StandardFeedGuideItem[];
+    henday?: StandardHendayItem[];
+    bodyweight?: StandardBodyWeightItem[];
+    eggweight?: StandardEggWeightItem[];
+  }): Promise<{ success: boolean; message: string }> => {
+    let nextProfile: FarmProfile;
     setFarmProfile(prev => {
-      const next = { ...prev, standardVaccinationProgram: program };
-      saveDocToFirestore('farmProfile', 'profile', next);
-      saveDocToFirestore('standards', 'vaccination', { items: program });
+      const next = { ...prev };
+      if (standards.vaccine) next.standardVaccinationProgram = standards.vaccine;
+      if (standards.feed) next.standardFeedGuide = standards.feed;
+      if (standards.henday) next.standardHenday = standards.henday;
+      if (standards.bodyweight) next.standardBodyWeights = standards.bodyweight;
+      if (standards.eggweight) next.standardEggWeights = standards.eggweight;
+      nextProfile = next;
       return next;
     });
+
+    try {
+      if (standards.vaccine) {
+        await saveDocToMongoDB('standards', 'vaccination', { id: 'vaccination', items: standards.vaccine });
+      }
+      if (standards.feed) {
+        await saveDocToMongoDB('standards', 'feedGuide', { id: 'feedGuide', items: standards.feed });
+      }
+      if (standards.henday) {
+        await saveDocToMongoDB('standards', 'henday', { id: 'henday', items: standards.henday });
+      }
+      if (standards.bodyweight) {
+        await saveDocToMongoDB('standards', 'bodyWeights', { id: 'bodyWeights', items: standards.bodyweight });
+      }
+      if (standards.eggweight) {
+        await saveDocToMongoDB('standards', 'eggWeights', { id: 'eggWeights', items: standards.eggweight });
+      }
+      if (nextProfile!) {
+        await saveFarmProfileToMongoDB(nextProfile);
+        saveDocToFirestore('farmProfile', 'profile', nextProfile);
+      }
+      return { success: true, message: 'All standards synchronized with database.' };
+    } catch (err: any) {
+      console.warn('[Standards] Error persisting standards:', err);
+      return { success: false, message: err?.message || 'Error persisting standards' };
+    }
+  };
+
+  const updateStandardVaccination = (program: StandardMedProgramItem[]) => {
+    let nextProfile: FarmProfile;
+    setFarmProfile(prev => {
+      const next = { ...prev, standardVaccinationProgram: program };
+      nextProfile = next;
+      return next;
+    });
+    saveDocToMongoDB('standards', 'vaccination', { id: 'vaccination', items: program }).catch(() => {});
+    if (nextProfile!) {
+      saveFarmProfileToMongoDB(nextProfile).catch(() => {});
+      saveDocToFirestore('farmProfile', 'profile', nextProfile);
+    }
     logAction('UPDATE_STANDARD_VACCINATION', 'admin', `Updated standard vaccination schedule (${program.length} items).`);
   };
 
   const updateStandardFeedGuide = (guide: StandardFeedGuideItem[]) => {
+    let nextProfile: FarmProfile;
     setFarmProfile(prev => {
       const next = { ...prev, standardFeedGuide: guide };
-      saveDocToFirestore('farmProfile', 'profile', next);
-      saveDocToFirestore('standards', 'feedGuide', { items: guide });
+      nextProfile = next;
       return next;
     });
+    saveDocToMongoDB('standards', 'feedGuide', { id: 'feedGuide', items: guide }).catch(() => {});
+    if (nextProfile!) {
+      saveFarmProfileToMongoDB(nextProfile).catch(() => {});
+      saveDocToFirestore('farmProfile', 'profile', nextProfile);
+    }
     logAction('UPDATE_STANDARD_FEED_GUIDE', 'admin', `Updated standard feed guide (${guide.length} items).`);
   };
 
   const updateStandardHenday = (henday: StandardHendayItem[]) => {
+    let nextProfile: FarmProfile;
     setFarmProfile(prev => {
       const next = { ...prev, standardHenday: henday };
-      saveDocToFirestore('farmProfile', 'profile', next);
-      saveDocToFirestore('standards', 'henday', { items: henday });
+      nextProfile = next;
       return next;
     });
+    saveDocToMongoDB('standards', 'henday', { id: 'henday', items: henday }).catch(() => {});
+    if (nextProfile!) {
+      saveFarmProfileToMongoDB(nextProfile).catch(() => {});
+      saveDocToFirestore('farmProfile', 'profile', nextProfile);
+    }
     logAction('UPDATE_STANDARD_HENDAY', 'admin', `Updated standard Henday% production curve.`);
   };
 
   const updateStandardBodyWeights = (weights: StandardBodyWeightItem[]) => {
+    let nextProfile: FarmProfile;
     setFarmProfile(prev => {
       const next = { ...prev, standardBodyWeights: weights };
-      saveDocToFirestore('farmProfile', 'profile', next);
-      saveDocToFirestore('standards', 'bodyWeights', { items: weights });
+      nextProfile = next;
       return next;
     });
+    saveDocToMongoDB('standards', 'bodyWeights', { id: 'bodyWeights', items: weights }).catch(() => {});
+    if (nextProfile!) {
+      saveFarmProfileToMongoDB(nextProfile).catch(() => {});
+      saveDocToFirestore('farmProfile', 'profile', nextProfile);
+    }
     logAction('UPDATE_STANDARD_BODY_WEIGHTS', 'admin', `Updated standard body weight curves.`);
   };
 
   const updateStandardEggWeights = (eggWeights: StandardEggWeightItem[]) => {
+    let nextProfile: FarmProfile;
     setFarmProfile(prev => {
       const next = { ...prev, standardEggWeights: eggWeights };
-      saveDocToFirestore('farmProfile', 'profile', next);
-      saveDocToFirestore('standards', 'eggWeights', { items: eggWeights });
+      nextProfile = next;
       return next;
     });
+    saveDocToMongoDB('standards', 'eggWeights', { id: 'eggWeights', items: eggWeights }).catch(() => {});
+    if (nextProfile!) {
+      saveFarmProfileToMongoDB(nextProfile).catch(() => {});
+      saveDocToFirestore('farmProfile', 'profile', nextProfile);
+    }
     logAction('UPDATE_STANDARD_EGG_WEIGHTS', 'admin', `Updated standard egg weight progression.`);
   };
 
@@ -2886,6 +2985,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         farmProfile,
         updateFarmProfile,
+        updateAllStandards,
         updateStandardVaccination,
         updateStandardFeedGuide,
         updateStandardHenday,

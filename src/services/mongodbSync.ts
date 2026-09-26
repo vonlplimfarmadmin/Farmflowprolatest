@@ -241,7 +241,6 @@ export async function getFarmProfileFromMongoDB(): Promise<any | null> {
 
 export function startMongoDBPolling(callback: () => void, intervalMs: number = 30000): () => void {
   const intervalId = setInterval(() => {
-    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     callback();
   }, intervalMs);
 

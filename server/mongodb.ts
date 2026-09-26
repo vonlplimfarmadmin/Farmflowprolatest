@@ -175,23 +175,22 @@ export async function pullAllCollections(): Promise<Record<string, any>> {
       try {
         const col = database.collection(name);
         if (name === 'farmProfile') {
-          const doc = await col.findOne({ _id: { $in: ['farmProfile', 'profile'] as any } });
+          const doc = await col.findOne({ _id: { $in: ['farmProfile', 'profile'] as any } }) || await col.findOne({});
           if (doc) {
             const { _id, ...rest } = doc;
-            result.farmProfile = rest;
-          } else {
-            const first = await col.findOne({});
-            if (first) {
-              const { _id, ...rest } = first;
-              result.farmProfile = rest;
-            }
+            result.farmProfile = { id: 'farmProfile', ...rest };
           }
         } else if (name === 'standards') {
-          const doc = await col.findOne({ _id: 'standards' as any });
-          if (doc) {
-            const { _id, ...rest } = doc;
-            result.standards = rest;
+          const docs = await col.find({}).limit(500).toArray();
+          const stdMap: Record<string, any> = {};
+          for (const d of docs) {
+            const { _id, id, ...rest } = d;
+            const key = String(id || _id || '').trim();
+            if (key) {
+              stdMap[key] = { id: key, ...rest };
+            }
           }
+          result.standards = stdMap;
         } else if (name === 'settings') {
           const doc = await col.findOne({ _id: 'global_settings' as any });
           if (doc) {
@@ -223,6 +222,36 @@ export async function pullAllCollections(): Promise<Record<string, any>> {
     })
   );
 
+  // Safeguard: Reconcile standards with farmProfile so custom uploaded standards are never lost or reverted
+  if (result.farmProfile && typeof result.farmProfile === 'object') {
+    const stds = result.standards || {};
+    if (Array.isArray(stds.vaccination?.items) && stds.vaccination.items.length > 0) {
+      if (!result.farmProfile.standardVaccinationProgram || stds.vaccination.items.length >= result.farmProfile.standardVaccinationProgram.length) {
+        result.farmProfile.standardVaccinationProgram = stds.vaccination.items;
+      }
+    }
+    if (Array.isArray(stds.feedGuide?.items) && stds.feedGuide.items.length > 0) {
+      if (!result.farmProfile.standardFeedGuide || stds.feedGuide.items.length >= result.farmProfile.standardFeedGuide.length) {
+        result.farmProfile.standardFeedGuide = stds.feedGuide.items;
+      }
+    }
+    if (Array.isArray(stds.bodyWeights?.items) && stds.bodyWeights.items.length > 0) {
+      if (!result.farmProfile.standardBodyWeights || stds.bodyWeights.items.length >= result.farmProfile.standardBodyWeights.length) {
+        result.farmProfile.standardBodyWeights = stds.bodyWeights.items;
+      }
+    }
+    if (Array.isArray(stds.henday?.items) && stds.henday.items.length > 0) {
+      if (!result.farmProfile.standardHenday || stds.henday.items.length >= result.farmProfile.standardHenday.length) {
+        result.farmProfile.standardHenday = stds.henday.items;
+      }
+    }
+    if (Array.isArray(stds.eggWeights?.items) && stds.eggWeights.items.length > 0) {
+      if (!result.farmProfile.standardEggWeights || stds.eggWeights.items.length >= result.farmProfile.standardEggWeights.length) {
+        result.farmProfile.standardEggWeights = stds.eggWeights.items;
+      }
+    }
+  }
+
   return result;
 }
 
@@ -242,19 +271,55 @@ export async function syncAllCollections(payload: Record<string, any>): Promise<
 
     if (name === 'farmProfile' && typeof data === 'object') {
       const cleanProfile = sanitizeMongoObject(data);
+      // Preserve existing standards if incoming update does not include them
+      const existing = await col.findOne({ _id: { $in: ['farmProfile', 'profile'] as any } }) || await col.findOne({});
+      const preserved: Record<string, any> = {};
+      if (existing) {
+        if (!cleanProfile.standardVaccinationProgram?.length && existing.standardVaccinationProgram?.length) {
+          preserved.standardVaccinationProgram = existing.standardVaccinationProgram;
+        }
+        if (!cleanProfile.standardFeedGuide?.length && existing.standardFeedGuide?.length) {
+          preserved.standardFeedGuide = existing.standardFeedGuide;
+        }
+        if (!cleanProfile.standardBodyWeights?.length && existing.standardBodyWeights?.length) {
+          preserved.standardBodyWeights = existing.standardBodyWeights;
+        }
+        if (!cleanProfile.standardHenday?.length && existing.standardHenday?.length) {
+          preserved.standardHenday = existing.standardHenday;
+        }
+        if (!cleanProfile.standardEggWeights?.length && existing.standardEggWeights?.length) {
+          preserved.standardEggWeights = existing.standardEggWeights;
+        }
+      }
       await col.updateOne(
         { _id: 'farmProfile' as any },
-        { $set: { ...cleanProfile, updatedAt: new Date().toISOString() } },
+        { $set: { ...cleanProfile, ...preserved, id: 'farmProfile', updatedAt: new Date().toISOString() } },
         { upsert: true }
       );
       counts.farmProfile = 1;
     } else if (name === 'standards' && typeof data === 'object') {
       const cleanStandards = sanitizeMongoObject(data);
-      await col.updateOne(
-        { _id: 'standards' as any },
-        { $set: { ...cleanStandards, updatedAt: new Date().toISOString() } },
-        { upsert: true }
-      );
+      if (Array.isArray(cleanStandards)) {
+        for (const item of cleanStandards) {
+          if (item && item.id) {
+            await col.updateOne(
+              { $or: [{ id: item.id }, { _id: item.id as any }] },
+              { $set: { ...item, updatedAt: new Date().toISOString() } },
+              { upsert: true }
+            );
+          }
+        }
+      } else {
+        for (const [key, val] of Object.entries(cleanStandards)) {
+          if (val && typeof val === 'object') {
+            await col.updateOne(
+              { $or: [{ id: key }, { _id: key as any }] },
+              { $set: { ...(val as any), id: key, updatedAt: new Date().toISOString() } },
+              { upsert: true }
+            );
+          }
+        }
+      }
       counts.standards = 1;
     } else if (name === 'settings' && typeof data === 'object') {
       const cleanSettings = sanitizeMongoObject(data);
@@ -334,11 +399,52 @@ export async function upsertDocument(
   const col = database.collection(collectionName);
   const { _id, ...rest } = cleanData;
 
-  await col.updateOne(
-    { id: cleanId },
-    { $set: { ...rest, id: cleanId, updatedAt: new Date().toISOString() } },
-    { upsert: true }
-  );
+  if (collectionName === 'farmProfile') {
+    // Preserve existing full standards if incoming doc does not supply them or has fewer items
+    const existing = await col.findOne({ _id: { $in: ['farmProfile', 'profile'] as any } }) || await col.findOne({ id: cleanId });
+    const preservedStandards: Record<string, any> = {};
+    if (existing) {
+      if ((!rest.standardVaccinationProgram || rest.standardVaccinationProgram.length === 0) && existing.standardVaccinationProgram?.length) {
+        preservedStandards.standardVaccinationProgram = existing.standardVaccinationProgram;
+      }
+      if ((!rest.standardFeedGuide || rest.standardFeedGuide.length === 0) && existing.standardFeedGuide?.length) {
+        preservedStandards.standardFeedGuide = existing.standardFeedGuide;
+      }
+      if ((!rest.standardBodyWeights || rest.standardBodyWeights.length === 0) && existing.standardBodyWeights?.length) {
+        preservedStandards.standardBodyWeights = existing.standardBodyWeights;
+      }
+      if ((!rest.standardHenday || rest.standardHenday.length === 0) && existing.standardHenday?.length) {
+        preservedStandards.standardHenday = existing.standardHenday;
+      }
+      if ((!rest.standardEggWeights || rest.standardEggWeights.length === 0) && existing.standardEggWeights?.length) {
+        preservedStandards.standardEggWeights = existing.standardEggWeights;
+      }
+    }
+    await col.updateOne(
+      { _id: 'farmProfile' as any },
+      { $set: { ...rest, ...preservedStandards, id: 'farmProfile', updatedAt: new Date().toISOString() } },
+      { upsert: true }
+    );
+    if (cleanId !== 'farmProfile') {
+      await col.updateOne(
+        { id: cleanId },
+        { $set: { ...rest, ...preservedStandards, id: cleanId, updatedAt: new Date().toISOString() } },
+        { upsert: true }
+      );
+    }
+  } else if (collectionName === 'standards') {
+    await col.updateOne(
+      { $or: [{ id: cleanId }, { _id: cleanId as any }] },
+      { $set: { ...rest, id: cleanId, updatedAt: new Date().toISOString() } },
+      { upsert: true }
+    );
+  } else {
+    await col.updateOne(
+      { id: cleanId },
+      { $set: { ...rest, id: cleanId, updatedAt: new Date().toISOString() } },
+      { upsert: true }
+    );
+  }
 
   return { success: true, data: { ...rest, id: cleanId } };
 }

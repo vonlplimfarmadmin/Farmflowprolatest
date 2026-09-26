@@ -122,6 +122,7 @@ export const StandardsBatchUploadModal: React.FC<StandardsBatchUploadModalProps>
 }) => {
   const { 
     farmProfile, 
+    updateAllStandards,
     updateStandardVaccination, 
     updateStandardFeedGuide, 
     updateStandardHenday, 
@@ -244,6 +245,13 @@ export const StandardsBatchUploadModal: React.FC<StandardsBatchUploadModalProps>
     try {
       const { data } = parseResult;
       const changesSummary: string[] = [];
+      const standardsToUpdate: {
+        vaccine?: StandardMedProgramItem[];
+        feed?: StandardFeedGuideItem[];
+        henday?: StandardHendayItem[];
+        bodyweight?: StandardBodyWeightItem[];
+        eggweight?: StandardEggWeightItem[];
+      } = {};
 
       // 1. Vaccination Program
       if (data.vaccine && data.vaccine.length > 0) {
@@ -266,7 +274,7 @@ export const StandardsBatchUploadModal: React.FC<StandardsBatchUploadModalProps>
           updated = existing;
         }
         updated.sort((a, b) => a.ageWeek - b.ageWeek);
-        updateStandardVaccination(updated);
+        standardsToUpdate.vaccine = updated;
         changesSummary.push(`${updated.length} Vaccination rules`);
       }
 
@@ -294,7 +302,7 @@ export const StandardsBatchUploadModal: React.FC<StandardsBatchUploadModalProps>
           if ((a.breedType || '') === (b.breedType || '')) return a.ageWeek - b.ageWeek;
           return (a.breedType || '').localeCompare(b.breedType || '');
         });
-        updateStandardFeedGuide(updated);
+        standardsToUpdate.feed = updated;
         changesSummary.push(`${updated.length} Feed Guide allocations`);
       }
 
@@ -317,7 +325,7 @@ export const StandardsBatchUploadModal: React.FC<StandardsBatchUploadModalProps>
           updated = existing;
         }
         updated.sort((a, b) => a.ageWeek - b.ageWeek);
-        updateStandardHenday(updated);
+        standardsToUpdate.henday = updated;
         changesSummary.push(`${updated.length} Henday lay curve points`);
       }
 
@@ -340,7 +348,7 @@ export const StandardsBatchUploadModal: React.FC<StandardsBatchUploadModalProps>
           updated = existing;
         }
         updated.sort((a, b) => a.ageWeek - b.ageWeek);
-        updateStandardBodyWeights(updated);
+        standardsToUpdate.bodyweight = updated;
         changesSummary.push(`${updated.length} Body Weight benchmarks`);
       }
 
@@ -363,9 +371,12 @@ export const StandardsBatchUploadModal: React.FC<StandardsBatchUploadModalProps>
           updated = existing;
         }
         updated.sort((a, b) => a.ageWeek - b.ageWeek);
-        updateStandardEggWeights(updated);
+        standardsToUpdate.eggweight = updated;
         changesSummary.push(`${updated.length} Egg Weight targets`);
       }
+
+      // Commit all updated standards atomically to MongoDB
+      await updateAllStandards(standardsToUpdate);
 
       setCommitStatus('success');
       const successText = `Successfully applied: ${changesSummary.join(', ')}.`;

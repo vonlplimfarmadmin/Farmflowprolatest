@@ -10,8 +10,6 @@ import {
   ArrowDownToLine,
   ArrowUpToLine,
   Server,
-  Trash2,
-  ShieldAlert,
 } from 'lucide-react';
 import { useFarm } from '../../context/FarmContext';
 import { getMongoDBStatus, MongoSyncStatus } from '../../services/mongodbSync';
@@ -22,14 +20,12 @@ interface MongoStatusModalProps {
 }
 
 export const MongoStatusModal: React.FC<MongoStatusModalProps> = ({ isOpen, onClose }) => {
-  const { syncAllToMongoDB, pullAllFromMongoDB, purgeDatabaseAndCache, mongoStatus } = useFarm();
+  const { syncAllToMongoDB, pullAllFromMongoDB, mongoStatus } = useFarm();
   const [liveStatus, setLiveStatus] = useState<MongoSyncStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<{ message: string; isError?: boolean } | null>(null);
   const [isPushing, setIsPushing] = useState(false);
   const [isPulling, setIsPulling] = useState(false);
-  const [isPurging, setIsPurging] = useState(false);
-  const [confirmPurge, setConfirmPurge] = useState(false);
 
   const fetchStatus = async () => {
     setLoading(true);
@@ -92,33 +88,6 @@ export const MongoStatusModal: React.FC<MongoStatusModalProps> = ({ isOpen, onCl
     }
   };
 
-  const handlePurge = async () => {
-    setIsPurging(true);
-    setActionFeedback(null);
-    try {
-      const res = await purgeDatabaseAndCache({
-        purgeDatabase: true,
-        clearCache: true,
-        preserveUsers: true,
-        preserveStandards: true,
-        preserveFarmProfile: true,
-      });
-      setActionFeedback({
-        message: res.message || 'All old records and persistent cache purged successfully.',
-        isError: !res.success,
-      });
-      setConfirmPurge(false);
-      fetchStatus();
-    } catch (err: any) {
-      setActionFeedback({
-        message: err.message || 'Failed to purge database records',
-        isError: true,
-      });
-    } finally {
-      setIsPurging(false);
-    }
-  };
-
   const isConnected = liveStatus ? liveStatus.connected : mongoStatus.connected;
   const dbName = liveStatus?.dbName || mongoStatus.dbName || 'farmflowproviii';
 
@@ -140,7 +109,7 @@ export const MongoStatusModal: React.FC<MongoStatusModalProps> = ({ isOpen, onCl
                     : 'bg-rose-500/20 text-rose-200 border border-rose-400/30'
                 }`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
-                  {isConnected ? 'Connected' : 'Offline'}
+                  {isConnected ? 'Connected' : 'Disconnected / Reconnecting'}
                 </span>
               </h3>
               <p className="text-xs text-emerald-200/80">
@@ -265,58 +234,6 @@ export const MongoStatusModal: React.FC<MongoStatusModalProps> = ({ isOpen, onCl
             <p className="text-[11px] text-slate-500 text-center">
               All farm record entries, flock edits, and egg harvests auto-save directly to MongoDB in real time.
             </p>
-          </div>
-
-          {/* Purge Persistent Recurring Data */}
-          <div className="pt-2 border-t border-slate-100">
-            <div className="p-3.5 bg-rose-50/70 border border-rose-200/80 rounded-2xl space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-rose-900 flex items-center gap-1.5">
-                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                  Purge Persistent Records & Cache
-                </span>
-                {!confirmPurge ? (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmPurge(true)}
-                    disabled={isPurging || isPushing || isPulling}
-                    className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold transition cursor-pointer disabled:opacity-50"
-                  >
-                    Purge Data
-                  </button>
-                ) : null}
-              </div>
-              <p className="text-[11px] text-rose-700 leading-relaxed">
-                Permanently remove all old recurring records (flocks, egg collections, feed records, depletions, deliveries, and audit logs) from MongoDB and local storage/cache. Active user logins and farm profile are preserved.
-              </p>
-              {confirmPurge && (
-                <div className="pt-2 border-t border-rose-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <span className="text-[11px] font-bold text-rose-800 flex items-center gap-1">
-                    <ShieldAlert className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                    Confirm removal of all recurring records?
-                  </span>
-                  <div className="flex items-center gap-2 self-end sm:self-auto">
-                    <button
-                      type="button"
-                      onClick={() => setConfirmPurge(false)}
-                      disabled={isPurging}
-                      className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:bg-rose-100/70 transition cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handlePurge}
-                      disabled={isPurging}
-                      className="px-3 py-1 rounded-lg text-xs font-bold bg-rose-700 hover:bg-rose-800 text-white flex items-center gap-1.5 shadow-xs transition cursor-pointer disabled:opacity-50"
-                    >
-                      <Trash2 className={`w-3.5 h-3.5 ${isPurging ? 'animate-spin' : ''}`} />
-                      <span>{isPurging ? 'Purging...' : 'Confirm Purge'}</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
         </div>
 

@@ -18,6 +18,7 @@ import {
   DeliveryRecord,
   HatchingSummaryRecord
 } from '../types';
+import { BASE_WEEKLY_STANDARDS } from '../components/bodyWeight/growthStandards';
 
 export const INITIAL_FARM_PROFILE: FarmProfile = {
   name: 'L.P. LIM CITY FAMILY FARM INC',
@@ -90,20 +91,14 @@ export const INITIAL_FARM_PROFILE: FarmProfile = {
     { id: 'hd12', ageWeek: 60, ageInProduction: 37, standardHendayPct: 63.5, standardHatchingPct: 84.0 },
     { id: 'hd13', ageWeek: 65, ageInProduction: 42, standardHendayPct: 57.0, standardHatchingPct: 80.0 }
   ],
-  standardBodyWeights: [
-    { id: 'bw1', ageWeek: 1, maleStandardGrams: 155, femaleStandardGrams: 140, toleranceMinGrams: 130, toleranceMaxGrams: 165 },
-    { id: 'bw2', ageWeek: 4, maleStandardGrams: 580, femaleStandardGrams: 490, toleranceMinGrams: 460, toleranceMaxGrams: 520 },
-    { id: 'bw3', ageWeek: 8, maleStandardGrams: 1250, femaleStandardGrams: 1020, toleranceMinGrams: 970, toleranceMaxGrams: 1070 },
-    { id: 'bw4', ageWeek: 12, maleStandardGrams: 1850, femaleStandardGrams: 1450, toleranceMinGrams: 1380, toleranceMaxGrams: 1520 },
-    { id: 'bw5', ageWeek: 16, maleStandardGrams: 2450, femaleStandardGrams: 1880, toleranceMinGrams: 1790, toleranceMaxGrams: 1970 },
-    { id: 'bw6', ageWeek: 20, maleStandardGrams: 3050, femaleStandardGrams: 2280, toleranceMinGrams: 2170, toleranceMaxGrams: 2390 },
-    { id: 'bw7', ageWeek: 24, maleStandardGrams: 3600, femaleStandardGrams: 2750, toleranceMinGrams: 2620, toleranceMaxGrams: 2880 },
-    { id: 'bw8', ageWeek: 28, maleStandardGrams: 4050, femaleStandardGrams: 3250, toleranceMinGrams: 3100, toleranceMaxGrams: 3400 },
-    { id: 'bw9', ageWeek: 32, maleStandardGrams: 4300, femaleStandardGrams: 3500, toleranceMinGrams: 3350, toleranceMaxGrams: 3650 },
-    { id: 'bw10', ageWeek: 40, maleStandardGrams: 4550, femaleStandardGrams: 3750, toleranceMinGrams: 3580, toleranceMaxGrams: 3920 },
-    { id: 'bw11', ageWeek: 50, maleStandardGrams: 4750, femaleStandardGrams: 3950, toleranceMinGrams: 3780, toleranceMaxGrams: 4120 },
-    { id: 'bw12', ageWeek: 60, maleStandardGrams: 4900, femaleStandardGrams: 4100, toleranceMinGrams: 3920, toleranceMaxGrams: 4280 }
-  ],
+  standardBodyWeights: BASE_WEEKLY_STANDARDS.map(b => ({
+    id: `bw_${b.ageWeek}`,
+    ageWeek: b.ageWeek,
+    maleStandardGrams: b.maleStandardGrams,
+    femaleStandardGrams: b.femaleStandardGrams,
+    toleranceMinGrams: b.femaleToleranceMin,
+    toleranceMaxGrams: b.femaleToleranceMax
+  })),
   standardEggWeights: [
     { id: 'ew1', ageWeek: 24, ageInProduction: 1, standardWeightGrams: 51.5 },
     { id: 'ew2', ageWeek: 26, ageInProduction: 3, standardWeightGrams: 55.0 },
