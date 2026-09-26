@@ -19,12 +19,12 @@
 # Proxy /api/mongodb/* and /api/* to Netlify Functions
 [[redirects]]
   from = "/api/mongodb/*"
-  to = "/.netlify/functions/mongodb/:splat"
+  to = "/.netlify/functions/api/:splat"
   status = 200
 
 [[redirects]]
   from = "/api/*"
-  to = "/.netlify/functions/mongodb/:splat"
+  to = "/.netlify/functions/api/:splat"
   status = 200
 
 # Single-Page Application (SPA) redirect rule:

@@ -1,69 +1,21 @@
-import { MongoClient, Db } from 'mongodb';
+import { Db } from 'mongodb';
+import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+import { connectDB, lastConnectionError, activeDbName } from '../server-app.ts';
 
 dotenv.config();
 
-const DEFAULT_DB_NAME = process.env.MONGODB_DB_NAME || 'farmflowproviii';
-
-let client: MongoClient | null = null;
-let db: Db | null = null;
-let connectionPromise: Promise<Db> | null = null;
-
 export async function getDb(): Promise<Db> {
-  if (db) return db;
-
-  if (connectionPromise) {
-    return connectionPromise;
+  if (mongoose.connection.readyState === 1 && mongoose.connection.db) {
+    return mongoose.connection.db as unknown as Db;
   }
 
-  const uri = process.env.MONGODB_URI;
-  if (!uri) {
-    throw new Error('MONGODB_URI environment variable is not defined');
+  const success = await connectDB();
+  if (!success || mongoose.connection.readyState !== 1 || !mongoose.connection.db) {
+    throw new Error(lastConnectionError || 'Database connection is not established.');
   }
 
-  connectionPromise = (async () => {
-    try {
-      const newClient = new MongoClient(uri, {
-        serverSelectionTimeoutMS: 8000,
-        connectTimeoutMS: 10000,
-        maxPoolSize: 20,
-        minPoolSize: 1,
-        retryWrites: true,
-      });
-
-      await newClient.connect();
-      client = newClient;
-      db = client.db(DEFAULT_DB_NAME);
-      console.log(`[MongoDB] Connected successfully to database: "${DEFAULT_DB_NAME}"`);
-
-      // Ensure primary indexes for high-performance lookups
-      await Promise.allSettled([
-        db.collection('users').createIndex({ id: 1 }, { unique: true, sparse: true }),
-        db.collection('users').createIndex({ username: 1 }, { sparse: true }),
-        db.collection('flocks').createIndex({ id: 1 }, { unique: true, sparse: true }),
-        db.collection('eggRecords').createIndex({ id: 1 }, { unique: true, sparse: true }),
-        db.collection('eggRecords').createIndex({ date: 1, houseNumber: 1 }),
-        db.collection('feedRecords').createIndex({ id: 1 }, { unique: true, sparse: true }),
-        db.collection('depletions').createIndex({ id: 1 }, { unique: true, sparse: true }),
-        db.collection('bodyWeights').createIndex({ id: 1 }, { unique: true, sparse: true }),
-        db.collection('biosecurityLogs').createIndex({ id: 1 }, { unique: true, sparse: true }),
-        db.collection('auditLogs').createIndex({ id: 1 }, { unique: true, sparse: true }),
-        db.collection('auditLogs').createIndex({ timestamp: -1 }),
-        db.collection('hatchingSummaries').createIndex({ id: 1 }, { unique: true, sparse: true }),
-        db.collection('deliveries').createIndex({ id: 1 }, { unique: true, sparse: true }),
-      ]);
-
-      return db;
-    } catch (err: any) {
-      connectionPromise = null;
-      db = null;
-      client = null;
-      console.error('[MongoDB] Connection error:', err.message);
-      throw err;
-    }
-  })();
-
-  return connectionPromise;
+  return mongoose.connection.db as unknown as Db;
 }
 
 export async function checkConnection(): Promise<{
@@ -74,18 +26,38 @@ export async function checkConnection(): Promise<{
   collections?: { name: string; count: number }[];
   error?: string | null;
 }> {
-  const uriConfigured = !!process.env.MONGODB_URI;
+  const uriConfigured = !!(
+    process.env.MONGODB_URI ||
+    process.env.MONGODB_URL ||
+    process.env.MONGO_URI ||
+    process.env.MONGO_URL ||
+    process.env.DATABASE_URL
+  );
+
   if (!uriConfigured) {
     return {
       connected: false,
-      dbName: DEFAULT_DB_NAME,
+      dbName: activeDbName,
       uriConfigured: false,
-      error: 'MONGODB_URI is not set in environment',
+      error: 'MONGODB_URI environment variable is missing.',
     };
   }
 
   try {
-    const database = await getDb();
+    if (mongoose.connection.readyState !== 1) {
+      await connectDB();
+    }
+
+    if (mongoose.connection.readyState !== 1 || !mongoose.connection.db) {
+      return {
+        connected: false,
+        dbName: activeDbName,
+        uriConfigured: true,
+        error: lastConnectionError || 'Failed to connect to MongoDB Atlas',
+      };
+    }
+
+    const database = mongoose.connection.db as unknown as Db;
     await database.command({ ping: 1 });
     const colList = await database.listCollections().toArray();
     const collectionsWithCounts = await Promise.all(
@@ -101,18 +73,18 @@ export async function checkConnection(): Promise<{
 
     return {
       connected: true,
-      dbName: DEFAULT_DB_NAME,
+      dbName: activeDbName,
       uriConfigured: true,
-      serverInfo: 'MongoDB Production Cluster Active & Ready',
+      serverInfo: `Mongoose (v${mongoose.version}) Connected to Atlas [${activeDbName}]`,
       collections: collectionsWithCounts,
       error: null,
     };
   } catch (err: any) {
     return {
       connected: false,
-      dbName: DEFAULT_DB_NAME,
+      dbName: activeDbName,
       uriConfigured: true,
-      error: err.message || 'Failed to connect to MongoDB cluster',
+      error: err?.message || lastConnectionError || 'Failed to connect to MongoDB cluster',
     };
   }
 }

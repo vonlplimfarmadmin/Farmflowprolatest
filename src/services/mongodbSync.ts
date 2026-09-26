@@ -33,10 +33,18 @@ export async function getMongoDBStatus(): Promise<MongoSyncStatus> {
     });
 
     if (!res.ok) {
+      let errorMsg = `Server responded with ${res.status}: ${res.statusText}`;
+      try {
+        const errJson = await res.json();
+        if (errJson?.message) errorMsg = errJson.message;
+        else if (errJson?.error) errorMsg = errJson.error;
+      } catch {
+        // use fallback
+      }
       return {
         ...DEFAULT_STATUS,
         connected: false,
-        error: `Server responded with ${res.status}: ${res.statusText}`,
+        error: errorMsg,
       };
     }
 
@@ -292,4 +300,31 @@ export async function clearAllLocalCacheAndStorage(): Promise<void> {
       await Promise.all(keys.map(k => window.caches.delete(k)));
     }
   } catch {}
+}
+
+export async function reconnectMongoDB(): Promise<{
+  success: boolean;
+  message: string;
+  status?: MongoSyncStatus;
+}> {
+  try {
+    const res = await fetch('/api/db/reconnect', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache',
+      },
+    });
+    const data = await res.json();
+    return {
+      success: !!data.success,
+      message: data.message || (data.success ? 'Connected to MongoDB Atlas' : 'Connection failed'),
+      status: data.status,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.message || 'Reconnect request failed',
+    };
+  }
 }
