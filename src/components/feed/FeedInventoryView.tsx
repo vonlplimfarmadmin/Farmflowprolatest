@@ -51,9 +51,9 @@ export const FeedInventoryView: React.FC = () => {
   const [consDate, setConsDate] = useState(new Date().toISOString().split('T')[0]);
   const [consSide, setConsSide] = useState<'All' | 'Left' | 'Right'>('All');
   const [consFemaleFeedType, setConsFemaleFeedType] = useState<FeedType>('BLC 1');
-  const [consFemaleGrams, setConsFemaleGrams] = useState<string | number>(155);
+  const [consFemaleKgTotal, setConsFemaleKgTotal] = useState<string | number>(775);
   const [consMaleFeedType, setConsMaleFeedType] = useState<FeedType>('BMCC');
-  const [consMaleGrams, setConsMaleGrams] = useState<string | number>(125);
+  const [consMaleKgTotal, setConsMaleKgTotal] = useState<string | number>(62.5);
   const [consNotes, setConsNotes] = useState('');
 
   const summaries = getFeedStockSummary();
@@ -65,11 +65,19 @@ export const FeedInventoryView: React.FC = () => {
   const activeFemales = selectedStats ? (consSide === 'All' ? selectedStats.currentFemales : Math.floor(selectedStats.currentFemales / 2)) : 0;
   const activeMales = selectedStats ? (consSide === 'All' ? selectedStats.currentMales : Math.floor(selectedStats.currentMales / 2)) : 0;
 
-  const femaleGramsNum = parseFloat(String(consFemaleGrams)) || 0;
-  const maleGramsNum = parseFloat(String(consMaleGrams)) || 0;
-  const consFemaleKg = activeFemales > 0 ? Math.round(((activeFemales * femaleGramsNum) / 1000) * 100) / 100 : 0;
-  const consMaleKg = activeMales > 0 ? Math.round(((activeMales * maleGramsNum) / 1000) * 100) / 100 : 0;
-  const consTotalKg = Math.round((consFemaleKg + consMaleKg) * 100) / 100;
+  const femaleKgTotalNum = parseFloat(String(consFemaleKgTotal)) || 0;
+  const maleKgTotalNum = parseFloat(String(consMaleKgTotal)) || 0;
+  
+  const consFemaleKg = femaleKgTotalNum;
+  const consMaleKg = maleKgTotalNum;
+  const consTotalKg = Math.round((femaleKgTotalNum + maleKgTotalNum) * 100) / 100;
+  const femaleGramsTotal = Math.round(femaleKgTotalNum * 1000);
+  const maleGramsTotal = Math.round(maleKgTotalNum * 1000);
+  const consTotalGrams = Math.round(femaleGramsTotal + maleGramsTotal);
+
+  // Live calculate resulting grams per bird from the total kg entered
+  const calculatedFemaleGrams = activeFemales > 0 ? Math.round((femaleGramsTotal / activeFemales) * 10) / 10 : 0;
+  const calculatedMaleGrams = activeMales > 0 ? Math.round((maleGramsTotal / activeMales) * 10) / 10 : 0;
 
   // Find matching feed guide item considering flock breed & age
   const flockBreed = selectedFlock?.breed || '';
@@ -89,9 +97,16 @@ export const FeedInventoryView: React.FC = () => {
     const femaleFt = feedGuideItem.femaleFeedType || feedGuideItem.recommendedFeedType || 'BLC 1';
     const maleFt = feedGuideItem.maleFeedType || (feedGuideItem.ageWeek >= 20 ? 'BMCC' : (feedGuideItem.recommendedFeedType || 'BMCC'));
     setConsFemaleFeedType(femaleFt);
-    setConsFemaleGrams(feedGuideItem.femaleGramsPerBird || 155);
     setConsMaleFeedType(maleFt);
-    setConsMaleGrams(feedGuideItem.maleGramsPerBird || 125);
+    
+    const targetFemaleGramsPerBird = feedGuideItem.femaleGramsPerBird || 155;
+    const targetMaleGramsPerBird = feedGuideItem.maleGramsPerBird || 125;
+
+    const targetFemaleTotalKg = activeFemales > 0 ? Math.round(((activeFemales * targetFemaleGramsPerBird) / 1000) * 100) / 100 : 0;
+    const targetMaleTotalKg = activeMales > 0 ? Math.round(((activeMales * targetMaleGramsPerBird) / 1000) * 100) / 100 : 0;
+
+    setConsFemaleKgTotal(targetFemaleTotalKg);
+    setConsMaleKgTotal(targetMaleTotalKg);
   };
 
   const handleAddStock = (e: React.FormEvent) => {
@@ -120,7 +135,7 @@ export const FeedInventoryView: React.FC = () => {
 
   const handleLogConsumption = (e: React.FormEvent) => {
     e.preventDefault();
-    if (femaleGramsNum <= 0 && maleGramsNum <= 0) return;
+    if (femaleKgTotalNum <= 0 && maleKgTotalNum <= 0) return;
 
     addFeedConsumption({
       houseNumber: consHouse,
@@ -128,18 +143,18 @@ export const FeedInventoryView: React.FC = () => {
       side: consSide,
       femaleFeedType: consFemaleFeedType,
       femaleQuantityKg: consFemaleKg,
-      femaleGramsPerBird: femaleGramsNum,
+      femaleGramsPerBird: calculatedFemaleGrams,
       maleFeedType: consMaleFeedType,
       maleQuantityKg: consMaleKg,
-      maleGramsPerBird: maleGramsNum,
+      maleGramsPerBird: calculatedMaleGrams,
       feedType: consFemaleFeedType,
       quantityKg: consTotalKg,
-      notes: consNotes.trim() || `${consHouse} (${consSide}): ${femaleGramsNum}g/bird (${consFemaleKg}kg ${consFemaleFeedType}) + ${maleGramsNum}g/bird (${consMaleKg}kg ${consMaleFeedType})`
+      notes: consNotes.trim() || `${consHouse} (${consSide}): Total ${consTotalKg.toLocaleString()} kg (${consTotalGrams.toLocaleString()} g) consumed [♀ ${femaleKgTotalNum}kg (${calculatedFemaleGrams}g/bird) + ♂ ${maleKgTotalNum}kg (${calculatedMaleGrams}g/bird)]`
     });
 
     toast.success(
       `Feeding Logged (${consHouse})`,
-      `${consTotalKg.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg total (${consFemaleKg}kg ♀ + ${consMaleKg}kg ♂) deducted from silo.`
+      `${consTotalKg.toLocaleString()} kg (${consTotalGrams.toLocaleString()} g) total feed consumed (${femaleKgTotalNum}kg ♀ + ${maleKgTotalNum}kg ♂) deducted from silo.`
     );
 
     setShowLogConsumptionModal(false);
@@ -674,36 +689,47 @@ export const FeedInventoryView: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Female Amount (g/bird) *</label>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Total Female Consumed (kg) *</label>
                     <div className="relative">
                       <input
                         type="number"
                         min="0"
-                        step="any"
+                        step="0.01"
                         inputMode="decimal"
-                        placeholder="e.g. 155.5"
+                        placeholder="e.g. 775"
                         required
-                        value={consFemaleGrams}
-                        onChange={e => setConsFemaleGrams(e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs font-bold border border-rose-200 rounded-xl bg-white focus:outline-rose-500 text-rose-950 pr-14"
+                        value={consFemaleKgTotal}
+                        onChange={e => setConsFemaleKgTotal(e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs font-bold border border-rose-200 rounded-xl bg-white focus:outline-rose-500 text-rose-950 pr-10"
                       />
                       <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-rose-600">
-                        g/bird
+                        kg
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-[11px] text-rose-900 bg-rose-100/60 px-2.5 py-1.5 rounded-lg">
-                  <span>Calculated Female Feed:</span>
-                  <strong>
-                    {(consFemaleKg || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg (~{((consFemaleKg || 0) / 50).toFixed(1)} bags)
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-rose-900 bg-rose-100/60 px-2.5 py-1.5 rounded-lg">
+                  <div>
+                    <span>Equivalent: </span>
+                    <strong className="font-bold">
+                      {femaleGramsTotal.toLocaleString()} grams
+                    </strong>
+                    <span className="text-slate-600 ml-1">
+                      (~{((consFemaleKg || 0) / 50).toFixed(1)} bags)
+                    </span>
+                  </div>
+                  <div>
+                    <span>Resulting Intake: </span>
+                    <strong className="font-bold text-rose-950">
+                      {calculatedFemaleGrams} g/bird
+                    </strong>
                     {feedGuideItem && (
-                      <span className="text-[10px] text-rose-700 font-normal ml-1.5">
+                      <span className="text-[10px] text-rose-700 font-normal ml-1">
                         (Target: {feedGuideItem.femaleGramsPerBird || 0}g)
                       </span>
                     )}
-                  </strong>
+                  </div>
                 </div>
               </div>
 
@@ -728,45 +754,59 @@ export const FeedInventoryView: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Male Amount (g/bird) *</label>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Total Male Consumed (kg) *</label>
                     <div className="relative">
                       <input
                         type="number"
                         min="0"
-                        step="any"
+                        step="0.01"
                         inputMode="decimal"
-                        placeholder="e.g. 125.5"
+                        placeholder="e.g. 62.5"
                         required
-                        value={consMaleGrams}
-                        onChange={e => setConsMaleGrams(e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs font-bold border border-teal-200 rounded-xl bg-white focus:outline-teal-500 text-teal-950 pr-14"
+                        value={consMaleKgTotal}
+                        onChange={e => setConsMaleKgTotal(e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs font-bold border border-teal-200 rounded-xl bg-white focus:outline-teal-500 text-teal-950 pr-10"
                       />
                       <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-teal-600">
-                        g/bird
+                        kg
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-[11px] text-teal-900 bg-teal-100/60 px-2.5 py-1.5 rounded-lg">
-                  <span>Calculated Male Feed:</span>
-                  <strong>
-                    {(consMaleKg || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg (~{((consMaleKg || 0) / 50).toFixed(1)} bags)
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-teal-900 bg-teal-100/60 px-2.5 py-1.5 rounded-lg">
+                  <div>
+                    <span>Equivalent: </span>
+                    <strong className="font-bold">
+                      {maleGramsTotal.toLocaleString()} grams
+                    </strong>
+                    <span className="text-slate-600 ml-1">
+                      (~{((consMaleKg || 0) / 50).toFixed(1)} bags)
+                    </span>
+                  </div>
+                  <div>
+                    <span>Resulting Intake: </span>
+                    <strong className="font-bold text-teal-950">
+                      {calculatedMaleGrams} g/bird
+                    </strong>
                     {feedGuideItem && (
-                      <span className="text-[10px] text-teal-700 font-normal ml-1.5">
+                      <span className="text-[10px] text-teal-700 font-normal ml-1">
                         (Target: {feedGuideItem.maleGramsPerBird || 125}g)
                       </span>
                     )}
-                  </strong>
+                  </div>
                 </div>
               </div>
 
               {/* Total Summary */}
               <div className="p-3 bg-slate-900 text-white rounded-xl flex items-center justify-between text-xs">
                 <div>
-                  <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Total House Intake</span>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Total Feed Consumed</span>
                   <span className="font-bold text-sm text-teal-300">
-                    {(consTotalKg || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
+                    {consTotalKg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 })} kg
+                  </span>
+                  <span className="text-slate-300 text-[11px] ml-2 font-medium">
+                    ({consTotalGrams.toLocaleString()} grams)
                   </span>
                 </div>
                 <div className="text-right text-[11px] text-slate-300">
@@ -795,8 +835,8 @@ export const FeedInventoryView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={femaleGramsNum <= 0 && maleGramsNum <= 0}
-                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
+                  disabled={femaleKgTotalNum <= 0 && maleKgTotalNum <= 0}
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer disabled:opacity-50"
                 >
                   Submit Consumption
                 </button>

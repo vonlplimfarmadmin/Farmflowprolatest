@@ -228,7 +228,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       {
         id: 'nav-settings',
         category: 'Navigation',
-        title: 'System Settings & Audit Log',
+        title: 'System Settings',
         description: 'User access, database connection & backup controls',
         icon: <Settings className="w-4 h-4 text-slate-400" />,
         action: () => {

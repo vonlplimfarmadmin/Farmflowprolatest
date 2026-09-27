@@ -21,6 +21,7 @@ import {
   LineChart as ChartIcon
 } from 'lucide-react';
 import { RoleBadge } from '../common/RoleBadge';
+import { FarmBrandLogo } from '../common/FarmBrandLogo';
 import { FlockProductivityDashboard } from './FlockProductivityDashboard';
 
 interface FarmDashboardOverviewProps {
@@ -86,23 +87,15 @@ export const FarmDashboardOverview: React.FC<FarmDashboardOverviewProps> = ({
       <div className="bg-gradient-to-br from-forest-950 via-forest-900 to-[#02281b] text-white rounded-3xl p-6 sm:p-8 border border-emerald-500/20 shadow-xl shadow-forest-950/10 relative overflow-hidden">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-start gap-4 sm:gap-5 max-w-2xl">
-            {farmProfile.logoUrl ? (
-              <div className="w-16 h-16 rounded-2xl overflow-hidden bg-white p-1 shadow-md shadow-black/25 shrink-0 border border-emerald-500/30 hidden sm:flex items-center justify-center">
-                <img
-                  src={farmProfile.logoUrl}
-                  alt={farmProfile.name}
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-contain rounded-xl"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-              </div>
-            ) : (
-              <div className="w-14 h-14 rounded-2xl bg-emerald-400 text-forest-950 font-black text-xl italic flex items-center justify-center shadow-md shadow-emerald-400/20 shrink-0 hidden sm:flex font-display">
-                FF
-              </div>
-            )}
+            <div className="hidden sm:block">
+              <FarmBrandLogo
+                logoUrl={farmProfile.logoUrl}
+                alt={farmProfile.name}
+                size="xl"
+                variant="banner"
+                fallbackText="FF"
+              />
+            </div>
             <div className="space-y-1.5">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="px-2.5 py-0.5 rounded-full bg-forest-800/80 text-emerald-300 text-[10px] font-bold uppercase tracking-wider border border-emerald-500/30">

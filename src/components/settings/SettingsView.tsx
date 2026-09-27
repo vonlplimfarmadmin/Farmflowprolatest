@@ -10,7 +10,6 @@ import {
   Edit2, 
   Trash2, 
   Clock, 
-  Activity, 
   FileText, 
   AlertTriangle,
   Download,
@@ -60,7 +59,6 @@ export const SettingsView: React.FC = () => {
     updateUser,
     addUser,
     assignUserHouses, 
-    auditLogs, 
     currentUser, 
     flocks,
     permissions,
@@ -71,7 +69,7 @@ export const SettingsView: React.FC = () => {
     adminToggleUserLock
   } = useFarm();
 
-  const [activeTab, setActiveTab] = useState<'users' | 'security' | 'approvals' | 'biosecurity' | 'audit' | 'backup' | 'qr'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'security' | 'approvals' | 'biosecurity' | 'backup' | 'qr'>('users');
   const [selectedUserForHouses, setSelectedUserForHouses] = useState<User | null>(null);
   const [selectedHouses, setSelectedHouses] = useState<string[]>([]);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -362,17 +360,6 @@ export const SettingsView: React.FC = () => {
           >
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
             <span>Biosecurity Compliance</span>
-          </button>
-
-          <button
-            id="settings-tab-audit"
-            onClick={() => setActiveTab('audit')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'audit' ? 'bg-teal-950 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Activity className="w-3.5 h-3.5" />
-            <span>Audit Logs</span>
           </button>
 
           <button
@@ -987,51 +974,7 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* Tab 3: System Audit Logs */}
-      {activeTab === 'audit' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">System Activity & Audit Trail</h3>
-              <p className="text-xs text-slate-500">Immutable trace of user actions, additions, and updates</p>
-            </div>
-            <span className="text-xs text-slate-500 font-medium">{auditLogs.length} events logged</span>
-          </div>
-
-          <div className="overflow-x-auto max-h-96 overflow-y-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200/80 sticky top-0">
-                  <th className="py-2.5 px-3">Timestamp</th>
-                  <th className="py-2.5 px-3">Action Type</th>
-                  <th className="py-2.5 px-3">Module</th>
-                  <th className="py-2.5 px-3">Actor / Username</th>
-                  <th className="py-2.5 px-3">Details</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {auditLogs.map(log => (
-                  <tr key={log.id} className="hover:bg-slate-50 transition">
-                    <td className="py-2.5 px-3 text-slate-500 font-medium whitespace-nowrap">
-                      {new Date(log.timestamp).toLocaleString()}
-                    </td>
-                    <td className="py-2.5 px-3">
-                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-bold text-[10px]">
-                        {log.action}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-3 font-semibold text-slate-700">{log.module}</td>
-                    <td className="py-2.5 px-3 font-bold text-slate-900">{log.performedBy}</td>
-                    <td className="py-2.5 px-3 text-slate-600">{log.details}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Tab 4: Data Backup & Recovery */}
+      {/* Tab 3: Data Backup & Recovery */}
       {activeTab === 'backup' && (
         <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-6">
           <div>

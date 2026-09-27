@@ -14,6 +14,7 @@ import {
 } from '../../utils/reportExportUtils';
 import { calculateFlockAgeFromLoadingDate } from '../../utils/dateCalculations';
 import { DataExportModal, ExportCategoryType } from '../common/DataExportModal';
+import { FarmBrandLogo } from '../common/FarmBrandLogo';
 import { useToast } from '../common/ToastContainer';
 import { 
   Printer, 
@@ -1030,17 +1031,13 @@ export const DynamicReportsView: React.FC = () => {
               {/* Logo Preview */}
               {companyLogo && (
                 <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
-                  <div className="w-12 h-12 rounded-xl overflow-hidden bg-transparent border border-slate-200 shrink-0 flex items-center justify-center p-1">
-                    <img 
-                      src={companyLogo} 
-                      alt="Logo Preview" 
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-contain bg-transparent"
-                      onError={(e) => {
-                        (e.target as any).style.display = 'none';
-                      }}
-                    />
-                  </div>
+                  <FarmBrandLogo
+                    logoUrl={companyLogo}
+                    alt="Logo Preview"
+                    size="lg"
+                    variant="card"
+                    fallbackText="LP"
+                  />
                   <div className="text-xs text-slate-600">
                     <p className="font-bold text-slate-900">Logo Preview</p>
                     <p className="text-[10px] text-slate-500">Will be printed on official document headers</p>

@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../common/ToastContainer';
 import { CompanyLogoUploadModal } from './CompanyLogoUploadModal';
+import { FarmBrandLogo } from '../common/FarmBrandLogo';
 import { StandardsBatchUploadModal } from './StandardsBatchUploadModal';
 import { StandardTarget } from '../../utils/standardsImportExport';
 import { 
@@ -638,21 +639,13 @@ export const FarmProfileView: React.FC = () => {
       <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="relative group">
-            <div className="w-16 h-16 rounded-2xl bg-forest-950 text-mint-400 flex items-center justify-center font-black text-2xl shadow-xs ring-4 ring-forest-50 overflow-hidden border border-forest-900">
-              {farmProfile.logoUrl ? (
-                <img
-                  src={farmProfile.logoUrl}
-                  alt={farmProfile.name}
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-contain bg-white p-1"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-              ) : (
-                <span>LP</span>
-              )}
-            </div>
+            <FarmBrandLogo
+              logoUrl={farmProfile.logoUrl}
+              alt={farmProfile.name}
+              size="xl"
+              variant="card"
+              fallbackText="LP"
+            />
             {permissions.canManageFarmProfile && (
               <button
                 type="button"
@@ -732,18 +725,13 @@ export const FarmProfileView: React.FC = () => {
           {/* Logo preview and trigger in form */}
           <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden p-0.5 shrink-0">
-                {farmProfile.logoUrl ? (
-                  <img
-                    src={farmProfile.logoUrl}
-                    alt="Logo"
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-contain"
-                  />
-                ) : (
-                  <span className="font-black text-forest-950 text-sm">LP</span>
-                )}
-              </div>
+              <FarmBrandLogo
+                logoUrl={farmProfile.logoUrl}
+                alt="Logo"
+                size="lg"
+                variant="card"
+                fallbackText="LP"
+              />
               <div>
                 <p className="text-xs font-bold text-slate-900">Official Company Logo</p>
                 <p className="text-[11px] text-slate-500">
@@ -1122,21 +1110,13 @@ export const FarmProfileView: React.FC = () => {
                   )}
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center gap-3">
-                  <div className="w-14 h-14 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden p-1 shrink-0">
-                    {farmProfile.logoUrl ? (
-                      <img
-                        src={farmProfile.logoUrl}
-                        alt="Farm Logo"
-                        referrerPolicy="no-referrer"
-                        className="w-full h-full object-contain"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
-                    ) : (
-                      <span className="font-black text-forest-950 text-lg">LP</span>
-                    )}
-                  </div>
+                  <FarmBrandLogo
+                    logoUrl={farmProfile.logoUrl}
+                    alt="Farm Logo"
+                    size="lg"
+                    variant="card"
+                    fallbackText="LP"
+                  />
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-slate-900 truncate">Official Brand Crest</p>
                     <p className="text-[10px] text-slate-500">

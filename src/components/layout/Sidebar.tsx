@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useFarm } from '../../context/FarmContext';
 import { AppAccessQRModal } from '../common/AppAccessQRModal';
 import { CrossPlatformModal } from '../common/CrossPlatformModal';
+import { FarmBrandLogo } from '../common/FarmBrandLogo';
 import { 
   Building2, 
   Wheat, 
@@ -149,8 +150,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'settings',
-      label: 'Settings & Audit Logs',
-      sublabel: 'User Access, Approvals & Logs',
+      label: 'System Settings',
+      sublabel: 'User Access, Permissions & Storage',
       icon: Settings,
       visible: permissions.canViewModule('settings'),
       badge: currentUser?.role === 'admin' && pendingUsers.length > 0 ? `${pendingUsers.length} New` : null,
@@ -229,23 +230,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Farm Brand Header */}
         <div className="p-4 sm:p-5 flex items-center justify-between border-b border-forest-800/40 bg-forest-950/60 backdrop-blur-md shrink-0">
           <div className="flex items-center gap-3 min-w-0">
-            {farmProfile.logoUrl ? (
-              <div className="w-10 h-10 rounded-2xl overflow-hidden bg-white/95 p-0.5 shadow-md shadow-black/20 shrink-0 border border-forest-800 flex items-center justify-center">
-                <img
-                  src={farmProfile.logoUrl}
-                  alt={farmProfile.name}
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-contain rounded-xl"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-              </div>
-            ) : (
-              <div className="w-10 h-10 bg-gradient-to-br from-mint-400 to-emerald-500 text-forest-950 rounded-2xl flex items-center justify-center font-black text-lg italic shadow-md shadow-emerald-500/20 shrink-0">
-                FF
-              </div>
-            )}
+            <FarmBrandLogo
+              logoUrl={farmProfile.logoUrl}
+              alt={farmProfile.name}
+              size="md"
+              variant="sidebar"
+              fallbackText="FF"
+            />
             <div className="leading-tight min-w-0">
               <h1 className="font-bold text-sm text-white tracking-tight truncate font-display">
                 FarmFlow Pro

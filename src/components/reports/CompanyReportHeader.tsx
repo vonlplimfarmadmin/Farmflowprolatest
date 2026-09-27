@@ -1,5 +1,6 @@
 import React from 'react';
 import { useFarm } from '../../context/FarmContext';
+import { FarmBrandLogo } from '../common/FarmBrandLogo';
 import { Building2, Calendar, MapPin, Phone, Mail, FileText, ShieldCheck, Award, CheckCircle2, QrCode } from 'lucide-react';
 
 interface CompanyReportHeaderProps {
@@ -44,22 +45,13 @@ export const CompanyReportHeader: React.FC<CompanyReportHeaderProps> = ({
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-6 border-b-2 border-slate-900 print:border-b-2 print:border-black">
         <div className="flex items-center gap-5">
           {/* Logo / Official Seal */}
-          <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden bg-white flex items-center justify-center shrink-0 border-2 border-slate-900 shadow-sm p-1.5 print:border-black">
-            {farmProfile.logoUrl ? (
-              <img
-                src={farmProfile.logoUrl}
-                alt={farmProfile.name}
-                referrerPolicy="no-referrer"
-                className="w-full h-full object-contain"
-                crossOrigin="anonymous"
-              />
-            ) : (
-              <div className="w-full h-full rounded-xl bg-forest-950 flex flex-col items-center justify-center text-mint-300 font-display">
-                <Building2 className="w-8 h-8 text-mint-400 mb-0.5" />
-                <span className="text-[9px] font-black uppercase tracking-wider">LP LIM</span>
-              </div>
-            )}
-          </div>
+          <FarmBrandLogo
+            logoUrl={farmProfile.logoUrl}
+            alt={farmProfile.name}
+            size="2xl"
+            variant="report"
+            fallbackText="LP LIM"
+          />
 
           {/* Farm Legal Identity */}
           <div className="space-y-1">
