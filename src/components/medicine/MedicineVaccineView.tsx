@@ -14,11 +14,16 @@ import {
   Pill, 
   ShieldCheck,
   Activity,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Upload,
+  Download,
+  FileDown
 } from 'lucide-react';
 import { exportReportToExcel, ReportMetadata, SheetData } from '../../utils/reportExportUtils';
 import { useToast } from '../common/ToastContainer';
 import { HouseQuickBar } from '../common/HouseQuickBar';
+import { HealthBatchUploadSection } from './HealthBatchUploadSection';
+import { exportCurrentHealthItems } from '../../utils/healthBatchUploadUtils';
 
 export const MedicineVaccineView: React.FC = () => {
   const { 
@@ -38,6 +43,7 @@ export const MedicineVaccineView: React.FC = () => {
   const toast = useToast();
   const [selectedHouseFilter, setSelectedHouseFilter] = useState('All');
   const [showAddProductModal, setShowAddProductModal] = useState(false);
+  const [addProductTab, setAddProductTab] = useState<'single' | 'batch'>('single');
   const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   // Add Product Form State
@@ -207,11 +213,27 @@ export const MedicineVaccineView: React.FC = () => {
             <>
               <button
                 id="add-med-product-btn"
-                onClick={() => setShowAddProductModal(true)}
-                className="px-4 py-2.5 bg-teal-950 hover:bg-teal-900 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs"
+                onClick={() => {
+                  setAddProductTab('single');
+                  setShowAddProductModal(true);
+                }}
+                className="px-4 py-2.5 bg-teal-950 hover:bg-teal-900 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer"
               >
                 <Plus className="w-4 h-4 text-teal-400" />
                 <span>Add New Health Item</span>
+              </button>
+
+              <button
+                id="batch-upload-med-btn"
+                onClick={() => {
+                  setAddProductTab('batch');
+                  setShowAddProductModal(true);
+                }}
+                className="px-3.5 py-2.5 bg-teal-800 hover:bg-teal-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                title="Batch upload multiple health items from Excel (.xlsx) or CSV (.csv)"
+              >
+                <Upload className="w-4 h-4 text-teal-300" />
+                <span>Batch Upload</span>
               </button>
 
               <button
@@ -220,7 +242,7 @@ export const MedicineVaccineView: React.FC = () => {
                   if (medProducts.length > 0) setAdminProductId(medProducts[0].id);
                   setShowScheduleModal(true);
                 }}
-                className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs"
+                className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer"
               >
                 <Calendar className="w-4 h-4" />
                 <span>Log Administration</span>
@@ -273,12 +295,29 @@ export const MedicineVaccineView: React.FC = () => {
 
       {/* Biological & Medicine Inventory Cards */}
       <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-bold text-slate-900">Veterinary Products & Biologicals Inventory</h3>
             <p className="text-xs text-slate-500">Vaccines, antibiotics, vitamins, disinfectants, and application paraphernalias</p>
           </div>
-          <span className="text-xs text-slate-500 font-medium">{medProducts.length} items registered</span>
+          <div className="flex items-center gap-2.5">
+            <span className="text-xs text-slate-500 font-medium">{medProducts.length} items registered</span>
+            {permissions.canManageMedicines && (
+              <button
+                type="button"
+                id="inventory-batch-upload-btn"
+                onClick={() => {
+                  setAddProductTab('batch');
+                  setShowAddProductModal(true);
+                }}
+                className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded-lg text-xs font-bold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
+                title="Batch upload multiple health items into inventory"
+              >
+                <Upload className="w-3.5 h-3.5 text-teal-600" />
+                <span>Batch Upload</span>
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -404,123 +443,210 @@ export const MedicineVaccineView: React.FC = () => {
 
       {/* Modal 1: Add Health Product */}
       {showAddProductModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden">
-            <div className="bg-teal-950 p-5 text-white flex items-center justify-between border-b border-teal-900/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn overflow-y-auto">
+          <div className={`bg-white rounded-3xl shadow-2xl border border-slate-200 w-full ${
+            addProductTab === 'batch' ? 'max-w-4xl' : 'max-w-md'
+          } overflow-hidden transition-all duration-200 my-8 max-h-[90vh] flex flex-col`}>
+            {/* Modal Header */}
+            <div className="bg-teal-950 p-5 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-teal-900/50 shrink-0">
               <div>
-                <h3 className="font-bold text-base text-white">Add Biological / Medicine Item</h3>
-                <p className="text-xs text-teal-300/80">Register new medical stock to farm inventory</p>
+                <h3 className="font-bold text-base text-white flex items-center gap-2">
+                  <Syringe className="w-4 h-4 text-teal-400" />
+                  <span>Add Health & Biological Item</span>
+                </h3>
+                <p className="text-xs text-teal-300/80">
+                  {addProductTab === 'single'
+                    ? 'Register single medical stock to farm inventory'
+                    : 'Batch import multiple health items via Excel (.xlsx, .xls) or CSV (.csv)'}
+                </p>
               </div>
-              <button onClick={() => setShowAddProductModal(false)} className="text-teal-400 hover:text-white p-1 rounded-lg">
-                &times;
-              </button>
+
+              <div className="flex items-center gap-2.5 self-end sm:self-center">
+                {/* Mode Selector Tabs */}
+                <div className="flex items-center bg-teal-900/80 p-1 rounded-xl border border-teal-800/80">
+                  <button
+                    type="button"
+                    onClick={() => setAddProductTab('single')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                      addProductTab === 'single'
+                        ? 'bg-teal-600 text-white shadow-xs'
+                        : 'text-teal-200 hover:text-white'
+                    }`}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Single Item</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAddProductTab('batch')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                      addProductTab === 'batch'
+                        ? 'bg-teal-600 text-white shadow-xs'
+                        : 'text-teal-200 hover:text-white'
+                    }`}
+                  >
+                    <Upload className="w-3.5 h-3.5 text-teal-300" />
+                    <span>Batch Upload</span>
+                  </button>
+                </div>
+
+                <button 
+                  onClick={() => setShowAddProductModal(false)} 
+                  className="text-teal-400 hover:text-white p-1 rounded-lg text-lg leading-none cursor-pointer"
+                  title="Close modal"
+                >
+                  &times;
+                </button>
+              </div>
             </div>
 
-            <form onSubmit={handleAddProduct} className="p-6 space-y-3.5 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Product Trade Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Newcastle B1 + Bronchitis Mass"
-                  value={productName}
-                  onChange={e => setProductName(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500"
+            {/* Modal Body */}
+            <div className="overflow-y-auto p-6 flex-1">
+              {addProductTab === 'batch' ? (
+                <HealthBatchUploadSection
+                  onSuccess={(count) => {
+                    setShowAddProductModal(false);
+                  }}
+                  onCancel={() => setShowAddProductModal(false)}
                 />
-              </div>
+              ) : (
+                <form onSubmit={handleAddProduct} className="space-y-3.5 text-xs">
+                  {/* Batch Upload Switcher Banner */}
+                  <div className="bg-teal-50/80 border border-teal-200/90 rounded-xl p-3 flex items-center justify-between gap-2 text-teal-950 shadow-2xs">
+                    <div className="flex items-center gap-2">
+                      <FileSpreadsheet className="w-4 h-4 text-teal-600 shrink-0" />
+                      <span className="text-[11px] leading-tight">
+                        Need to register several items at once? Use <strong>Batch Upload</strong> with Excel/CSV.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAddProductTab('batch')}
+                      className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold text-[11px] flex items-center gap-1 shrink-0 cursor-pointer transition shadow-2xs"
+                    >
+                      <Upload className="w-3 h-3" />
+                      <span>Batch Upload</span>
+                    </button>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Category *</label>
-                  <select
-                    value={productType}
-                    onChange={e => setProductType(e.target.value as ProductType)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white outline-hidden focus:outline-teal-500"
-                  >
-                    <option value="Vaccine">Vaccine</option>
-                    <option value="Medicine">Medicine</option>
-                    <option value="Antibiotic">Antibiotic</option>
-                    <option value="Supplement">Supplement</option>
-                    <option value="Vitamins">Vitamins</option>
-                    <option value="Disinfectant">Disinfectant</option>
-                    <option value="paraphernalias">Paraphernalias</option>
-                  </select>
-                </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Product Trade Name *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Newcastle B1 + Bronchitis Mass"
+                      value={productName}
+                      onChange={e => setProductName(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500 font-medium"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Packaging Unit *</label>
-                  <select
-                    value={unitType}
-                    onChange={e => setUnitType(e.target.value as any)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white outline-hidden focus:outline-teal-500"
-                  >
-                    <option value="Vial">Vial</option>
-                    <option value="bottle">Bottle</option>
-                    <option value="bag">Bag</option>
-                    <option value="box">Box</option>
-                    <option value="piece">Piece</option>
-                  </select>
-                </div>
-              </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Category *</label>
+                      <select
+                        value={productType}
+                        onChange={e => setProductType(e.target.value as ProductType)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white outline-hidden focus:outline-teal-500 font-medium"
+                      >
+                        <option value="Vaccine">Vaccine</option>
+                        <option value="Medicine">Medicine</option>
+                        <option value="Antibiotic">Antibiotic</option>
+                        <option value="Supplement">Supplement</option>
+                        <option value="Vitamins">Vitamins</option>
+                        <option value="Disinfectant">Disinfectant</option>
+                        <option value="paraphernalias">Paraphernalias</option>
+                        <option value="Dewormer">Dewormer</option>
+                      </select>
+                    </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Doses per Unit *</label>
-                  <input
-                    type="number"
-                    value={dosesPerUnit}
-                    onChange={e => setDosesPerUnit(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500 font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Initial Stock Units *</label>
-                  <input
-                    type="number"
-                    value={currentStockUnits}
-                    onChange={e => setCurrentStockUnits(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500 font-bold"
-                  />
-                </div>
-              </div>
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Packaging Unit *</label>
+                      <select
+                        value={unitType}
+                        onChange={e => setUnitType(e.target.value as any)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white outline-hidden focus:outline-teal-500 font-medium"
+                      >
+                        <option value="Vial">Vial</option>
+                        <option value="bottle">Bottle</option>
+                        <option value="bag">Bag</option>
+                        <option value="box">Box</option>
+                        <option value="piece">Piece</option>
+                      </select>
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Manufacturer</label>
-                  <input
-                    type="text"
-                    value={manufacturer}
-                    onChange={e => setManufacturer(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Expiry Date</label>
-                  <input
-                    type="date"
-                    value={expirationDate}
-                    onChange={e => setExpirationDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500"
-                  />
-                </div>
-              </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Doses per Unit *</label>
+                      <input
+                        type="number"
+                        value={dosesPerUnit}
+                        onChange={e => setDosesPerUnit(Number(e.target.value))}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500 font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Initial Stock Units *</label>
+                      <input
+                        type="number"
+                        value={currentStockUnits}
+                        onChange={e => setCurrentStockUnits(Number(e.target.value))}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500 font-bold"
+                      />
+                    </div>
+                  </div>
 
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddProductModal(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition shadow-xs"
-                >
-                  Save Item
-                </button>
-              </div>
-            </form>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Manufacturer</label>
+                      <input
+                        type="text"
+                        value={manufacturer}
+                        onChange={e => setManufacturer(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500 font-medium"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Expiry Date</label>
+                      <input
+                        type="date"
+                        value={expirationDate}
+                        onChange={e => setExpirationDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500 font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Dosage / Instructions</label>
+                    <input
+                      type="text"
+                      value={dosage}
+                      onChange={e => setDosage(e.target.value)}
+                      placeholder="e.g. 1 dose/bird via Eye Drop"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-hidden focus:outline-teal-500 font-medium"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddProductModal(false)}
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+                    >
+                      Save Item
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       )}

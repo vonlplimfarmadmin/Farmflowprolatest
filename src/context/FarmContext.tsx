@@ -229,6 +229,7 @@ interface FarmContextType {
   medStockLogs: MedStockLog[];
   medAdministrations: MedAdministrationRecord[];
   addMedProduct: (product: Omit<MedProduct, 'id'>) => void;
+  addMedProductsBatch: (products: Omit<MedProduct, 'id'>[], mergeExisting?: boolean) => void;
   updateMedProduct: (id: string, updates: Partial<MedProduct>) => void;
   deleteMedProduct: (id: string) => void;
   addMedStock: (productId: string, unitsAdded: number, date: string, lotNumber?: string, notes?: string) => void;
@@ -2121,6 +2122,54 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     logAction('ADD_MED_PRODUCT', 'medicine', `Registered new health product: ${product.name} (${product.type}).`);
   };
 
+  const addMedProductsBatch = (products: Omit<MedProduct, 'id'>[], mergeExisting: boolean = false) => {
+    if (!products || products.length === 0) return;
+
+    setMedProducts(prev => {
+      const updatedList = [...prev];
+      const newlyAdded: MedProduct[] = [];
+
+      products.forEach((prod, idx) => {
+        const existingIdx = mergeExisting
+          ? updatedList.findIndex(p => p.name.trim().toLowerCase() === prod.name.trim().toLowerCase())
+          : -1;
+
+        if (existingIdx >= 0) {
+          const existing = updatedList[existingIdx];
+          const newStockUnits = (existing.currentStockUnits || existing.currentStock || 0) + (prod.currentStockUnits || 0);
+          const updatedItem: MedProduct = {
+            ...existing,
+            currentStockUnits: newStockUnits,
+            currentStock: newStockUnits,
+            manufacturer: prod.manufacturer || existing.manufacturer,
+            expirationDate: prod.expirationDate || existing.expirationDate,
+            dosage: prod.dosage || existing.dosage,
+            dosesPerUnit: prod.dosesPerUnit || existing.dosesPerUnit,
+            unitType: prod.unitType || existing.unitType
+          };
+          updatedList[existingIdx] = updatedItem;
+          saveDocToFirestore('medProducts', updatedItem.id, updatedItem);
+        } else {
+          const newId = `med_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`;
+          const stock = prod.currentStockUnits ?? prod.currentStock ?? 0;
+          const newItem: MedProduct = {
+            ...prod,
+            id: newId,
+            currentStockUnits: stock,
+            currentStock: stock
+          };
+          newlyAdded.push(newItem);
+          updatedList.push(newItem);
+          saveDocToFirestore('medProducts', newItem.id, newItem);
+        }
+      });
+
+      return updatedList;
+    });
+
+    logAction('BATCH_ADD_MED_PRODUCTS', 'medicine', `Batch imported ${products.length} health items into pharmacy stock.`);
+  };
+
   const updateMedProduct = (id: string, updates: Partial<MedProduct>) => {
     setMedProducts(prev => prev.map(p => {
       if (p.id === id) {
@@ -3018,6 +3067,7 @@ export const FarmProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         medStockLogs,
         medAdministrations,
         addMedProduct,
+        addMedProductsBatch,
         updateMedProduct,
         deleteMedProduct,
         addMedStock,
