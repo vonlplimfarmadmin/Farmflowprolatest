@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: farmflow-pro
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.14.0
+      - key: MONGODB_DB_NAME
+        value: farmflowproviii
+      - key: MONGODB_URI
+        sync: false
