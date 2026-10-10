@@ -1,13 +1,69 @@
 import { Db } from 'mongodb';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import { connectDB, lastConnectionError, activeDbName } from '../server-app.ts';
+import { connectDB, lastConnectionError, activeDbName } from '../server-app';
 
 dotenv.config();
 
+let indexesEnsured = false;
+let cachedConnectionStatus: {
+  timestamp: number;
+  data: {
+    connected: boolean;
+    dbName: string;
+    uriConfigured: boolean;
+    serverInfo?: string;
+    collections?: { name: string; count: number }[];
+    error?: string | null;
+  };
+} | null = null;
+const CONNECTION_STATUS_CACHE_TTL_MS = 5000;
+
+/**
+ * Ensures secondary indexes exist on high-cardinality lookup fields (`id`, `date`, `houseNumber`, `username`, `email`)
+ * so CRUD and bulkWrite operations execute via O(log N) IXSCAN instead of O(N) COLLSCAN at scale.
+ */
+async function ensureDatabaseIndexes(database: Db): Promise<void> {
+  if (indexesEnsured) return;
+  indexesEnsured = true;
+
+  const timeSeriesCollections = new Set([
+    'eggRecords',
+    'feedRecords',
+    'depletions',
+    'medAdmins',
+    'bodyWeights',
+    'biosecurityLogs',
+    'deliveries',
+    'hatchingSummaries',
+  ]);
+
+  await Promise.all(
+    KNOWN_COLLECTIONS.map(async (name) => {
+      try {
+        const col = database.collection(name);
+        await col.createIndex({ id: 1 }, { background: true });
+        if (timeSeriesCollections.has(name)) {
+          await col.createIndex({ date: -1, houseNumber: 1 }, { background: true });
+        }
+        if (name === 'users') {
+          await col.createIndex({ username: 1 }, { background: true });
+          await col.createIndex({ email: 1 }, { background: true });
+        }
+      } catch {
+        // Ignore index creation warnings on read-only or capped tiers
+      }
+    })
+  );
+}
+
 export async function getDb(): Promise<Db> {
   if (mongoose.connection.readyState === 1 && mongoose.connection.db) {
-    return mongoose.connection.db as unknown as Db;
+    const db = mongoose.connection.db as unknown as Db;
+    if (!indexesEnsured) {
+      ensureDatabaseIndexes(db).catch(() => {});
+    }
+    return db;
   }
 
   const success = await connectDB();
@@ -15,7 +71,11 @@ export async function getDb(): Promise<Db> {
     throw new Error(lastConnectionError || 'Database connection is not established.');
   }
 
-  return mongoose.connection.db as unknown as Db;
+  const db = mongoose.connection.db as unknown as Db;
+  if (!indexesEnsured) {
+    ensureDatabaseIndexes(db).catch(() => {});
+  }
+  return db;
 }
 
 export async function checkConnection(): Promise<{
@@ -57,6 +117,15 @@ export async function checkConnection(): Promise<{
       };
     }
 
+    const now = Date.now();
+    if (
+      cachedConnectionStatus &&
+      cachedConnectionStatus.data.dbName === activeDbName &&
+      now - cachedConnectionStatus.timestamp < CONNECTION_STATUS_CACHE_TTL_MS
+    ) {
+      return cachedConnectionStatus.data;
+    }
+
     const database = mongoose.connection.db as unknown as Db;
     await database.command({ ping: 1 });
     const colList = await database.listCollections().toArray();
@@ -71,7 +140,7 @@ export async function checkConnection(): Promise<{
       })
     );
 
-    return {
+    const statusPayload = {
       connected: true,
       dbName: activeDbName,
       uriConfigured: true,
@@ -79,6 +148,8 @@ export async function checkConnection(): Promise<{
       collections: collectionsWithCounts,
       error: null,
     };
+    cachedConnectionStatus = { timestamp: now, data: statusPayload };
+    return statusPayload;
   } catch (err: any) {
     return {
       connected: false,
@@ -202,7 +273,7 @@ export async function pullAllCollections(): Promise<Record<string, any>> {
           const summaryObj: Record<string, any> = {};
           for (const d of docs) {
             const { _id, id, ...rest } = d;
-            const docId = id || _id?.toString();
+            const docId = id || (d as any).date || _id?.toString();
             if (docId) {
               summaryObj[docId] = { id: docId, ...rest };
             }
@@ -262,122 +333,133 @@ export async function syncAllCollections(payload: Record<string, any>): Promise<
 }> {
   const database = await getDb();
   const counts: Record<string, number> = {};
+  const nowIso = new Date().toISOString();
 
-  for (const name of KNOWN_COLLECTIONS) {
-    const data = payload[name];
-    if (!data) continue;
+  await Promise.all(
+    KNOWN_COLLECTIONS.map(async (name) => {
+      const data = payload[name];
+      if (!data) return;
 
-    const col = database.collection(name);
+      const col = database.collection(name);
 
-    if (name === 'farmProfile' && typeof data === 'object') {
-      const cleanProfile = sanitizeMongoObject(data);
-      // Preserve existing standards if incoming update does not include them
-      const existing = await col.findOne({ _id: { $in: ['farmProfile', 'profile'] as any } }) || await col.findOne({});
-      const preserved: Record<string, any> = {};
-      if (existing) {
-        if (!cleanProfile.standardVaccinationProgram?.length && existing.standardVaccinationProgram?.length) {
-          preserved.standardVaccinationProgram = existing.standardVaccinationProgram;
-        }
-        if (!cleanProfile.standardFeedGuide?.length && existing.standardFeedGuide?.length) {
-          preserved.standardFeedGuide = existing.standardFeedGuide;
-        }
-        if (!cleanProfile.standardBodyWeights?.length && existing.standardBodyWeights?.length) {
-          preserved.standardBodyWeights = existing.standardBodyWeights;
-        }
-        if (!cleanProfile.standardHenday?.length && existing.standardHenday?.length) {
-          preserved.standardHenday = existing.standardHenday;
-        }
-        if (!cleanProfile.standardEggWeights?.length && existing.standardEggWeights?.length) {
-          preserved.standardEggWeights = existing.standardEggWeights;
-        }
-      }
-      await col.updateOne(
-        { _id: 'farmProfile' as any },
-        { $set: { ...cleanProfile, ...preserved, id: 'farmProfile', updatedAt: new Date().toISOString() } },
-        { upsert: true }
-      );
-      counts.farmProfile = 1;
-    } else if (name === 'standards' && typeof data === 'object') {
-      const cleanStandards = sanitizeMongoObject(data);
-      if (Array.isArray(cleanStandards)) {
-        for (const item of cleanStandards) {
-          if (item && item.id) {
-            await col.updateOne(
-              { $or: [{ id: item.id }, { _id: item.id as any }] },
-              { $set: { ...item, updatedAt: new Date().toISOString() } },
-              { upsert: true }
-            );
+      if (name === 'farmProfile' && typeof data === 'object') {
+        const cleanProfile = sanitizeMongoObject(data);
+        const existing = await col.findOne({ _id: { $in: ['farmProfile', 'profile'] as any } }) || await col.findOne({});
+        const preserved: Record<string, any> = {};
+        if (existing) {
+          if (!cleanProfile.standardVaccinationProgram?.length && existing.standardVaccinationProgram?.length) {
+            preserved.standardVaccinationProgram = existing.standardVaccinationProgram;
+          }
+          if (!cleanProfile.standardFeedGuide?.length && existing.standardFeedGuide?.length) {
+            preserved.standardFeedGuide = existing.standardFeedGuide;
+          }
+          if (!cleanProfile.standardBodyWeights?.length && existing.standardBodyWeights?.length) {
+            preserved.standardBodyWeights = existing.standardBodyWeights;
+          }
+          if (!cleanProfile.standardHenday?.length && existing.standardHenday?.length) {
+            preserved.standardHenday = existing.standardHenday;
+          }
+          if (!cleanProfile.standardEggWeights?.length && existing.standardEggWeights?.length) {
+            preserved.standardEggWeights = existing.standardEggWeights;
           }
         }
-      } else {
-        for (const [key, val] of Object.entries(cleanStandards)) {
-          if (val && typeof val === 'object') {
-            await col.updateOne(
-              { $or: [{ id: key }, { _id: key as any }] },
-              { $set: { ...(val as any), id: key, updatedAt: new Date().toISOString() } },
-              { upsert: true }
-            );
+        await col.updateOne(
+          { _id: 'farmProfile' as any },
+          { $set: { ...cleanProfile, ...preserved, id: 'farmProfile', updatedAt: nowIso } },
+          { upsert: true }
+        );
+        counts.farmProfile = 1;
+      } else if (name === 'standards' && typeof data === 'object') {
+        const cleanStandards = sanitizeMongoObject(data);
+        const stdOps: any[] = [];
+        if (Array.isArray(cleanStandards)) {
+          for (const item of cleanStandards) {
+            if (item && item.id) {
+              stdOps.push({
+                updateOne: {
+                  filter: { $or: [{ id: item.id }, { _id: item.id as any }] },
+                  update: { $set: { ...item, updatedAt: nowIso } },
+                  upsert: true,
+                },
+              });
+            }
+          }
+        } else {
+          for (const [key, val] of Object.entries(cleanStandards)) {
+            if (val && typeof val === 'object') {
+              stdOps.push({
+                updateOne: {
+                  filter: { $or: [{ id: key }, { _id: key as any }] },
+                  update: { $set: { ...(val as any), id: key, updatedAt: nowIso } },
+                  upsert: true,
+                },
+              });
+            }
           }
         }
-      }
-      counts.standards = 1;
-    } else if (name === 'settings' && typeof data === 'object') {
-      const cleanSettings = sanitizeMongoObject(data);
-      await col.updateOne(
-        { _id: 'global_settings' as any },
-        { $set: { ...cleanSettings, updatedAt: new Date().toISOString() } },
-        { upsert: true }
-      );
-      counts.settings = 1;
-    } else if (name === 'biosecuritySummaries' && typeof data === 'object' && !Array.isArray(data)) {
-      const cleanSummaries = sanitizeMongoObject(data);
-      const bulkOps = Object.entries(cleanSummaries)
-        .filter(([_, item]) => item && typeof item === 'object')
-        .map(([dateKey, item]) => {
-          const safeKey = sanitizeDocId(dateKey);
-          const { _id, ...rest } = item as any;
-          return {
-            updateOne: {
-              filter: { id: safeKey },
-              update: { $set: { ...rest, id: safeKey, updatedAt: new Date().toISOString() } },
-              upsert: true,
-            },
-          };
-        });
-      if (bulkOps.length > 0) {
-        const res = await col.bulkWrite(bulkOps as any, { ordered: false });
-        counts.biosecuritySummaries = (res.upsertedCount || 0) + (res.modifiedCount || 0);
-      }
-    } else if (Array.isArray(data)) {
-      if (data.length === 0) {
-        counts[name] = 0;
-        continue;
-      }
+        if (stdOps.length > 0) {
+          await col.bulkWrite(stdOps, { ordered: false });
+        }
+        counts.standards = 1;
+      } else if (name === 'settings' && typeof data === 'object') {
+        const cleanSettings = sanitizeMongoObject(data);
+        await col.updateOne(
+          { _id: 'global_settings' as any },
+          { $set: { ...cleanSettings, updatedAt: nowIso } },
+          { upsert: true }
+        );
+        counts.settings = 1;
+      } else if (name === 'biosecuritySummaries' && typeof data === 'object' && !Array.isArray(data)) {
+        const cleanSummaries = sanitizeMongoObject(data);
+        const bulkOps = Object.entries(cleanSummaries)
+          .filter(([_, item]) => item && typeof item === 'object')
+          .map(([dateKey, item]) => {
+            const safeKey = sanitizeDocId(dateKey);
+            const { _id, ...rest } = item as any;
+            return {
+              updateOne: {
+                filter: { id: safeKey },
+                update: { $set: { ...rest, id: safeKey, updatedAt: nowIso } },
+                upsert: true,
+              },
+            };
+          });
+        if (bulkOps.length > 0) {
+          const res = await col.bulkWrite(bulkOps as any, { ordered: false });
+          counts.biosecuritySummaries = (res.upsertedCount || 0) + (res.modifiedCount || 0);
+        }
+      } else if (Array.isArray(data)) {
+        if (data.length === 0) {
+          counts[name] = 0;
+          return;
+        }
 
-      const bulkOps = data
-        .slice(0, 5000)
-        .filter(item => item && typeof item === 'object')
-        .map((item: any) => {
-          const cleanItem = sanitizeMongoObject(item);
-          const rawId = cleanItem.id || cleanItem._id || ('doc_' + Math.random().toString(36).slice(2, 10));
-          const docId = sanitizeDocId(rawId);
-          const { _id, ...rest } = cleanItem;
-          return {
-            updateOne: {
-              filter: { id: docId },
-              update: { $set: { ...rest, id: docId, updatedAt: new Date().toISOString() } },
-              upsert: true,
-            },
-          };
-        });
+        const bulkOps = data
+          .slice(0, 5000)
+          .filter(item => item && typeof item === 'object')
+          .map((item: any) => {
+            const cleanItem = sanitizeMongoObject(item);
+            const rawId = cleanItem.id || cleanItem._id || ('doc_' + Math.random().toString(36).slice(2, 10));
+            const docId = sanitizeDocId(rawId);
+            const { _id, ...rest } = cleanItem;
+            return {
+              updateOne: {
+                filter: { id: docId },
+                update: { $set: { ...rest, id: docId, updatedAt: nowIso } },
+                upsert: true,
+              },
+            };
+          });
 
-      if (bulkOps.length > 0) {
-        const res = await col.bulkWrite(bulkOps as any, { ordered: false });
-        counts[name] = (res.upsertedCount || 0) + (res.modifiedCount || 0);
+        if (bulkOps.length > 0) {
+          const res = await col.bulkWrite(bulkOps as any, { ordered: false });
+          counts[name] = (res.upsertedCount || 0) + (res.modifiedCount || 0);
+        }
       }
-    }
-  }
+    })
+  );
 
+  cachedConnectionStatus = null;
   return {
     success: true,
     message: 'MongoDB synchronized successfully with all farm records.',
@@ -456,7 +538,17 @@ export async function getDocument(collectionName: string, docId: string): Promis
   const cleanId = sanitizeDocId(docId);
   const database = await getDb();
   const col = database.collection(collectionName);
-  const doc = await col.findOne({ id: cleanId });
+  const query =
+    collectionName === 'users'
+      ? {
+          $or: [
+            { id: cleanId },
+            { username: cleanId.toLowerCase() },
+            { email: cleanId.toLowerCase() },
+          ],
+        }
+      : { id: cleanId };
+  const doc = await col.findOne(query);
   if (!doc) return null;
   const { _id, ...rest } = doc;
   return { id: doc.id || _id.toString(), ...rest };
