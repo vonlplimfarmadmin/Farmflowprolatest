@@ -14,6 +14,9 @@ export function isSafeIdentifier(id: unknown): boolean {
   return SAFE_ID_REGEX.test(String(id).trim());
 }
 
+// Maximum safe length for base64 / SVG data:image URIs (~2MB encoded)
+const MAX_DATA_IMAGE_URI_LENGTH = 2 * 1024 * 1024;
+
 /**
  * Sanitizes plain text input by stripping dangerous tags, script injections,
  * and malicious control characters while preserving valid multi-language text.
@@ -22,9 +25,13 @@ export function sanitizeText(input: unknown, maxLength: number = 20000): string 
   if (input === null || input === undefined) return '';
   let str = String(input);
 
-  // Allow image base64 data URIs intact if valid
+  // Allow image base64 / SVG data URIs intact without premature 20KB truncation
   if (str.startsWith('data:image/')) {
-    return str.slice(0, maxLength);
+    const safeImageStr = str
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/\bon\w+\s*=\s*(['"]).*?\1/gi, '')
+      .replace(/javascript:[^\s]*/gi, '');
+    return safeImageStr.slice(0, Math.max(maxLength, MAX_DATA_IMAGE_URI_LENGTH));
   }
 
   // Strip NULL bytes and dangerous non-printable ASCII control characters (keep \t, \n, \r)

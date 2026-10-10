@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useFarm } from '../../context/FarmContext';
+import { buildMessengerReportData } from '../../utils/farmCalculations';
 import { Share2, Copy, Check, X, Calendar, Sparkles, MessageSquare, Send, CheckCircle2, Egg, Layers } from 'lucide-react';
 
 interface MessengerReportQuickModalProps {
@@ -15,6 +16,11 @@ export const MessengerReportQuickModal: React.FC<MessengerReportQuickModalProps>
   const [formatStyle, setFormatStyle] = useState<MessengerFormatStyle>('standard');
   const [copied, setCopied] = useState(false);
 
+  const reportData = useMemo(
+    () => buildMessengerReportData(eggProductionRecords, flocks, farmProfile, reportDate, true),
+    [eggProductionRecords, flocks, farmProfile, reportDate]
+  );
+
   if (!isOpen) return null;
 
   const setDateToday = () => {
@@ -27,185 +33,25 @@ export const MessengerReportQuickModal: React.FC<MessengerReportQuickModalProps>
     setReportDate(y.toISOString().split('T')[0]);
   };
 
-  const records = eggProductionRecords || [];
-  const houseFlocks = flocks || [];
-  const recordsOnDate = records.filter(r => r.date === reportDate);
-  let dateFormatted = reportDate;
-  try {
-    dateFormatted = new Date(reportDate + 'T00:00:00').toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric'
-    }).toUpperCase();
-  } catch {
-    dateFormatted = reportDate;
-  }
-
-  const companyName = ((farmProfile?.name) || 'L.P. LIM CITY FAMILY FARM INC').toUpperCase();
-
-  // Aggregate metrics
-  let totalTEP = 0;
-  let totalHENest = 0;
-  let totalHEFloor = 0;
-  let totalHE = 0;
-  let totalNHE = 0;
-  let totalSmall = 0;
-  let totalBroken = 0;
-  let totalThin = 0;
-  let totalDY = 0;
-  let totalMisshape = 0;
-  let totalOthers = 0;
-  let totalSpoil = 0;
-
-  const activeRecords = recordsOnDate.length > 0 
-    ? recordsOnDate 
-    : houseFlocks.map(f => ({
-        houseNumber: f.houseNumber,
-        tep: 0,
-        heNest: 0,
-        heFloor: 0,
-        small: 0,
-        broken: 0,
-        thinShell: 0,
-        doubleYolk: 0,
-        misshape: 0,
-        others: 0,
-        spoiled: 0,
-        totalHE: 0,
-        totalNHE: 0
-      } as any));
-
-  activeRecords.forEach((rec) => {
-    const heNest = rec.heNest ?? (rec as any).sorting?.hatchingEggs?.heNest ?? 0;
-    const heFloor = rec.heFloor ?? (rec as any).sorting?.hatchingEggs?.heFloor ?? 0;
-    const heTotal = (rec as any).totalHatchingEggs ?? rec.totalHE ?? (heNest + heFloor);
-
-    const small = rec.small ?? (rec as any).sorting?.nonHatchingEggs?.small ?? 0;
-    const broken = rec.broken ?? (rec as any).sorting?.nonHatchingEggs?.broken ?? 0;
-    const ts = rec.thinShell ?? (rec as any).sorting?.nonHatchingEggs?.cracked ?? 0;
-    const dy = rec.doubleYolk ?? (rec as any).sorting?.nonHatchingEggs?.doubleYolk ?? 0;
-    const ms = rec.misshape ?? (rec as any).sorting?.nonHatchingEggs?.abnormal ?? (rec as any).sorting?.nonHatchingEggs?.misshapen ?? 0;
-    const oth = rec.others ?? (rec as any).sorting?.nonHatchingEggs?.softShelled ?? (rec as any).sorting?.nonHatchingEggs?.leakers ?? 0;
-    const spoiled = rec.spoiled ?? (rec as any).sorting?.nonHatchingEggs?.dirty ?? 0;
-    const nheTotal = (rec as any).totalNonHatchingEggs ?? rec.totalNHE ?? (small + broken + ts + dy + ms + oth + spoiled);
-    const tep = rec.tep ?? (rec as any).totalEggs ?? (heTotal + nheTotal);
-
-    totalTEP += tep;
-    totalHENest += heNest;
-    totalHEFloor += heFloor;
-    totalHE += heTotal;
-    totalNHE += nheTotal;
-    totalSmall += small;
-    totalBroken += broken;
-    totalThin += ts;
-    totalDY += dy;
-    totalMisshape += ms;
-    totalOthers += oth;
-    totalSpoil += spoiled;
-  });
-
-  const grandTEP = totalTEP - totalSpoil - totalDY;
-  const overallHEPct = totalTEP > 0 ? ((totalHE / totalTEP) * 100).toFixed(1) : '0.0';
-  const totalTrays30 = Math.floor(totalTEP / 30);
-  const remainingEggs = totalTEP % 30;
-
-  // Format 1: Standard Farm Format
-  const generateStandardText = () => {
-    let report = `${companyName}\nDAILY EGG REPORT\n\nDATE:\t${dateFormatted}\n\n`;
-
-    activeRecords.forEach((rec) => {
-      const heNest = rec.heNest ?? (rec as any).sorting?.hatchingEggs?.heNest ?? 0;
-      const heFloor = rec.heFloor ?? (rec as any).sorting?.hatchingEggs?.heFloor ?? 0;
-      const heTotal = (rec as any).totalHatchingEggs ?? rec.totalHE ?? (heNest + heFloor);
-
-      const small = rec.small ?? (rec as any).sorting?.nonHatchingEggs?.small ?? 0;
-      const broken = rec.broken ?? (rec as any).sorting?.nonHatchingEggs?.broken ?? 0;
-      const ts = rec.thinShell ?? (rec as any).sorting?.nonHatchingEggs?.cracked ?? 0;
-      const dy = rec.doubleYolk ?? (rec as any).sorting?.nonHatchingEggs?.doubleYolk ?? 0;
-      const ms = rec.misshape ?? (rec as any).sorting?.nonHatchingEggs?.abnormal ?? 0;
-      const oth = rec.others ?? 0;
-      const spoiled = rec.spoiled ?? (rec as any).sorting?.nonHatchingEggs?.dirty ?? 0;
-      const nheTotal = (rec as any).totalNonHatchingEggs ?? rec.totalNHE ?? (small + broken + ts + dy + ms + oth + spoiled);
-      const tep = rec.tep ?? (rec as any).totalEggs ?? (heTotal + nheTotal);
-
-      report += `${rec.houseNumber.toUpperCase()}\n\n`;
-      report += `TEP;\t${tep}\n`;
-      report += `HE NEST;\t${heNest}\n`;
-      report += `HE FLOOR;\t${heFloor}\n\n`;
-      report += `SMALL;\t${small}\n`;
-      report += `BROKEN;\t${broken}\n`;
-      report += `TS;\t${ts}\n`;
-      report += `DY;\t${dy}\n`;
-      report += `MS;\t${ms}\n`;
-      report += `OTH:\t${oth}\n`;
-      report += `SPOILED;\t${spoiled}\n`;
-      report += `TOTAL NHE;\t${nheTotal}\n\n\n`;
-    });
-
-    report += `TOTAL TEP;\t${totalTEP}\n`;
-    report += `TOTAL HE NEST;\t${totalHENest}\n`;
-    report += `TOTAL HE FLOOR;\t${totalHEFloor}\n`;
-    report += `TOTAL HE;\t${totalHE}\n`;
-    report += `TOTAL NHE;\t${totalNHE}\n`;
-    report += `TOTAL SPOIL;\t${totalSpoil}\n`;
-    report += `TOTAL DY;\t${totalDY}\n\n`;
-    report += `GRAND TEP;\t${grandTEP}`;
-
-    return report;
-  };
-
-  // Format 2: Executive Broadcast Format
-  const generateExecutiveText = () => {
-    let text = `📊 *${companyName}*\n`;
-    text += `🥚 *DAILY FLOCK PRODUCTION REPORT*\n`;
-    text += `📅 *Date:* ${dateFormatted}\n`;
-    text += `─────────────────────────\n\n`;
-
-    activeRecords.forEach(rec => {
-      const heNest = rec.heNest || 0;
-      const heFloor = rec.heFloor || 0;
-      const heTotal = rec.totalHE || (heNest + heFloor);
-      const nheTotal = rec.totalNHE || 0;
-      const tep = rec.tep || (heTotal + nheTotal);
-      const hd = rec.hendayPct ? `${rec.hendayPct.toFixed(1)}%` : '-';
-      const yieldPct = tep > 0 ? ((heTotal / tep) * 100).toFixed(1) : '0';
-
-      text += `🏠 *${rec.houseNumber.toUpperCase()}*\n`;
-      text += `• TEP: *${tep.toLocaleString()}* (HD: ${hd})\n`;
-      text += `• Settable HE: *${heTotal.toLocaleString()}* (${yieldPct}% yield | Nest: ${heNest}, Floor: ${heFloor})\n`;
-      text += `• NHE Discard: ${nheTotal.toLocaleString()}\n\n`;
-    });
-
-    text += `═════════════════════════\n`;
-    text += `🏆 *FARM TOTALS SUMMARY*\n`;
-    text += `• Total Eggs (TEP): *${totalTEP.toLocaleString()}* (~${totalTrays30.toLocaleString()} Trays)\n`;
-    text += `• Hatching Eggs (HE): *${totalHE.toLocaleString()}* (${overallHEPct}%)\n`;
-    text += `• Non-Hatching (NHE): *${totalNHE.toLocaleString()}*\n`;
-    text += `• Deductions (Spoiled + DY): *${totalSpoil + totalDY}*\n`;
-    text += `• *GRAND TEP (Net Settable):* *${grandTEP.toLocaleString()}*\n`;
-    text += `─────────────────────────\n`;
-    text += `_Verified via FarmFlow Pro Broiler-Breeder OS_`;
-
-    return text;
-  };
-
-  // Format 3: Compact SMS Format
-  const generateCompactText = () => {
-    let text = `${companyName} (${reportDate})\n`;
-    activeRecords.forEach(r => {
-      const he = r.totalHE || ((r.heNest || 0) + (r.heFloor || 0));
-      text += `${r.houseNumber}: TEP ${r.tep || 0} | HE ${he} | NHE ${r.totalNHE || 0}\n`;
-    });
-    text += `TOTAL: TEP ${totalTEP} | HE ${totalHE} (${overallHEPct}%) | NHE ${totalNHE} | GRAND ${grandTEP}`;
-    return text;
-  };
+  const {
+    companyName,
+    totalTEP,
+    totalHE,
+    totalNHE,
+    grandTEP,
+    overallHEPct,
+    totalTrays30,
+    remainingEggs,
+    formatStandard,
+    formatExecutive,
+    formatCompact,
+  } = reportData;
 
   const reportText = formatStyle === 'standard' 
-    ? generateStandardText() 
+    ? formatStandard() 
     : formatStyle === 'executive' 
-    ? generateExecutiveText() 
-    : generateCompactText();
+    ? formatExecutive() 
+    : formatCompact();
 
   const handleCopy = () => {
     navigator.clipboard.writeText(reportText);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useFarm } from '../../context/FarmContext';
 import { DepletionReason } from '../../types';
 import { 
@@ -34,6 +34,7 @@ export const MortalityManagementView: React.FC = () => {
 
   const [selectedHouse, setSelectedHouse] = useState('All');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [displayLimit, setDisplayLimit] = useState<number>(100);
 
   // New Record Form State
   const [houseNumber, setHouseNumber] = useState('House 1');
@@ -71,29 +72,70 @@ export const MortalityManagementView: React.FC = () => {
     setTimeout(() => setSuccessMsg(false), 2500);
   };
 
-  // Filtered records
-  const filteredRecords = depletions.filter(d => {
-    if (selectedHouse !== 'All' && d.houseNumber !== selectedHouse) return false;
-    if (selectedCategory !== 'All' && d.category !== selectedCategory) return false;
-    return true;
-  });
+  // Memoized filtered records (O(N) only when depletions or filter selections change)
+  const filteredRecords = useMemo(() => {
+    return depletions.filter(d => {
+      if (selectedHouse !== 'All' && d.houseNumber !== selectedHouse) return false;
+      if (selectedCategory !== 'All' && d.category !== selectedCategory) return false;
+      return true;
+    });
+  }, [depletions, selectedHouse, selectedCategory]);
 
-  // Calculate Farm-wide & Category-specific Depletions
-  const totalMortalityM = depletions.filter(d => d.category === 'Mortality').reduce((s, d) => s + (Number(d.maleCount) || 0), 0);
-  const totalMortalityF = depletions.filter(d => d.category === 'Mortality').reduce((s, d) => s + (Number(d.femaleCount) || 0), 0);
+  // Single-pass O(N) category & farm-wide depletion accumulator (replaces 8 separate filter+reduce scans)
+  const {
+    totalMortalityM,
+    totalMortalityF,
+    totalSpotCullM,
+    totalSpotCullF,
+    totalMissexM,
+    totalMissexF,
+    totalSpentCullM,
+    totalSpentCullF,
+    grandTotalDepletionM,
+    grandTotalDepletionF,
+    grandTotalDepletion,
+  } = useMemo(() => {
+    let mortM = 0, mortF = 0;
+    let spotM = 0, spotF = 0;
+    let missexM = 0, missexF = 0;
+    let spentM = 0, spentF = 0;
 
-  const totalSpotCullM = depletions.filter(d => d.category === 'Spot Cull').reduce((s, d) => s + (Number(d.maleCount) || 0), 0);
-  const totalSpotCullF = depletions.filter(d => d.category === 'Spot Cull').reduce((s, d) => s + (Number(d.femaleCount) || 0), 0);
+    for (let i = 0; i < depletions.length; i++) {
+      const d = depletions[i];
+      if (!d) continue;
+      const m = Number(d.maleCount) || 0;
+      const f = Number(d.femaleCount) || 0;
+      if (d.category === 'Mortality') {
+        mortM += m;
+        mortF += f;
+      } else if (d.category === 'Spot Cull') {
+        spotM += m;
+        spotF += f;
+      } else if (d.category === 'Missex') {
+        missexM += m;
+        missexF += f;
+      } else if (d.category === 'Spent Cull') {
+        spentM += m;
+        spentF += f;
+      }
+    }
 
-  const totalMissexM = depletions.filter(d => d.category === 'Missex').reduce((s, d) => s + (Number(d.maleCount) || 0), 0);
-  const totalMissexF = depletions.filter(d => d.category === 'Missex').reduce((s, d) => s + (Number(d.femaleCount) || 0), 0);
-
-  const totalSpentCullM = depletions.filter(d => d.category === 'Spent Cull').reduce((s, d) => s + (Number(d.maleCount) || 0), 0);
-  const totalSpentCullF = depletions.filter(d => d.category === 'Spent Cull').reduce((s, d) => s + (Number(d.femaleCount) || 0), 0);
-
-  const grandTotalDepletionM = (totalMortalityM || 0) + (totalSpotCullM || 0) + (totalMissexM || 0) + (totalSpentCullM || 0);
-  const grandTotalDepletionF = (totalMortalityF || 0) + (totalSpotCullF || 0) + (totalMissexF || 0) + (totalSpentCullF || 0);
-  const grandTotalDepletion = grandTotalDepletionM + grandTotalDepletionF;
+    const totalM = mortM + spotM + missexM + spentM;
+    const totalF = mortF + spotF + missexF + spentF;
+    return {
+      totalMortalityM: mortM,
+      totalMortalityF: mortF,
+      totalSpotCullM: spotM,
+      totalSpotCullF: spotF,
+      totalMissexM: missexM,
+      totalMissexF: missexF,
+      totalSpentCullM: spentM,
+      totalSpentCullF: spentF,
+      grandTotalDepletionM: totalM,
+      grandTotalDepletionF: totalF,
+      grandTotalDepletion: totalM + totalF,
+    };
+  }, [depletions]);
 
   const handleExportMortalityExcel = () => {
     const mortData = filteredRecords.map(d => ({
@@ -443,7 +485,7 @@ export const MortalityManagementView: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredRecords.map(record => (
+                  filteredRecords.slice(0, displayLimit).map(record => (
                     <tr key={record.id} className="hover:bg-slate-50 transition">
                       <td className="py-2.5 px-3 font-medium text-slate-700">{record.date}</td>
                       <td className="py-2.5 px-3">
@@ -488,6 +530,18 @@ export const MortalityManagementView: React.FC = () => {
               </tbody>
             </table>
           </div>
+          {filteredRecords.length > displayLimit && (
+            <div className="pt-2 flex items-center justify-between text-xs text-slate-500">
+              <span>Showing {displayLimit} of {filteredRecords.length.toLocaleString()} records</span>
+              <button
+                type="button"
+                onClick={() => setDisplayLimit(prev => prev + 100)}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl transition cursor-pointer"
+              >
+                Load More (+100)
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

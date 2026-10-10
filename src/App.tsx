@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { FarmProvider, useFarm } from './context/FarmContext';
 import { ModuleType, UserRole } from './types';
 import { Navbar } from './components/layout/Navbar';
@@ -15,21 +15,24 @@ import { MobileInstallBanner } from './components/common/MobileInstallBanner';
 import { ToastProvider, useToast } from './components/common/ToastContainer';
 import { detectPlatform, triggerHaptic } from './utils/platform';
 
-// Views
+// Primary Dashboard (eagerly loaded for instant initial paint)
 import { FarmDashboardOverview } from './components/dashboard/FarmDashboardOverview';
-import { FarmProfileView } from './components/farmProfile/FarmProfileView';
-import { FeedInventoryView } from './components/feed/FeedInventoryView';
-import { FlockListView } from './components/flock/FlockListView';
-import { FlockmanModuleView } from './components/flockman/FlockmanModuleView';
-import { MortalityManagementView } from './components/mortality/MortalityManagementView';
-import { MedicineVaccineView } from './components/medicine/MedicineVaccineView';
-import { BodyWeightView } from './components/bodyWeight/BodyWeightView';
-import { EggProductionView } from './components/eggProduction/EggProductionView';
-import { DeliveryView } from './components/delivery/DeliveryView';
-import { DynamicReportsView } from './components/reports/DynamicReportsView';
-import { SettingsView } from './components/settings/SettingsView';
+
+// Code-split Secondary Views (lazy-loaded on demand to minimize initial bundle parse & memory footprint)
+const FarmProfileView = lazy(() => import('./components/farmProfile/FarmProfileView').then(m => ({ default: m.FarmProfileView })));
+const FeedInventoryView = lazy(() => import('./components/feed/FeedInventoryView').then(m => ({ default: m.FeedInventoryView })));
+const FlockListView = lazy(() => import('./components/flock/FlockListView').then(m => ({ default: m.FlockListView })));
+const FlockmanModuleView = lazy(() => import('./components/flockman/FlockmanModuleView').then(m => ({ default: m.FlockmanModuleView })));
+const MortalityManagementView = lazy(() => import('./components/mortality/MortalityManagementView').then(m => ({ default: m.MortalityManagementView })));
+const MedicineVaccineView = lazy(() => import('./components/medicine/MedicineVaccineView').then(m => ({ default: m.MedicineVaccineView })));
+const BodyWeightView = lazy(() => import('./components/bodyWeight/BodyWeightView').then(m => ({ default: m.BodyWeightView })));
+const EggProductionView = lazy(() => import('./components/eggProduction/EggProductionView').then(m => ({ default: m.EggProductionView })));
+const DeliveryView = lazy(() => import('./components/delivery/DeliveryView').then(m => ({ default: m.DeliveryView })));
+const DynamicReportsView = lazy(() => import('./components/reports/DynamicReportsView').then(m => ({ default: m.DynamicReportsView })));
+const SettingsView = lazy(() => import('./components/settings/SettingsView').then(m => ({ default: m.SettingsView })));
 import { RoleBadge } from './components/common/RoleBadge';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { ModuleLoadingSkeleton } from './components/ui';
 import { Shield, Sparkles, UserCheck, AlertCircle } from 'lucide-react';
 
 const FarmAppContent: React.FC = () => {
@@ -114,8 +117,7 @@ const FarmAppContent: React.FC = () => {
       {/* Top Demo Helper Bar: Compact, clean role switching utility (Hidden during printing) */}
       <div className="bg-forest-950 text-graphite-300 border-b border-forest-900 text-xs py-1.5 px-4 sm:px-6 flex flex-wrap items-center justify-between gap-2 shrink-0 z-50 print:hidden shadow-xs">
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-graphite-400 font-semibold text-[11px] uppercase tracking-wider">Role Scope:</span>
+          <span className="text-graphite-400 font-semibold text-[11px] tracking-wide">Role Scope:</span>
           <span className="font-bold text-white flex items-center gap-1.5 text-xs">
             {currentUser && <RoleBadge role={currentUser.role} size="sm" />}
           </span>
@@ -197,23 +199,25 @@ const FarmAppContent: React.FC = () => {
             </div>
           ) : (
             <ErrorBoundary key={activeModule} fallbackTitle="Farm Module Render Error" onReset={() => setActiveModule('dashboard')}>
-              {activeModule === 'dashboard' && (
-                <FarmDashboardOverview 
-                  onNavigate={setActiveModule} 
-                  onOpenMessengerReport={() => setIsMessengerReportOpen(true)} 
-                />
-              )}
-              {activeModule === 'farm_profile' && <FarmProfileView />}
-              {activeModule === 'feed_inventory' && <FeedInventoryView />}
-              {(activeModule === 'flock_list' || (activeModule as string) === 'flock') && <FlockListView />}
-              {(activeModule === 'flockman_module' || (activeModule as string) === 'flockman') && <FlockmanModuleView />}
-              {activeModule === 'mortality' && <MortalityManagementView />}
-              {activeModule === 'medicine' && <MedicineVaccineView />}
-              {activeModule === 'body_weight' && <BodyWeightView />}
-              {activeModule === 'egg_production' && <EggProductionView />}
-              {activeModule === 'delivery' && <DeliveryView />}
-              {activeModule === 'reports' && <DynamicReportsView />}
-              {activeModule === 'settings' && <SettingsView />}
+              <Suspense fallback={<ModuleLoadingSkeleton />}>
+                {activeModule === 'dashboard' && (
+                  <FarmDashboardOverview 
+                    onNavigate={setActiveModule} 
+                    onOpenMessengerReport={() => setIsMessengerReportOpen(true)} 
+                  />
+                )}
+                {activeModule === 'farm_profile' && <FarmProfileView />}
+                {activeModule === 'feed_inventory' && <FeedInventoryView />}
+                {(activeModule === 'flock_list' || (activeModule as string) === 'flock') && <FlockListView />}
+                {(activeModule === 'flockman_module' || (activeModule as string) === 'flockman') && <FlockmanModuleView />}
+                {activeModule === 'mortality' && <MortalityManagementView />}
+                {activeModule === 'medicine' && <MedicineVaccineView />}
+                {activeModule === 'body_weight' && <BodyWeightView />}
+                {activeModule === 'egg_production' && <EggProductionView />}
+                {activeModule === 'delivery' && <DeliveryView />}
+                {activeModule === 'reports' && <DynamicReportsView />}
+                {activeModule === 'settings' && <SettingsView />}
+              </Suspense>
             </ErrorBoundary>
           )}
         </main>

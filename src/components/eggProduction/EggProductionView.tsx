@@ -22,6 +22,7 @@ import {
   Download
 } from 'lucide-react';
 import { exportReportToExcel, exportReportToPdf, exportReportToCsv, ReportMetadata, SheetData } from '../../utils/reportExportUtils';
+import { buildMessengerReportData } from '../../utils/farmCalculations';
 import { useToast } from '../common/ToastContainer';
 import { HouseQuickBar } from '../common/HouseQuickBar';
 
@@ -188,103 +189,16 @@ export const EggProductionView: React.FC = () => {
     setShowLogModal(false);
   };
 
-  // Generate the exact "Messenger Report" formatted text
+  // Generate the exact "Messenger Report" formatted text using centralized formatter
   const generateMessengerReport = useCallback((targetDate: string) => {
-    const records = eggProductionRecords || [];
-    const houseFlocks = flocks || [];
-    const recordsOnDate = records.filter(r => r.date === targetDate);
-    let dateFormatted = targetDate;
-    try {
-      dateFormatted = new Date(targetDate + 'T00:00:00').toLocaleDateString('en-US', {
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric'
-      }).toUpperCase();
-    } catch {
-      dateFormatted = targetDate;
-    }
-
-    const companyName = ((farmProfile?.name) || 'L.P. LIM CITY FAMILY FARM INC').toUpperCase();
-
-    let report = `${companyName}\nDAILY EGG REPORT\n\nDATE:\t${dateFormatted}\n\n`;
-
-    let totalTEP = 0;
-    let totalHENest = 0;
-    let totalHEFloor = 0;
-    let totalHE = 0;
-    let totalNHE = 0;
-    let totalSpoil = 0;
-    let totalDY = 0;
-
-    // Houses with records on this date
-    const activeRecords = recordsOnDate.length > 0 
-      ? recordsOnDate 
-      : houseFlocks.map(f => ({
-          houseNumber: f.houseNumber,
-          tep: 0,
-          heNest: 0,
-          heFloor: 0,
-          small: 0,
-          broken: 0,
-          thinShell: 0,
-          doubleYolk: 0,
-          misshape: 0,
-          others: 0,
-          spoiled: 0,
-          totalHE: 0,
-          totalNHE: 0
-        } as any));
-
-    activeRecords.forEach((rec) => {
-      const heNestVal = rec.heNest ?? rec.sorting?.hatchingEggs?.heNest ?? 0;
-      const heFloorVal = rec.heFloor ?? rec.sorting?.hatchingEggs?.heFloor ?? 0;
-      const heTotal = rec.totalHatchingEggs ?? rec.totalHE ?? (heNestVal + heFloorVal);
-
-      const small = rec.small ?? rec.sorting?.nonHatchingEggs?.small ?? 0;
-      const broken = rec.broken ?? rec.sorting?.nonHatchingEggs?.broken ?? 0;
-      const ts = rec.thinShell ?? rec.sorting?.nonHatchingEggs?.cracked ?? 0;
-      const dy = rec.doubleYolk ?? rec.sorting?.nonHatchingEggs?.doubleYolk ?? 0;
-      const ms = rec.misshape ?? rec.sorting?.nonHatchingEggs?.abnormal ?? rec.sorting?.nonHatchingEggs?.misshapen ?? 0;
-      const oth = rec.others ?? rec.sorting?.nonHatchingEggs?.softShelled ?? rec.sorting?.nonHatchingEggs?.leakers ?? 0;
-      const spoiled = rec.spoiled ?? rec.sorting?.nonHatchingEggs?.dirty ?? 0;
-      const nheTotal = rec.totalNonHatchingEggs ?? rec.totalNHE ?? (small + broken + ts + dy + ms + oth + spoiled);
-      const tep = rec.tep ?? rec.totalEggs ?? (heTotal + nheTotal);
-
-      totalTEP += tep;
-      totalHENest += heNestVal;
-      totalHEFloor += heFloorVal;
-      totalHE += heTotal;
-      totalNHE += nheTotal;
-      totalSpoil += spoiled;
-      totalDY += dy;
-
-      report += `${(rec.houseNumber || 'HOUSE').toUpperCase()}\n\n`;
-      report += `TEP;\t${tep}\n`;
-      report += `HE NEST;\t${heNestVal}\n`;
-      report += `HE FLOOR;\t${heFloorVal}\n\n`;
-      report += `SMALL;\t${small}\n`;
-      report += `BROKEN;\t${broken}\n`;
-      report += `TS;\t${ts}\n`;
-      report += `DY;\t${dy}\n`;
-      report += `MS;\t${ms}\n`;
-      report += `OTH:\t${oth}\n`;
-      report += `SPOILED;\t${spoiled}\n`;
-      report += `TOTAL NHE;\t${nheTotal}\n\n\n`;
-    });
-
-    const grandTEP = totalTEP - totalSpoil - totalDY;
-
-    report += `TOTAL TEP;\t${totalTEP}\n`;
-    report += `TOTAL HE NEST;\t${totalHENest}\n`;
-    report += `TOTAL HE FLOOR;\t${totalHEFloor}\n`;
-    report += `TOTAL HE;\t${totalHE}\n`;
-    report += `TOTAL NHE;\t${totalNHE}\n`;
-    report += `TOTAL SPOIL;\t${totalSpoil}\n`;
-    report += `TOTAL DY;\t${totalDY}\n\n`;
-    report += `GRAND TEP;\t${grandTEP}`;
-
-    return report;
-  }, [flocks, eggProductionRecords, reportDate, farmProfile]);
+    return buildMessengerReportData(
+      eggProductionRecords || [],
+      flocks || [],
+      farmProfile,
+      targetDate,
+      false
+    ).formatStandard();
+  }, [flocks, eggProductionRecords, farmProfile]);
 
   const currentMessengerReportText = useMemo(() => {
     return generateMessengerReport(reportDate);

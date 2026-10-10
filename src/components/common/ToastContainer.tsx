@@ -90,30 +90,39 @@ const ToastContainer: React.FC<{ toasts: ToastItem[]; onDismiss: (id: string) =>
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none px-4 sm:px-0">
+    <div
+      role="region"
+      aria-label="System notifications"
+      className="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none px-4 sm:px-0"
+    >
       {toasts.map((toast) => {
         const typeStyles = {
           success: {
             bg: 'bg-emerald-950/95 border-emerald-500/40 text-emerald-100',
-            icon: <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+            icon: <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" aria-hidden="true" />
           },
           warning: {
             bg: 'bg-amber-950/95 border-amber-500/40 text-amber-100',
-            icon: <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            icon: <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
           },
           error: {
             bg: 'bg-rose-950/95 border-rose-500/40 text-rose-100',
-            icon: <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+            icon: <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" aria-hidden="true" />
           },
           info: {
             bg: 'bg-forest-950/95 border-mint-500/40 text-mint-100',
-            icon: <Info className="w-5 h-5 text-mint-400 shrink-0 mt-0.5" />
+            icon: <Info className="w-5 h-5 text-mint-400 shrink-0 mt-0.5" aria-hidden="true" />
           }
         }[toast.type];
+
+        const isAssertive = toast.type === 'error' || toast.type === 'warning';
 
         return (
           <div
             key={toast.id}
+            role={isAssertive ? 'alert' : 'status'}
+            aria-live={isAssertive ? 'assertive' : 'polite'}
+            aria-atomic="true"
             className={`pointer-events-auto p-4 rounded-2xl border shadow-xl backdrop-blur-md flex items-start gap-3 transition-all duration-200 animate-slideUp ${typeStyles.bg}`}
           >
             {typeStyles.icon}
@@ -124,22 +133,24 @@ const ToastContainer: React.FC<{ toasts: ToastItem[]; onDismiss: (id: string) =>
               )}
               {toast.action && (
                 <button
+                  type="button"
                   onClick={() => {
                     toast.action?.onClick();
                     onDismiss(toast.id);
                   }}
-                  className="mt-2 text-[11px] font-bold text-mint-300 hover:text-white underline"
+                  className="mt-2 text-[11px] font-bold text-mint-300 hover:text-white underline focus:outline-none focus-visible:ring-2 focus-visible:ring-mint-400 rounded"
                 >
                   {toast.action.label}
                 </button>
               )}
             </div>
             <button
+              type="button"
               onClick={() => onDismiss(toast.id)}
-              className="p-1 text-white/50 hover:text-white rounded-lg transition"
+              className="p-1 text-white/60 hover:text-white rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 cursor-pointer"
               aria-label="Dismiss notification"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         );

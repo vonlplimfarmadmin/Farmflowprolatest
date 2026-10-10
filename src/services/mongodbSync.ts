@@ -135,6 +135,31 @@ export async function syncAllDataToMongoDB(payload: any): Promise<{
   }
 }
 
+export async function fetchDocFromMongoDB(
+  collectionName: string,
+  id: string
+): Promise<any | null> {
+  const cleanId = String(id).trim();
+  if (!isSafeIdentifier(cleanId)) return null;
+  try {
+    const res = await fetch(
+      `/api/mongodb/doc/${encodeURIComponent(collectionName)}/${encodeURIComponent(cleanId)}`,
+      {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+      }
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json?.data || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function saveDocToMongoDB(
   collectionName: string,
   id: string,
@@ -170,6 +195,24 @@ export async function saveDocToMongoDB(
     }
   }
   return false;
+}
+
+/**
+ * Persists a batch of documents to a single MongoDB collection in one bulkWrite request
+ * instead of firing N individual HTTP requests.
+ */
+export async function saveDocsBatchToMongoDB(
+  collectionName: string,
+  docs: any[]
+): Promise<boolean> {
+  if (!Array.isArray(docs) || docs.length === 0) return true;
+  try {
+    const res = await syncAllDataToMongoDB({ [collectionName]: docs });
+    return res.success;
+  } catch (err) {
+    console.warn(`[MongoDB Client] Batch save error for ${collectionName}:`, err);
+    return false;
+  }
 }
 
 export async function deleteDocFromMongoDB(
@@ -241,10 +284,28 @@ export async function getFarmProfileFromMongoDB(): Promise<any | null> {
 
 export function startMongoDBPolling(callback: () => void, intervalMs: number = 30000): () => void {
   const intervalId = setInterval(() => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+      return;
+    }
     callback();
   }, intervalMs);
 
-  return () => clearInterval(intervalId);
+  const handleVisibilityChange = () => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+      callback();
+    }
+  };
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+  }
+
+  return () => {
+    clearInterval(intervalId);
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }
+  };
 }
 
 export async function purgeOldDataFromMongoDB(options?: {

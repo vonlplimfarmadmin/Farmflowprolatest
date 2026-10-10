@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { EggProductionRecord, StandardHendayItem } from '../../types';
 import { Egg, TrendingUp, Sparkles, CheckCircle2, AlertTriangle, Layers, Percent, ShieldCheck } from 'lucide-react';
 
@@ -8,48 +8,101 @@ interface EggProductionReportSectionProps {
   flocks: any[];
 }
 
-export const EggProductionReportSection: React.FC<EggProductionReportSectionProps> = ({
+export const EggProductionReportSection: React.FC<EggProductionReportSectionProps> = React.memo(({
   records,
   standardHenday,
   flocks
 }) => {
-  // Compute aggregates
-  const totalTEP = records.reduce((acc, r) => acc + (r.tep || 0), 0);
-  const totalHENest = records.reduce((acc, r) => acc + (r.heNest || 0), 0);
-  const totalHEFloor = records.reduce((acc, r) => acc + (r.heFloor || 0), 0);
-  const totalHE = records.reduce((acc, r) => acc + (r.totalHE || 0), 0);
-  const totalNHE = records.reduce((acc, r) => acc + (r.totalNHE || 0), 0);
-  
-  // Specific NHE categories
-  const totalSmall = records.reduce((acc, r) => acc + (r.small || 0), 0);
-  const totalThin = records.reduce((acc, r) => acc + (r.thinShell || 0), 0);
-  const totalMisshape = records.reduce((acc, r) => acc + (r.misshape || 0), 0);
-  const totalDY = records.reduce((acc, r) => acc + (r.doubleYolk || 0), 0);
-  const totalBroken = records.reduce((acc, r) => acc + (r.broken || 0), 0);
-  const totalSpoiled = records.reduce((acc, r) => acc + (r.spoiled || 0), 0);
-  const totalOthers = records.reduce((acc, r) => acc + (r.others || 0), 0);
+  // Single-pass O(N) aggregate accumulator (replaces 12 separate .reduce() / .filter() array scans)
+  const {
+    totalTEP,
+    totalHENest,
+    totalHEFloor,
+    totalHE,
+    totalNHE,
+    totalSmall,
+    totalThin,
+    totalMisshape,
+    totalDY,
+    totalBroken,
+    totalSpoiled,
+    totalOthers,
+    overallHEPct,
+    overallNHEPct,
+    settableHEFloorRatio,
+    avgHD,
+    totalFemalePop,
+    avgDailyTEP,
+    totalTrays30,
+    remainingEggs,
+  } = useMemo(() => {
+    let tep = 0;
+    let heNest = 0;
+    let heFloor = 0;
+    let he = 0;
+    let nhe = 0;
+    let small = 0;
+    let thin = 0;
+    let misshape = 0;
+    let dy = 0;
+    let broken = 0;
+    let spoiled = 0;
+    let others = 0;
+    let hdSum = 0;
+    let hdCount = 0;
+    let femalePop = 0;
 
-  const overallHEPct = totalTEP > 0 ? (totalHE / totalTEP) * 100 : 0;
-  const overallNHEPct = totalTEP > 0 ? (totalNHE / totalTEP) * 100 : 0;
-  const settableHEFloorRatio = totalHE > 0 ? (totalHEFloor / totalHE) * 100 : 0;
+    for (let i = 0; i < records.length; i++) {
+      const r = records[i];
+      if (!r) continue;
+      tep += r.tep || 0;
+      heNest += r.heNest || 0;
+      heFloor += r.heFloor || 0;
+      he += r.totalHE || 0;
+      nhe += r.totalNHE || 0;
+      small += r.small || 0;
+      thin += r.thinShell || 0;
+      misshape += r.misshape || 0;
+      dy += r.doubleYolk || 0;
+      broken += r.broken || 0;
+      spoiled += r.spoiled || 0;
+      others += r.others || 0;
+      if ((r.hendayPct || 0) > 0) {
+        hdSum += r.hendayPct || 0;
+        hdCount++;
+      }
+      femalePop += r.femalePopulationAtDate || 0;
+    }
+
+    return {
+      totalTEP: tep,
+      totalHENest: heNest,
+      totalHEFloor: heFloor,
+      totalHE: he,
+      totalNHE: nhe,
+      totalSmall: small,
+      totalThin: thin,
+      totalMisshape: misshape,
+      totalDY: dy,
+      totalBroken: broken,
+      totalSpoiled: spoiled,
+      totalOthers: others,
+      overallHEPct: tep > 0 ? (he / tep) * 100 : 0,
+      overallNHEPct: tep > 0 ? (nhe / tep) * 100 : 0,
+      settableHEFloorRatio: he > 0 ? (heFloor / he) * 100 : 0,
+      avgHD: hdCount > 0 ? hdSum / hdCount : 0,
+      totalFemalePop: femalePop,
+      avgDailyTEP: records.length > 0 ? Math.round(tep / records.length) : 0,
+      totalTrays30: Math.floor(tep / 30),
+      remainingEggs: tep % 30,
+    };
+  }, [records]);
 
   const safePct = (part: number, total: number) => {
     if (!total || total <= 0) return '0.0';
     const val = (part / total) * 100;
     return isNaN(val) ? '0.0' : val.toFixed(1);
   };
-
-  // Average Hen-day
-  const recordsWithHD = records.filter(r => (r.hendayPct || 0) > 0);
-  const avgHD = recordsWithHD.length > 0 
-    ? recordsWithHD.reduce((acc, r) => acc + (r.hendayPct || 0), 0) / recordsWithHD.length 
-    : 0;
-
-  // Total female bird-days
-  const totalFemalePop = records.reduce((acc, r) => acc + (r.femalePopulationAtDate || 0), 0);
-  const avgDailyTEP = records.length > 0 ? Math.round(totalTEP / records.length) : 0;
-  const totalTrays30 = Math.floor(totalTEP / 30);
-  const remainingEggs = totalTEP % 30;
 
   return (
     <div className="space-y-6">
@@ -400,5 +453,5 @@ export const EggProductionReportSection: React.FC<EggProductionReportSectionProp
       </div>
     </div>
   );
-};
+});
 

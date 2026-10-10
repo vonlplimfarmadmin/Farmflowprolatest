@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { DepletionRecord, Flock } from '../../types';
 import { Skull, TrendingDown, HeartHandshake, ShieldAlert, Activity, BarChart2, CheckCircle2 } from 'lucide-react';
 
@@ -8,45 +8,65 @@ interface MortalityReportSectionProps {
   getFlockStats: (houseNumber: string, targetDate?: string) => any;
 }
 
-export const MortalityReportSection: React.FC<MortalityReportSectionProps> = ({
+export const MortalityReportSection: React.FC<MortalityReportSectionProps> = React.memo(({
   depletions,
   flocks,
   getFlockStats
 }) => {
-  // Aggregate counts
-  const totalMales = depletions.reduce((acc, d) => acc + (d.maleCount || 0), 0);
-  const totalFemales = depletions.reduce((acc, d) => acc + (d.femaleCount || 0), 0);
-  const grandTotalDepletions = totalMales + totalFemales;
+  // Single-pass O(N) depletion & flock population accumulator (replaces 10 separate filter/reduce scans)
+  const {
+    totalMales,
+    totalFemales,
+    grandTotalDepletions,
+    naturalMortality,
+    spotCulls,
+    missex,
+    spentCull,
+    totalActivePop,
+    cumulativeLivability,
+  } = useMemo(() => {
+    let males = 0;
+    let females = 0;
+    let natMort = 0;
+    let spot = 0;
+    let mis = 0;
+    let spent = 0;
 
-  // Breakdown by Category
-  const naturalMortality = depletions
-    .filter(d => d.category === 'Mortality')
-    .reduce((acc, d) => acc + (Number(d.maleCount) || 0) + (Number(d.femaleCount) || 0), 0);
+    for (let i = 0; i < depletions.length; i++) {
+      const d = depletions[i];
+      if (!d) continue;
+      const m = Number(d.maleCount) || 0;
+      const f = Number(d.femaleCount) || 0;
+      const tot = m + f;
+      males += m;
+      females += f;
+      if (d.category === 'Mortality') natMort += tot;
+      else if (d.category === 'Spot Cull') spot += tot;
+      else if (d.category === 'Missex') mis += tot;
+      else if (d.category === 'Spent Cull') spent += tot;
+    }
 
-  const spotCulls = depletions
-    .filter(d => d.category === 'Spot Cull')
-    .reduce((acc, d) => acc + (Number(d.maleCount) || 0) + (Number(d.femaleCount) || 0), 0);
+    let activePop = 0;
+    let initialPop = 0;
+    for (let i = 0; i < flocks.length; i++) {
+      const f = flocks[i];
+      if (!f) continue;
+      activePop += (f.currentMales || 0) + (f.currentFemales || 0);
+      initialPop += (f.initialMales || 0) + (f.initialFemales || 0);
+    }
 
-  const missex = depletions
-    .filter(d => d.category === 'Missex')
-    .reduce((acc, d) => acc + (Number(d.maleCount) || 0) + (Number(d.femaleCount) || 0), 0);
-
-  const spentCull = depletions
-    .filter(d => d.category === 'Spent Cull')
-    .reduce((acc, d) => acc + (Number(d.maleCount) || 0) + (Number(d.femaleCount) || 0), 0);
-
-  // Total current population across active flocks
-  const totalActiveMales = flocks.reduce((acc, f) => acc + (f.currentMales || 0), 0);
-  const totalActiveFemales = flocks.reduce((acc, f) => acc + (f.currentFemales || 0), 0);
-  const totalActivePop = totalActiveMales + totalActiveFemales;
-
-  const totalInitialMales = flocks.reduce((acc, f) => acc + (f.initialMales || 0), 0);
-  const totalInitialFemales = flocks.reduce((acc, f) => acc + (f.initialFemales || 0), 0);
-  const totalInitialPop = totalInitialMales + totalInitialFemales;
-
-  const cumulativeLivability = totalInitialPop > 0 
-    ? (totalActivePop / totalInitialPop) * 100 
-    : 100;
+    return {
+      totalMales: males,
+      totalFemales: females,
+      grandTotalDepletions: males + females,
+      naturalMortality: natMort,
+      spotCulls: spot,
+      missex: mis,
+      spentCull: spent,
+      totalActivePop: activePop,
+      cumulativeLivability: initialPop > 0 ? (activePop / initialPop) * 100 : 100,
+    };
+  }, [depletions, flocks]);
 
   const safePct = (part: number, total: number) => {
     if (!total || total <= 0) return '0.0';
@@ -318,4 +338,4 @@ export const MortalityReportSection: React.FC<MortalityReportSectionProps> = ({
       </div>
     </div>
   );
-};
+});

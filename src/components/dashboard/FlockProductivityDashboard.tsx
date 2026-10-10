@@ -152,16 +152,53 @@ export const FlockProductivityDashboard: React.FC<{
     return females > 0 ? females : 55000;
   }, [safeFlocks, selectedHouse, getFlockStats]);
 
+  // Pre-index records by date (single O(N) pass) for O(1) lookup across dateRangeDates
+  const eggRecordsByDate = useMemo(() => {
+    const map = new Map<string, typeof safeEggRecords>();
+    for (let i = 0; i < safeEggRecords.length; i++) {
+      const r = safeEggRecords[i];
+      if (!r || !r.date) continue;
+      if (selectedHouse !== 'All' && r.houseNumber !== selectedHouse) continue;
+      const list = map.get(r.date);
+      if (list) list.push(r);
+      else map.set(r.date, [r]);
+    }
+    return map;
+  }, [safeEggRecords, selectedHouse]);
+
+  const depletionsByDate = useMemo(() => {
+    const map = new Map<string, typeof safeDepletions>();
+    for (let i = 0; i < safeDepletions.length; i++) {
+      const d = safeDepletions[i];
+      if (!d || !d.date) continue;
+      if (selectedHouse !== 'All' && d.houseNumber !== selectedHouse) continue;
+      const list = map.get(d.date);
+      if (list) list.push(d);
+      else map.set(d.date, [d]);
+    }
+    return map;
+  }, [safeDepletions, selectedHouse]);
+
+  const feedRecordsByDate = useMemo(() => {
+    const map = new Map<string, typeof safeFeedRecords>();
+    for (let i = 0; i < safeFeedRecords.length; i++) {
+      const f = safeFeedRecords[i];
+      if (!f || !f.date) continue;
+      if (selectedHouse !== 'All' && f.houseNumber !== selectedHouse) continue;
+      const list = map.get(f.date);
+      if (list) list.push(f);
+      else map.set(f.date, [f]);
+    }
+    return map;
+  }, [safeFeedRecords, selectedHouse]);
+
   // 1. Egg Production Trend Data (Daily & Henday vs Standards)
   const eggTrendData = useMemo(() => {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const nowMs = Date.now();
+
     return dateRangeDates.map(dateStr => {
-      // Find matching egg records
-      const matchingRecords = safeEggRecords.filter(r => {
-        if (!r) return false;
-        const dateMatch = r.date === dateStr;
-        const houseMatch = selectedHouse === 'All' || r.houseNumber === selectedHouse;
-        return dateMatch && houseMatch;
-      });
+      const matchingRecords = eggRecordsByDate.get(dateStr) || [];
 
       const totalEggs = matchingRecords.reduce((sum, r) => sum + (r.tep || r.totalEggs || 0), 0);
       const hatchingEggs = matchingRecords.reduce((sum, r) => sum + (r.totalHE || r.totalHatchingEggs || 0), 0);
@@ -177,7 +214,7 @@ export const FlockProductivityDashboard: React.FC<{
 
       // Realistic mock interpolation for days before live logging began
       if (finalTotalEggs === 0) {
-        const dayOffset = (new Date().getTime() - new Date(dateStr).getTime()) / (1000 * 3600 * 24);
+        const dayOffset = (nowMs - new Date(dateStr).getTime()) / (1000 * 3600 * 24);
         const baseHenday = selectedHouse === 'All' ? 88.5 : 89.2;
         // slight smooth organic variance
         const variance = Math.sin(dayOffset * 0.45) * 1.5;
@@ -195,13 +232,11 @@ export const FlockProductivityDashboard: React.FC<{
       const heRatioPct = finalTotalEggs > 0 ? (finalHE / finalTotalEggs) * 100 : 96.5;
 
       // Find standard benchmark henday
-      // Default standard benchmark is ~88.5% for mid-laying breeder
       const standardHenday = 88.0;
       const standardHEPercent = 94.0;
 
       // Formatted date label (e.g. "Aug 16")
       const dateParts = dateStr.split('-');
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const monthIdx = parseInt(dateParts[1], 10) - 1;
       const dayNum = parseInt(dateParts[2], 10);
       const displayLabel = `${monthNames[monthIdx]} ${dayNum}`;
@@ -220,20 +255,16 @@ export const FlockProductivityDashboard: React.FC<{
         standardHEPercent
       };
     });
-  }, [dateRangeDates, safeEggRecords, selectedHouse, totalActiveFemales, safeFlocks]);
+  }, [dateRangeDates, eggRecordsByDate, selectedHouse, totalActiveFemales, safeFlocks]);
 
   // 2. Mortality & Depletion Trend Data
   const mortalityTrendData = useMemo(() => {
     let runningCumulativeDead = 0;
     const initialPopulation = selectedHouse === 'All' ? 60000 : 10000;
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
     return dateRangeDates.map(dateStr => {
-      const matchingDepletions = safeDepletions.filter(d => {
-        if (!d) return false;
-        const dateMatch = d.date === dateStr;
-        const houseMatch = selectedHouse === 'All' || d.houseNumber === selectedHouse;
-        return dateMatch && houseMatch;
-      });
+      const matchingDepletions = depletionsByDate.get(dateStr) || [];
 
       let naturalMortality = 0;
       let spotCulls = 0;
@@ -270,7 +301,6 @@ export const FlockProductivityDashboard: React.FC<{
       const cumulativeLivabilityPct = Math.max(92, 100 - ((runningCumulativeDead / initialPopulation) * 100));
 
       const dateParts = dateStr.split('-');
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const monthIdx = parseInt(dateParts[1], 10) - 1;
       const dayNum = parseInt(dateParts[2], 10);
       const displayLabel = `${monthNames[monthIdx]} ${dayNum}`;
@@ -290,17 +320,15 @@ export const FlockProductivityDashboard: React.FC<{
         toleranceBenchmarkDaily: selectedHouse === 'All' ? 22 : 4 // benchmark max allowed
       };
     });
-  }, [dateRangeDates, safeDepletions, selectedHouse]);
+  }, [dateRangeDates, depletionsByDate, selectedHouse]);
 
   // 3. Feed Intake & Efficiency Trend Data
   const feedTrendData = useMemo(() => {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const eggTrendByDate = new Map(eggTrendData.map(e => [e.date, e]));
+
     return dateRangeDates.map(dateStr => {
-      const matchingFeed = safeFeedRecords.filter(f => {
-        if (!f) return false;
-        const dateMatch = f.date === dateStr;
-        const houseMatch = selectedHouse === 'All' || f.houseNumber === selectedHouse;
-        return dateMatch && houseMatch;
-      });
+      const matchingFeed = feedRecordsByDate.get(dateStr) || [];
 
       let totalFeedKg = matchingFeed.reduce((sum, f) => sum + (f.quantityKg || 0), 0);
       let femaleGrams = 0;
@@ -316,15 +344,14 @@ export const FlockProductivityDashboard: React.FC<{
         totalFeedKg = Math.round((count * femaleGrams + (count * 0.1) * maleGrams) / 1000);
       }
 
-      // Egg production on same date for FCR calculation
-      const matchingEggs = eggTrendData.find(e => e.date === dateStr);
+      // Egg production on same date for FCR calculation (O(1) Map lookup)
+      const matchingEggs = eggTrendByDate.get(dateStr);
       const totalEggs = matchingEggs ? matchingEggs.totalEggs : 8000;
       const heEggs = matchingEggs ? matchingEggs.hatchingEggs : 7600;
 
       const gramsFeedPerHE = heEggs > 0 ? Math.round((totalFeedKg * 1000) / heEggs) : 185;
 
       const dateParts = dateStr.split('-');
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const monthIdx = parseInt(dateParts[1], 10) - 1;
       const dayNum = parseInt(dateParts[2], 10);
       const displayLabel = `${monthNames[monthIdx]} ${dayNum}`;

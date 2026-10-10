@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { MedAdministrationRecord, MedProduct, StandardMedProgramItem, Flock } from '../../types';
 import { Syringe, ShieldCheck, CheckCircle2, Clock, AlertCircle, Pill, Activity, CheckSquare } from 'lucide-react';
 
@@ -9,20 +9,51 @@ interface VaccinesMedicineReportSectionProps {
   flocks: Flock[];
 }
 
-export const VaccinesMedicineReportSection: React.FC<VaccinesMedicineReportSectionProps> = ({
+export const VaccinesMedicineReportSection: React.FC<VaccinesMedicineReportSectionProps> = React.memo(({
   administrations,
   products,
   standardProgram,
   flocks
 }) => {
-  // Aggregate stats
-  const totalDosesAdministered = administrations.reduce((acc, a) => acc + (a.totalDosesAdministered || (a.unitsUsed * 1000) || 0), 0);
-  const totalUnitsUsed = administrations.reduce((acc, a) => acc + (a.unitsUsed || 0), 0);
+  // Single-pass O(N) aggregate stats + pre-lowercased product names for fast protocol matching
+  const {
+    totalDosesAdministered,
+    totalUnitsUsed,
+    vaccineEvents,
+    medEvents,
+    administeredLowerNames,
+  } = useMemo(() => {
+    let doses = 0;
+    let units = 0;
+    let vaxCount = 0;
+    let medCount = 0;
+    const lowerNames: string[] = [];
 
-  const vaccineEvents = administrations.filter(a => a.productType === 'Vaccine').length;
-  const medEvents = administrations.filter(a => a.productType !== 'Vaccine').length;
+    for (let i = 0; i < administrations.length; i++) {
+      const a = administrations[i];
+      if (!a) continue;
+      doses += a.totalDosesAdministered || (a.unitsUsed * 1000) || 0;
+      units += a.unitsUsed || 0;
+      if (a.productType === 'Vaccine') vaxCount++;
+      else medCount++;
+      if (a.productName) {
+        lowerNames.push(a.productName.toLowerCase());
+      }
+    }
 
-  const lowStockCount = products.filter(p => (p.currentStockUnits || 0) <= (p.minAlertUnits || 5)).length;
+    return {
+      totalDosesAdministered: doses,
+      totalUnitsUsed: units,
+      vaccineEvents: vaxCount,
+      medEvents: medCount,
+      administeredLowerNames: lowerNames,
+    };
+  }, [administrations]);
+
+  const lowStockCount = useMemo(
+    () => products.filter(p => (p.currentStockUnits || 0) <= (p.minAlertUnits || 5)).length,
+    [products]
+  );
 
   return (
     <div className="space-y-6">
@@ -242,9 +273,8 @@ export const VaccinesMedicineReportSection: React.FC<VaccinesMedicineReportSecti
             </thead>
             <tbody className="divide-y divide-slate-200">
               {standardProgram.map((item, idx) => {
-                const isGiven = administrations.some(a => 
-                  a.productName.toLowerCase().includes(item.productName.toLowerCase().slice(0, 8))
-                );
+                const prefix = (item.productName || '').toLowerCase().slice(0, 8);
+                const isGiven = prefix.length > 0 && administeredLowerNames.some(name => name.includes(prefix));
                 const isEven = idx % 2 === 0;
 
                 return (
@@ -284,4 +314,4 @@ export const VaccinesMedicineReportSection: React.FC<VaccinesMedicineReportSecti
       </div>
     </div>
   );
-};
+});
