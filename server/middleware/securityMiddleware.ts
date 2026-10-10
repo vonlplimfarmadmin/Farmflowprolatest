@@ -3,4 +3,4 @@ export {
   securityHeadersMiddleware,
   dynamicCacheControlMiddleware,
   netlifyPathNormalizerMiddleware,
-} from '../../server-app';
+} from '../../server-app.ts';

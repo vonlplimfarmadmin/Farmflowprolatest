@@ -7,4 +7,4 @@ export {
   activeDbName,
   cachedPromise,
   resetCachedConnectionPromise,
-} from '../../server-app';
+} from '../../server-app.ts';

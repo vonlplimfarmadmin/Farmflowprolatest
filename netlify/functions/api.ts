@@ -1,5 +1,5 @@
-import serverless from "serverless-http";
-import { app, connectDB } from "../../server-app";
+import serverless from 'serverless-http';
+import { app, connectDB } from '../../server-app.ts';
 
 const serverlessHandler = serverless(app);
 
@@ -11,7 +11,7 @@ export const handler = async (event: any, context: any) => {
   try {
     await connectDB();
   } catch (err: any) {
-    console.error("[Netlify Function] Database connection error:", err.message);
+    console.error('[Netlify Function] Database connection error:', err.message);
   }
 
   return serverlessHandler(event, context);

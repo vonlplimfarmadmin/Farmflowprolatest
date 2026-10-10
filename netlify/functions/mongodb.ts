@@ -1,4 +1,4 @@
-import { handler } from './api';
+import { handler } from './api.ts';
 
 export { handler };
 export default handler;

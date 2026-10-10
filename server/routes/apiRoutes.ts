@@ -1,1 +1,1 @@
-export { apiRouter } from '../../server-app';
+export { apiRouter } from '../../server-app.ts';
